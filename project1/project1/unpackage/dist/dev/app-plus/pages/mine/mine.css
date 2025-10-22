@@ -1,0 +1,143 @@
+
+.container[data-v-7c2ebfa5] {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding-bottom: 1.25rem;
+}
+
+/* 用户信息卡片 */
+.user-card[data-v-7c2ebfa5] {
+  background: linear-gradient(135deg, #A8D8EA, #B3E5F0);
+  padding: 1.5625rem 0.9375rem;
+  display: flex;
+  align-items: center;
+}
+.user-avatar[data-v-7c2ebfa5] {
+  width: 3.75rem;
+  height: 3.75rem;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.75rem;
+}
+.avatar-text[data-v-7c2ebfa5] {
+  font-size: 1.875rem;
+}
+.user-info[data-v-7c2ebfa5] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.user-name[data-v-7c2ebfa5] {
+  font-size: 1.125rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+.user-phone[data-v-7c2ebfa5] {
+  font-size: 0.8125rem;
+  color: #666;
+}
+.edit-btn[data-v-7c2ebfa5] {
+  padding: 0.375rem 0.9375rem;
+  background: white;
+  border-radius: 1.25rem;
+}
+.edit-text[data-v-7c2ebfa5] {
+  font-size: 0.8125rem;
+  color: #4a90e2;
+}
+
+/* 数据统计 */
+.stats-card[data-v-7c2ebfa5] {
+  background: white;
+  margin: 0.625rem;
+  border-radius: 0.5rem;
+  padding: 1.25rem 0;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.08);
+}
+.stat-item[data-v-7c2ebfa5] {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stat-value[data-v-7c2ebfa5] {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 0.25rem;
+}
+.stat-label[data-v-7c2ebfa5] {
+  font-size: 0.75rem;
+  color: #999;
+}
+.stat-divider[data-v-7c2ebfa5] {
+  width: 0.03125rem;
+  height: 1.875rem;
+  background: #e5e5e5;
+}
+
+/* 功能菜单 */
+.menu-section[data-v-7c2ebfa5] {
+  background: white;
+  margin: 0.625rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.08);
+}
+.section-title[data-v-7c2ebfa5] {
+  padding: 0.9375rem 0.9375rem 0.3125rem;
+}
+.title-text[data-v-7c2ebfa5] {
+  font-size: 0.875rem;
+  font-weight: bold;
+  color: #333;
+}
+.menu-item[data-v-7c2ebfa5] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9375rem;
+  border-bottom: 0.03125rem solid #f5f5f5;
+}
+.menu-item[data-v-7c2ebfa5]:last-child {
+  border-bottom: none;
+}
+.menu-left[data-v-7c2ebfa5] {
+  display: flex;
+  align-items: center;
+}
+.menu-icon[data-v-7c2ebfa5] {
+  font-size: 1.25rem;
+  margin-right: 0.625rem;
+}
+.menu-name[data-v-7c2ebfa5] {
+  font-size: 0.9375rem;
+  color: #333;
+}
+.menu-arrow[data-v-7c2ebfa5] {
+  font-size: 1.5625rem;
+  color: #ccc;
+  font-weight: 300;
+}
+
+/* 退出登录按钮 */
+.logout-btn[data-v-7c2ebfa5] {
+  margin: 0.625rem;
+  background: white;
+  border-radius: 0.5rem;
+  padding: 0.9375rem;
+  text-align: center;
+  box-shadow: 0 0.0625rem 0.25rem rgba(0, 0, 0, 0.08);
+}
+.logout-text[data-v-7c2ebfa5] {
+  font-size: 1rem;
+  color: #ff4d4f;
+  font-weight: bold;
+}
