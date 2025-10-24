@@ -207,6 +207,11 @@ export default {
         uni.navigateTo({
           url: '/pages/reviews/reviews'
         });
+      } else if (path === '/pages/activities/activities') {
+        // 跳转到活动管理页面
+        uni.navigateTo({
+          url: '/pages/activities/activities'
+        });
       } else {
         uni.showToast({
           title: '功能开发中',
