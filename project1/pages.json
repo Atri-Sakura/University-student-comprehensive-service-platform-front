@@ -66,6 +66,24 @@
 	  "style": {
 	    "navigationBarTitleText": "创建活动"
 	  }
+	},
+	{  
+	  "path": "pages/finance/finance",
+	  "style": {
+	    "navigationBarTitleText": "财务管理"
+	  }
+	},
+	{
+	  "path": "pages/finance/order-detail",
+	  "style": {
+	    "navigationBarTitleText": "交易详情"
+	  }
+	},
+	{
+	  "path": "pages/finance/withdraw",
+	  "style": {
+	    "navigationBarTitleText": "申请提现"
+	  }
 	}
   ],
   "globalStyle": {
