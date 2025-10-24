@@ -47,6 +47,18 @@
 	  "style": {
 	    "navigationBarTitleText": "评价管理"
 	  }
+	},
+	{
+	  "path": "pages/activities/activities",
+	  "style": {
+	    "navigationBarTitleText": "活动管理"
+	  }
+	},
+	{
+	  "path": "pages/activities/activity-edit",
+	  "style": {
+	    "navigationBarTitleText": "创建活动"
+	  }
 	}
   ],
   "globalStyle": {
