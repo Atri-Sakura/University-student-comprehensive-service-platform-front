@@ -1,49 +1,78 @@
 <template>
   <view class="page-container">
-    <view class="header">
-      <text class="title">消息中心</text>
+    <!-- 标签分类 -->
+    <view class="tabs-container">
+      <view 
+        class="tab-item" 
+        v-for="(tab, index) in tabs" 
+        :key="index"
+        :class="{ active: currentTab === index }"
+        @click="switchCategory(index)"
+      >
+        <text class="tab-text">{{ tab.name }}</text>
+        <view v-if="currentTab === index" class="tab-underline"></view>
+      </view>
     </view>
     
-    <view class="content">
-      <view class="message-item" v-for="(item, index) in messages" :key="index" @click="viewMessage(item)">
-        <view class="message-icon" :style="{ backgroundColor: item.iconColor }">
-          <text class="icon-text">{{ item.icon }}</text>
+    <!-- 聊天列表 -->
+    <scroll-view class="chat-list" scroll-y>
+      <view 
+        class="chat-item" 
+        v-for="(item, index) in filteredMessages" 
+        :key="index"
+        @click="openChat(item)"
+      >
+        <!-- 头像 -->
+        <view class="avatar" :style="{ background: item.avatarBg }">
+          <text class="avatar-text">{{ item.avatarIcon }}</text>
         </view>
-        <view class="message-info">
-          <view class="message-header">
-            <text class="message-title">{{ item.title }}</text>
-            <text class="message-time">{{ item.time }}</text>
+        
+        <!-- 消息内容 -->
+        <view class="chat-info">
+          <view class="chat-header">
+            <view class="name-row">
+              <text class="chat-name">{{ item.name }}</text>
+              <view class="user-tag" :class="item.type">
+                <text class="tag-text">{{ item.type === 'group' ? '群聊' : '系统' }}</text>
+              </view>
+            </view>
+            <text class="chat-time">{{ item.time }}</text>
           </view>
-          <text class="message-content">{{ item.content }}</text>
+          <view class="message-preview">
+            <text class="preview-text">{{ item.lastMessage }}</text>
+            <text v-if="item.emoji" class="message-emoji">{{ item.emoji }}</text>
+          </view>
         </view>
+        
+        <!-- 未读标记 -->
         <view v-if="item.unread > 0" class="unread-badge">
-          <text class="badge-text">{{ item.unread }}</text>
+          <text class="unread-count">{{ item.unread > 99 ? '99+' : item.unread }}</text>
         </view>
       </view>
       
-      <view v-if="messages.length === 0" class="empty">
-        <text class="empty-icon">📭</text>
+      <view v-if="filteredMessages.length === 0" class="empty">
+        <text class="empty-icon">💬</text>
         <text class="empty-text">暂无消息</text>
       </view>
-    </view>
+    </scroll-view>
     
     <!-- 自定义底部导航栏 -->
     <view class="custom-tab-bar">
-      <view class="tab-item" @click="switchTab('index')">
-        <view class="tab-icon">🏠</view>
-        <view class="tab-text">首页</view>
+      <view class="tab-bar-item" @click="switchTab('index')">
+        <text class="tab-icon">🏠</text>
+        <text class="tab-label">首页</text>
       </view>
-      <view class="tab-item" @click="switchTab('list')">
-        <view class="tab-icon">📋</view>
-        <view class="tab-text">订单</view>
+      <view class="tab-bar-item" @click="switchTab('list')">
+        <text class="tab-icon">📋</text>
+        <text class="tab-label">订单</text>
       </view>
-      <view class="tab-item active">
-        <view class="tab-icon">💬</view>
-        <view class="tab-text">消息</view>
+      <view class="tab-bar-item active">
+        <text class="tab-icon active-icon">💬</text>
+        <text class="tab-label active-text">消息</text>
       </view>
-      <view class="tab-item" @click="switchTab('mine')">
-        <view class="tab-icon">👤</view>
-        <view class="tab-text">我的</view>
+      <view class="tab-bar-item" @click="switchTab('mine')">
+        <text class="tab-icon">👤</text>
+        <text class="tab-label">我的</text>
       </view>
     </view>
   </view>
@@ -54,49 +83,187 @@ export default {
   name: 'MessagePage',
   data() {
     return {
+      currentTab: 0,
+      tabs: [
+        { name: '全部消息' },
+        { name: '群聊' },
+        { name: '系统通知' }
+      ],
       messages: [
         {
-          icon: '📋',
-          iconColor: '#FFE5B4',
-          title: '订单通知',
-          content: '您有3个新订单待处理',
+          id: 1,
+          name: '订单#20231115089',
+          type: 'group',
+          avatarIcon: '👥',
+          avatarBg: 'linear-gradient(135deg, #64B5F6, #42A5F5)',
+          lastMessage: '张先生：骑手还有多久到？',
           time: '10:30',
-          unread: 3
+          unread: 2,
+          emoji: '',
+          orderInfo: '张先生 & 骑手李明'
         },
         {
-          icon: '💬',
-          iconColor: '#B3E5FC',
-          title: '系统消息',
-          content: '您的店铺认证已通过',
+          id: 2,
+          name: '系统消息',
+          type: 'system',
+          avatarIcon: '🔔',
+          avatarBg: 'linear-gradient(135deg, #FFB300, #FFA000)',
+          lastMessage: '您有3个新订单待接单，请及时处理',
+          time: '10:25',
+          unread: 3,
+          emoji: ''
+        },
+        {
+          id: 3,
+          name: '订单#20231115078',
+          type: 'group',
+          avatarIcon: '👥',
+          avatarBg: 'linear-gradient(135deg, #EF5350, #E53935)',
+          lastMessage: '骑手王伟：已取餐，正在路上',
+          time: '10:15',
+          unread: 0,
+          emoji: '',
+          orderInfo: '李女士 & 骑手王伟'
+        },
+        {
+          id: 4,
+          name: '订单通知',
+          type: 'system',
+          avatarIcon: '📦',
+          avatarBg: 'linear-gradient(135deg, #66BB6A, #4CAF50)',
+          lastMessage: '订单 #20231115089 已完成配送',
+          time: '09:45',
+          unread: 0,
+          emoji: ''
+        },
+        {
+          id: 5,
+          name: '订单#20231115056',
+          type: 'group',
+          avatarIcon: '👥',
+          avatarBg: 'linear-gradient(135deg, #AB47BC, #9C27B0)',
+          lastMessage: '王女士：能帮忙带双筷子吗？',
+          time: '09:30',
+          unread: 0,
+          emoji: '🙏',
+          orderInfo: '王女士 & 骑手刘强'
+        },
+        {
+          id: 6,
+          name: '评价提醒',
+          type: 'system',
+          avatarIcon: '⭐',
+          avatarBg: 'linear-gradient(135deg, #E53935, #D32F2F)',
+          lastMessage: '您收到一条新的5星好评',
           time: '昨天',
-          unread: 1
+          unread: 1,
+          emoji: ''
         },
         {
-          icon: '🎉',
-          iconColor: '#F8BBD0',
-          title: '活动通知',
-          content: '新客立减活动即将开始',
-          time: '2天前',
-          unread: 0
+          id: 7,
+          name: '订单#20231114123',
+          type: 'group',
+          avatarIcon: '👥',
+          avatarBg: 'linear-gradient(135deg, #5C6BC0, #3F51B5)',
+          lastMessage: '骑手陈浩：已到楼下，请下来取餐',
+          time: '昨天',
+          unread: 0,
+          emoji: '',
+          orderInfo: '赵先生 & 骑手陈浩'
         },
         {
-          icon: '💰',
-          iconColor: '#C8E6C9',
-          title: '财务通知',
-          content: '您有一笔提现到账',
-          time: '3天前',
-          unread: 0
+          id: 8,
+          name: '财务通知',
+          type: 'system',
+          avatarIcon: '💰',
+          avatarBg: 'linear-gradient(135deg, #00ACC1, #00838F)',
+          lastMessage: '本周收入已结算，共计 ¥2,580.00',
+          time: '周一',
+          unread: 0,
+          emoji: ''
+        },
+        {
+          id: 9,
+          name: '订单#20231113098',
+          type: 'group',
+          avatarIcon: '👥',
+          avatarBg: 'linear-gradient(135deg, #8E24AA, #6A1B9A)',
+          lastMessage: '孙女士：餐品收到了，谢谢！',
+          time: '周一',
+          unread: 0,
+          emoji: '😊',
+          orderInfo: '孙女士 & 骑手张勇'
+        },
+        {
+          id: 10,
+          name: '活动通知',
+          type: 'system',
+          avatarIcon: '🎉',
+          avatarBg: 'linear-gradient(135deg, #F57C00, #EF6C00)',
+          lastMessage: '本周冲单活动：完成50单奖励200元',
+          time: '周二',
+          unread: 0,
+          emoji: ''
+        },
+        {
+          id: 11,
+          name: '订单#20231112067',
+          type: 'group',
+          avatarIcon: '👥',
+          avatarBg: 'linear-gradient(135deg, #43A047, #388E3C)',
+          lastMessage: '周先生：配送很快，服务态度好',
+          time: '周二',
+          unread: 0,
+          emoji: '👍',
+          orderInfo: '周先生 & 骑手杨磊'
+        },
+        {
+          id: 12,
+          name: '系统更新',
+          type: 'system',
+          avatarIcon: '🔧',
+          avatarBg: 'linear-gradient(135deg, #1E88E5, #1565C0)',
+          lastMessage: 'APP将于今晚23:00进行系统维护',
+          time: '周三',
+          unread: 0,
+          emoji: ''
         }
       ]
     }
   },
+  computed: {
+    filteredMessages() {
+      if (this.currentTab === 0) {
+        // 全部消息
+        return this.messages;
+      } else if (this.currentTab === 1) {
+        // 群聊消息
+        return this.messages.filter(msg => msg.type === 'group');
+      } else if (this.currentTab === 2) {
+        // 系统通知
+        return this.messages.filter(msg => msg.type === 'system');
+      }
+      return this.messages;
+    }
+  },
   methods: {
-    viewMessage(item) {
-      uni.showToast({
-        title: '查看消息详情',
-        icon: 'none'
+    // 切换分类标签
+    switchCategory(index) {
+      this.currentTab = index;
+    },
+    
+    // 打开聊天界面
+    openChat(item) {
+      // 清除未读标记
+      item.unread = 0;
+      
+      // 跳转到聊天界面
+      uni.navigateTo({
+        url: `/pages/message/chat?title=${encodeURIComponent(item.name)}&icon=${encodeURIComponent(item.avatarIcon)}&iconColor=${encodeURIComponent(item.avatarBg)}`
       });
     },
+    
+    // 切换底部导航
     switchTab(tab) {
       const urlMap = {
         index: '/pages/index/index',
@@ -117,107 +284,186 @@ export default {
 <style scoped>
 .page-container {
   width: 100%;
-  min-height: 100vh;
-  background-color: #f5f5f5;
-  padding-bottom: 100rpx;
+  height: 100vh;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
 }
 
-.header {
-  background: linear-gradient(135deg, #4a90e2, #357abd);
-  padding: 40rpx 30rpx;
-  color: white;
+/* 标签分类 */
+.tabs-container {
+  background: #ffffff;
+  display: flex;
+  justify-content: space-around;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
 }
 
-.title {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: white;
+.tab-item {
+  position: relative;
+  padding: 10rpx 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.content {
-  padding: 20rpx;
+.tab-text {
+  font-size: 28rpx;
+  color: #666;
+  font-weight: 400;
 }
 
-.message-item {
-  background: white;
-  border-radius: 12rpx;
-  padding: 30rpx;
-  margin-bottom: 20rpx;
+.tab-item.active .tab-text {
+  color: #007AFF;
+  font-weight: 600;
+}
+
+.tab-underline {
+  position: absolute;
+  bottom: -20rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 4rpx;
+  background: #007AFF;
+  border-radius: 2rpx;
+}
+
+/* 聊天列表 */
+.chat-list {
+  flex: 1;
+  background: #ffffff;
+  padding-bottom: 120rpx;
+}
+
+.chat-item {
   display: flex;
   align-items: center;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+  padding: 24rpx 30rpx;
   position: relative;
+  border-bottom: 1rpx solid #f0f0f0;
+  transition: background 0.2s;
 }
 
-.message-icon {
-  width: 80rpx;
-  height: 80rpx;
+.chat-item:active {
+  background: #f5f5f5;
+}
+
+/* 头像 */
+.avatar {
+  width: 100rpx;
+  height: 100rpx;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 20rpx;
   flex-shrink: 0;
+  margin-right: 20rpx;
 }
 
-.icon-text {
-  font-size: 40rpx;
+.avatar-text {
+  font-size: 44rpx;
+  color: white;
 }
 
-.message-info {
+/* 聊天信息 */
+.chat-info {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
 }
 
-.message-header {
+.chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8rpx;
 }
 
-.message-title {
-  font-size: 30rpx;
-  font-weight: bold;
-  color: #333;
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
 }
 
-.message-time {
+.chat-name {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #000;
+}
+
+.user-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+  font-size: 20rpx;
+}
+
+.user-tag.group {
+  background: #E8F5E9;
+  color: #43A047;
+}
+
+.user-tag.system {
+  background: #FFF3E0;
+  color: #F57C00;
+}
+
+.tag-text {
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+.chat-time {
   font-size: 24rpx;
   color: #999;
-  margin-left: 10rpx;
+  flex-shrink: 0;
 }
 
-.message-content {
+.message-preview {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.preview-text {
   font-size: 26rpx;
   color: #666;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
 }
 
+.message-emoji {
+  font-size: 28rpx;
+  flex-shrink: 0;
+}
+
+/* 未读标记 */
 .unread-badge {
   position: absolute;
-  top: 20rpx;
-  right: 20rpx;
-  background: #ff4d4f;
-  color: white;
-  border-radius: 20rpx;
-  min-width: 32rpx;
-  height: 32rpx;
+  top: 24rpx;
+  right: 30rpx;
+  background: #FF3B30;
+  min-width: 36rpx;
+  height: 36rpx;
+  border-radius: 18rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 8rpx;
 }
 
-.badge-text {
+.unread-count {
   font-size: 20rpx;
-  color: white;
+  color: #fff;
+  font-weight: 600;
 }
 
+/* 空状态 */
 .empty {
-  padding: 150rpx 0;
+  padding: 200rpx 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -226,6 +472,7 @@ export default {
 .empty-icon {
   font-size: 120rpx;
   margin-bottom: 20rpx;
+  opacity: 0.3;
 }
 
 .empty-text {
@@ -241,33 +488,40 @@ export default {
   right: 0;
   background: #ffffff;
   display: flex;
-  padding: 10rpx 0;
-  box-shadow: 0 -2rpx 8rpx rgba(0, 0, 0, 0.06);
+  padding: 12rpx 0 20rpx;
+  box-shadow: 0 -2rpx 12rpx rgba(0, 0, 0, 0.08);
   z-index: 999;
-  border-top: 1rpx solid #e0e0e0;
+  border-top: 1rpx solid #e5e5e5;
 }
 
-.tab-item {
+.tab-bar-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10rpx 0;
-  color: #999999;
-}
-
-.tab-item.active {
-  color: #4A90E2;
+  gap: 4rpx;
 }
 
 .tab-icon {
-  font-size: 44rpx;
-  margin-bottom: 4rpx;
+  font-size: 48rpx;
 }
 
-.tab-text {
+.tab-label {
   font-size: 20rpx;
+  color: #8e8e93;
+}
+
+.tab-bar-item.active .tab-label {
+  color: #007AFF;
+}
+
+.active-icon {
+  color: #007AFF;
+}
+
+.active-text {
+  color: #007AFF;
 }
 </style>
 
