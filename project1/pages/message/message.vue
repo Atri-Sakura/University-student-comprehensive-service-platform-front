@@ -91,6 +91,17 @@ export default {
       ],
       messages: [
         {
+          id: 0,
+          name: '在线客服',
+          type: 'system',
+          avatarIcon: '🎧',
+          avatarBg: 'linear-gradient(135deg, #FFB300, #FFA000)',
+          lastMessage: '您好，有什么可以帮您的吗？',
+          time: '11:00',
+          unread: 0,
+          emoji: ''
+        },
+        {
           id: 1,
           name: '订单#20231115089',
           type: 'group',

@@ -134,17 +134,20 @@ export default {
       });
     },
     openOnlineService() {
+      // 显示连接提示
       uni.showToast({
         title: '正在连接客服...',
         icon: 'loading',
-        duration: 1500
+        duration: 800
       });
+      
+      // 延迟跳转，让用户看到提示
       setTimeout(() => {
-        uni.showToast({
-          title: '客服系统开发中',
-          icon: 'none'
+        // 跳转到消息页面的聊天界面，并打开客服聊天
+        uni.navigateTo({
+          url: '/pages/message/chat?title=' + encodeURIComponent('在线客服') + '&icon=' + encodeURIComponent('🎧') + '&iconColor=' + encodeURIComponent('linear-gradient(135deg, #FFB300, #FFA000)')
         });
-      }, 1500);
+      }, 800);
     },
     viewFaq(item) {
       uni.showModal({
