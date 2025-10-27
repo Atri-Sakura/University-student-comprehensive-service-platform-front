@@ -123,112 +123,24 @@
 </template>
 
 <script>
+import { merchantOrderAPI, request } from '../../utils/api.js'
+
 export default {
   name: 'OrderPage',
   data() {
     return {
       currentTab: 0,
       tabs: [
-        { name: '待处理', count: 3 },
-        { name: '配送中', count: 2 },
-        { name: '已完成', count: 1 }
+        { name: '待处理', count: 0 },
+        { name: '配送中', count: 0 },
+        { name: '已完成', count: 0 }
       ],
-      allOrders: [
-        {
-          id: '1',
-          orderNo: '20241022001',
-          customerName: '张先生',
-          phone: '13800138001',
-          status: '待接单',
-          orderTime: '2024-10-22 10:30',
-          amount: '128.00',
-          items: [
-            { name: '麻辣香锅', price: '48.00', quantity: 1, options: '微辣' },
-            { name: '米饭', price: '3.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '2',
-          orderNo: '20241022002',
-          customerName: '李女士',
-          phone: '13900139002',
-          status: '待出品',
-          orderTime: '2024-10-22 10:45',
-          amount: '85.50',
-          items: [
-            { name: '宫保鸡丁', price: '32.50', quantity: 1 },
-            { name: '糖醋排骨', price: '45.00', quantity: 1 },
-            { name: '米饭', price: '3.00', quantity: 2 }
-          ]
-        },
-        {
-          id: '3',
-          orderNo: '20241022003',
-          customerName: '王先生',
-          phone: '13700137003',
-          status: '待配送',
-          orderTime: '2024-10-22 11:00',
-          amount: '68.00',
-          items: [
-            { name: '牛肉面', price: '28.00', quantity: 2 },
-            { name: '小菜', price: '6.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '4',
-          orderNo: '20241022004',
-          customerName: '赵女士',
-          phone: '13600136004',
-          status: '配送中',
-          orderTime: '2024-10-22 11:15',
-          amount: '98.00',
-          riderName: '李骑手',
-          riderPhone: '13800138000',
-          riderAcceptTime: '2024-10-22 11:30',
-          items: [
-            { name: '烤鱼套餐', price: '88.00', quantity: 1 },
-            { name: '米饭', price: '3.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '5',
-          orderNo: '20241022005',
-          customerName: '钱先生',
-          phone: '13500135005',
-          status: '配送中',
-          orderTime: '2024-10-22 11:20',
-          amount: '45.00',
-          riderName: '王骑手',
-          riderPhone: '13900139000',
-          riderAcceptTime: '2024-10-22 11:35',
-          items: [
-            { name: '汉堡套餐', price: '45.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '6',
-          orderNo: '20241022006',
-          customerName: '陈女士',
-          phone: '13400134006',
-          status: '已完成',
-          orderTime: '2024-10-22 08:30',
-          completeTime: '2024-10-22 09:20',
-          amount: '89.00',
-          review: {
-            rating: 5,
-            content: '味道很好，配送很快！'
-          },
-          items: [
-            { name: '早餐套餐', price: '25.00', quantity: 2 },
-            { name: '豆浆', price: '8.00', quantity: 1 },
-            { name: '油条', price: '6.00', quantity: 2 }
-          ]
-        }
-      ]
+      allOrders: []
     }
+  },
+  created() {
+    // 页面加载时获取订单列表
+    this.getOrderList()
   },
   computed: {
     pendingOrders() {
@@ -259,6 +171,34 @@ export default {
       this.currentTab = index
     },
     
+    // 获取订单列表
+    async getOrderList() {
+      try {
+        const res = await request(merchantOrderAPI.list, {
+          method: 'GET'
+        })
+        
+        if (res.statusCode === 200 && res.data.code === 200) {
+          // 假设后端返回的数据格式为 { rows: [], total: 0 }
+          this.allOrders = res.data.rows || []
+          this.updateOrderCount()
+        } else {
+          uni.showToast({
+            title: res.data.msg || '获取订单失败',
+            icon: 'none'
+          })
+        }
+      } catch (error) {
+        console.error('获取订单列表失败:', error)
+        uni.showToast({
+          title: '网络错误，请重试',
+          icon: 'none'
+        })
+      }
+    },
+    
+
+    
     getStatusColor(status) {
       const colors = {
         '待接单': '#ff9800',
@@ -275,15 +215,35 @@ export default {
       uni.showModal({
         title: '接单确认',
         content: '确定要接受该订单吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            // 更新订单状态为待出品
-            item.status = '待出品'
-            this.updateOrderCount()
-            uni.showToast({
-              title: '接单成功',
-              icon: 'success'
-            })
+            try {
+              // 调用后端接单接口
+              const response = await request(merchantOrderAPI.accept(item.id), {
+                method: 'PUT'
+              })
+              
+              if (response.statusCode === 200 && response.data.code === 200) {
+                // 更新前端订单状态
+                item.status = '待出品'
+                this.updateOrderCount()
+                uni.showToast({
+                  title: '接单成功',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: response.data.msg || '接单失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('接单失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
@@ -294,15 +254,35 @@ export default {
       uni.showModal({
         title: '出品完成确认',
         content: '确定该订单已出品完成吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            // 更新订单状态为待配送
-            item.status = '待配送'
-            this.updateOrderCount()
-            uni.showToast({
-              title: '出品完成',
-              icon: 'success'
-            })
+            try {
+              // 调用后端出品完成接口
+              const response = await request(merchantOrderAPI.produceComplete(item.id), {
+                method: 'PUT'
+              })
+              
+              if (response.statusCode === 200 && response.data.code === 200) {
+                // 更新前端订单状态
+                item.status = '待配送'
+                this.updateOrderCount()
+                uni.showToast({
+                  title: '出品完成',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: response.data.msg || '操作失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('出品完成失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
@@ -313,26 +293,44 @@ export default {
       uni.showModal({
         title: '通知骑手',
         content: '确定要通知骑手取餐吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            // 模拟骑手接单
-            setTimeout(() => {
-              item.status = '配送中'
-              item.riderAcceptTime = new Date().toLocaleString('zh-CN')
-              item.riderName = '李骑手'
-              item.riderPhone = '13800138000'
-              this.updateOrderCount()
-              uni.showToast({
-                title: '骑手已接单',
-                icon: 'success'
+            try {
+              // 调用后端通知骑手接口
+              const response = await request(merchantOrderAPI.notifyRider(item.id), {
+                method: 'PUT'
               })
-            }, 1000)
+              
+              if (response.statusCode === 200 && response.data.code === 200) {
+                // 更新订单状态
+                item.status = '配送中'
+                item.riderAcceptTime = response.data.data.riderAcceptTime || new Date().toLocaleString('zh-CN')
+                item.riderName = response.data.data.riderName || '骑手'
+                item.riderPhone = response.data.data.riderPhone
+                this.updateOrderCount()
+                uni.showToast({
+                  title: '骑手已接单',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: response.data.msg || '通知骑手失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('通知骑手失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
     },
     
-    // 更新标签计数
+    // 更新订单数量统计
     updateOrderCount() {
       this.tabs[0].count = this.pendingOrders.length
       this.tabs[1].count = this.deliveringOrders.length
@@ -416,15 +414,35 @@ export default {
       uni.showModal({
         title: '拒单确认',
         content: '确定要拒绝该订单吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            // 从订单列表中移除
-            this.allOrders = this.allOrders.filter(order => order.id !== item.id)
-            this.updateOrderCount()
-            uni.showToast({
-              title: '拒单成功',
-              icon: 'success'
-            })
+            try {
+              // 调用后端拒单接口
+              const response = await request(merchantOrderAPI.reject(item.id), {
+                method: 'PUT'
+              })
+              
+              if (response.statusCode === 200 && response.data.code === 200) {
+                // 从订单列表中移除
+                this.allOrders = this.allOrders.filter(order => order.id !== item.id)
+                this.updateOrderCount()
+                uni.showToast({
+                  title: '拒单成功',
+                  icon: 'success'
+                })
+              } else {
+                uni.showToast({
+                  title: response.data.msg || '拒单失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('拒单失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
