@@ -1,212 +1,122 @@
 <template>
-  <view class="container">
+  <view class="page-container">
+    <!-- 顶部导航栏 -->
     <view class="header">
       <text class="title">订单管理</text>
     </view>
     
-    <!-- 订单状态筛选 -->
+    <!-- 标签切换 -->
     <view class="tabs">
       <view 
-        class="tab-item" 
-        :class="{ active: currentTab === index }" 
         v-for="(tab, index) in tabs" 
         :key="index"
-        @click="switchTab(index)"
+        class="tab"
+        :class="{ active: currentTab === index }"
+        @click="switchTabIndex(index)"
       >
-        <text class="tab-text">{{ tab.name }}</text>
-        <view v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</view>
+        <text>{{ tab.name }}</text>
+        <text v-if="tab.count > 0" class="tab-badge">{{ tab.count }}</text>
       </view>
     </view>
     
-    <view class="content">
-      <!-- 待处理订单 -->
-      <view v-if="currentTab === 0">
-        <view class="order-item" v-for="(item, index) in pendingOrders" :key="index">
-          <view class="order-header">
-            <text class="order-no">订单号：{{ item.orderNo }}</text>
-            <text class="order-status" :style="{ color: getStatusColor(item.status) }">
-              {{ item.status }}
-            </text>
+    <!-- 订单列表 -->
+    <view class="order-list">
+      <view v-for="item in currentOrders" :key="item.id" class="order-card">
+        <view class="order-header">
+          <text class="order-no">订单号：{{ item.orderNo }}</text>
+          <text :style="{ color: getStatusColor(item.status) }" class="order-status">{{ item.status }}</text>
+        </view>
+        
+        <view class="order-info">
+          <view class="customer-info">
+            <text class="customer-name">👤 {{ item.customerName }}</text>
+            <text class="customer-phone">{{ item.phone }}</text>
           </view>
-          
-          <view class="order-content">
-            <view class="order-info">
-              <text class="customer-name">👤 {{ item.customerName }} · {{ item.phone }}</text>
-              <text class="order-time">下单时间：{{ item.orderTime }}</text>
-              
-              <!-- 商品列表 -->
-              <view class="order-items">
-                <view class="item-row" v-for="(product, idx) in item.items" :key="idx">
-                  <text class="item-name">{{ product.name }}</text>
-                  <text class="item-details">
-                    {{ product.options ? product.options + ' · ' : '' }}
-                    {{ product.quantity }}份
-                  </text>
-                  <text class="item-price">¥{{ product.price }}</text>
-                </view>
-              </view>
-            </view>
-          </view>
-          
-          <view class="order-footer">
-            <text class="order-amount">¥{{ item.amount }}</text>
-            <view class="order-actions">
-              <!-- 待接单状态 -->
-              <template v-if="item.status === '待接单'">
-                <view class="action-btn contact" @click.stop="contactCustomer(item)">
-                  <text class="btn-text">联系客户</text>
-                </view>
-                <view class="action-btn reject" @click.stop="rejectOrder(item)">
-                  <text class="btn-text">拒单</text>
-                </view>
-                <view class="action-btn accept" @click.stop="acceptOrder(item)">
-                  <text class="btn-text">接单</text>
-                </view>
-              </template>
-              
-              <!-- 待出品状态 -->
-              <template v-else-if="item.status === '待出品'">
-                <view class="action-btn detail" @click.stop="viewOrderDetail(item)">
-                  <text class="btn-text">详情</text>
-                </view>
-                <view class="action-btn contact" @click.stop="contactCustomer(item)">
-                  <text class="btn-text">联系客户</text>
-                </view>
-                <view class="action-btn complete" @click.stop="markProduceComplete(item)">
-                  <text class="btn-text">出品完成</text>
-                </view>
-              </template>
-              
-              <!-- 待配送状态 -->
-              <template v-else-if="item.status === '待配送'">
-                <view class="action-btn detail" @click.stop="viewOrderDetail(item)">
-                  <text class="btn-text">详情</text>
-                </view>
-                <view class="action-btn contact" @click.stop="contactCustomer(item)">
-                  <text class="btn-text">联系客户</text>
-                </view>
-                <view class="action-btn notify" @click.stop="notifyRider(item)">
-                  <text class="btn-text">通知骑手</text>
-                </view>
-              </template>
+          <text class="order-time">下单时间：{{ item.orderTime }}</text>
+        </view>
+        
+        <view class="order-content">
+          <view v-for="(product, idx) in item.items" :key="idx" class="product-item">
+            <view class="product-name">{{ product.name }}</view>
+            <view class="product-detail">
+              <text v-if="product.options" class="product-options">{{ product.options }}</text>
+              <text class="product-quantity">· {{ product.quantity }}份</text>
+              <text class="product-price">¥{{ product.price }}</text>
             </view>
           </view>
         </view>
-      </view>
-      
-      <!-- 配送中订单 -->
-      <view v-else-if="currentTab === 1">
-        <view class="order-item" v-for="(item, index) in deliveringOrders" :key="index">
-          <view class="order-header">
-            <text class="order-no">订单号：{{ item.orderNo }}</text>
-            <text class="order-status" style="color: #2196f3;">{{ item.status }}</text>
+        
+        <view class="order-footer">
+          <view class="order-amount">
+            <text>¥{{ item.amount }}</text>
           </view>
           
-          <view class="order-content">
-            <view class="order-info">
-              <text class="customer-name">👤 {{ item.customerName }} · {{ item.phone }}</text>
-              <text class="order-time">骑手接单时间：{{ item.riderAcceptTime }}</text>
-              <text class="rider-info">骑手：{{ item.riderName }} {{ item.riderPhone }}</text>
-              
-              <view class="order-items">
-                <view class="item-row" v-for="(product, idx) in item.items" :key="idx">
-                  <text class="item-name">{{ product.name }}</text>
-                  <text class="item-details">
-                    {{ product.options ? product.options + ' · ' : '' }}
-                    {{ product.quantity }}份
-                  </text>
-                  <text class="item-price">¥{{ product.price }}</text>
-                </view>
+          <view class="order-actions">
+            <!-- 待接单状态 -->
+            <view v-if="item.status === '待接单'" class="action-group">
+              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              <button class="action-btn reject" @click="rejectOrder(item)">拒单</button>
+              <button class="action-btn accept" @click="acceptOrder(item)">接单</button>
+            </view>
+            
+            <!-- 待出品状态 -->
+            <view v-if="item.status === '待出品'" class="action-group">
+              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              <button class="action-btn complete" @click="markProduceComplete(item)">出品完成</button>
+            </view>
+            
+            <!-- 待配送状态 -->
+            <view v-if="item.status === '待配送'" class="action-group">
+              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              <button class="action-btn notify" @click="notifyRider(item)">通知骑手</button>
+            </view>
+            
+            <!-- 配送中状态 -->
+            <view v-if="item.status === '配送中'" class="action-group">
+              <button class="action-btn contact rider" @click="contactRider(item)">联系骑手</button>
+              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              <view class="rider-info" v-if="item.riderName">
+                <text>骑手：{{ item.riderName }}</text>
+                <text>{{ item.riderAcceptTime }}</text>
               </view>
             </view>
-          </view>
-          
-          <view class="order-footer">
-            <text class="order-amount">¥{{ item.amount }}</text>
-            <view class="order-actions">
-              <view class="action-btn contact" @click.stop="contactCustomer(item)">
-                <text class="btn-text">联系客户</text>
-              </view>
-              <view class="action-btn contact-rider" @click.stop="contactRider(item)">
-                <text class="btn-text">联系骑手</text>
+            
+            <!-- 已完成状态 -->
+            <view v-if="item.status === '已完成'" class="action-group">
+              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              <button v-if="item.review" class="action-btn review" @click="viewReview(item)">查看评价</button>
+              <view class="complete-info" v-if="item.completeTime">
+                <text>完成时间：{{ item.completeTime }}</text>
               </view>
             </view>
           </view>
         </view>
       </view>
       
-      <!-- 已完成订单 -->
-      <view v-else-if="currentTab === 2">
-        <view class="order-item" v-for="(item, index) in completedOrders" :key="index">
-          <view class="order-header">
-            <text class="order-no">订单号：{{ item.orderNo }}</text>
-            <text class="order-status" style="color: #52c41a;">{{ item.status }}</text>
-          </view>
-          
-          <view class="order-content">
-            <view class="order-info">
-              <text class="customer-name">👤 {{ item.customerName }} · {{ item.phone }}</text>
-              <text class="order-time">完成时间：{{ item.completeTime }}</text>
-              
-              <view class="order-items">
-                <view class="item-row" v-for="(product, idx) in item.items" :key="idx">
-                  <text class="item-name">{{ product.name }}</text>
-                  <text class="item-details">
-                    {{ product.options ? product.options + ' · ' : '' }}
-                    {{ product.quantity }}份
-                  </text>
-                  <text class="item-price">¥{{ product.price }}</text>
-                </view>
-              </view>
-              
-              <!-- 评价信息 -->
-              <view class="review-section" v-if="item.review">
-                <text class="review-title">顾客评价：</text>
-                <view class="review-content">
-                  <text class="review-rating">⭐ {{ item.review.rating }}/5</text>
-                  <text class="review-text">{{ item.review.content }}</text>
-                </view>
-              </view>
-            </view>
-          </view>
-          
-          <view class="order-footer">
-            <text class="order-amount">¥{{ item.amount }}</text>
-            <view class="order-actions">
-              <view class="action-btn detail" @click.stop="viewOrderDetail(item)">
-                <text class="btn-text">订单详情</text>
-              </view>
-              <view class="action-btn review" @click.stop="viewReview(item)">
-                <text class="btn-text">查看评价</text>
-              </view>
-            </view>
-          </view>
-        </view>
-      </view>
-      
+      <!-- 空状态 -->
       <view v-if="currentOrders.length === 0" class="empty">
-        <text class="empty-icon">📋</text>
+        <text class="empty-icon">📦</text>
         <text class="empty-text">暂无订单</text>
       </view>
     </view>
     
     <!-- 底部导航栏 -->
-    <view class="tabbar">
-      <view class="tabbar-item">
-        <text class="tabbar-icon">🏠</text>
-        <text class="tabbar-text">首页</text>
+    <view class="custom-tab-bar">
+      <view class="tab-item" @click="switchTab('index')">
+        <view class="tab-icon">🏠</view>
+        <view class="tab-text">首页</view>
       </view>
-      <view class="tabbar-item active">
-        <text class="tabbar-icon">📋</text>
-        <text class="tabbar-text">订单</text>
+      <view class="tab-item active" @click="switchTab('list')">
+        <view class="tab-icon">📋</view>
+        <view class="tab-text">订单</view>
       </view>
-      <view class="tabbar-item">
-        <text class="tabbar-icon">💬</text>
-        <text class="tabbar-text">消息</text>
+      <view class="tab-item" @click="switchTab('message')">
+        <view class="tab-icon">💬</view>
+        <view class="tab-text">消息</view>
       </view>
-      <view class="tabbar-item">
-        <text class="tabbar-icon">👤</text>
-        <text class="tabbar-text">我的</text>
+      <view class="tab-item" @click="switchTab('mine')">
+        <view class="tab-icon">👤</view>
+        <view class="tab-text">我的</view>
       </view>
     </view>
   </view>
@@ -259,45 +169,43 @@ export default {
           phone: '13700137003',
           status: '待配送',
           orderTime: '2024-10-22 11:00',
-          amount: '256.80',
+          amount: '68.00',
           items: [
-            { name: '烤鱼套餐', price: '168.00', quantity: 1, options: '香辣' },
-            { name: '羊肉串', price: '68.80', quantity: 1 },
-            { name: '啤酒', price: '12.00', quantity: 2 }
+            { name: '牛肉面', price: '28.00', quantity: 2 },
+            { name: '小菜', price: '6.00', quantity: 2 },
+            { name: '可乐', price: '8.00', quantity: 1 }
           ]
         },
         {
           id: '4',
           orderNo: '20241022004',
           customerName: '赵女士',
-          phone: '13500135004',
+          phone: '13600136004',
           status: '配送中',
-          orderTime: '2024-10-22 09:30',
-          riderAcceptTime: '2024-10-22 09:45',
-          riderName: '刘骑手',
-          riderPhone: '13600136004',
-          amount: '198.00',
+          orderTime: '2024-10-22 11:15',
+          amount: '98.00',
+          riderName: '李骑手',
+          riderPhone: '13800138000',
+          riderAcceptTime: '2024-10-22 11:30',
           items: [
-            { name: '寿司拼盘', price: '128.00', quantity: 1 },
-            { name: '味噌汤', price: '28.00', quantity: 2 },
-            { name: '沙拉', price: '42.00', quantity: 1 }
+            { name: '烤鱼套餐', price: '88.00', quantity: 1 },
+            { name: '米饭', price: '3.00', quantity: 2 },
+            { name: '可乐', price: '8.00', quantity: 1 }
           ]
         },
         {
           id: '5',
           orderNo: '20241022005',
-          customerName: '刘先生',
-          phone: '13600136005',
+          customerName: '钱先生',
+          phone: '13500135005',
           status: '配送中',
-          orderTime: '2024-10-22 09:15',
-          riderAcceptTime: '2024-10-22 09:25',
-          riderName: '张骑手',
-          riderPhone: '13700137005',
-          amount: '156.00',
+          orderTime: '2024-10-22 11:20',
+          amount: '45.00',
+          riderName: '王骑手',
+          riderPhone: '13900139000',
+          riderAcceptTime: '2024-10-22 11:35',
           items: [
-            { name: '汉堡套餐', price: '45.00', quantity: 2 },
-            { name: '薯条', price: '22.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 2 }
+            { name: '汉堡套餐', price: '45.00', quantity: 1 }
           ]
         },
         {
@@ -346,7 +254,8 @@ export default {
     }
   },
   methods: {
-    switchTab(index) {
+    // 页面内标签切换方法，避免与底部导航栏方法冲突
+    switchTabIndex(index) {
       this.currentTab = index
     },
     
@@ -519,209 +428,181 @@ export default {
           }
         }
       })
+    },
+    
+    // 底部导航栏切换
+    switchTab(tab) {
+      switch (tab) {
+        case 'index':
+          uni.switchTab({
+            url: '/pages/index/index'
+          });
+          break;
+        case 'list':
+          uni.switchTab({
+            url: '/pages/list/list'
+          });
+          break;
+        case 'message':
+          uni.switchTab({
+            url: '/pages/message/message'
+          });
+          break;
+        case 'mine':
+          uni.switchTab({
+            url: '/pages/mine/mine'
+          });
+          break;
+      }
     }
-  },
-  
-  onLoad() {
-    this.updateOrderCount()
   }
 }
 </script>
 
 <style scoped>
 .container {
-  width: 100%;
-  min-height: 100vh;
-  background-color: #f5f5f5;
   padding-bottom: 120rpx;
 }
 
 .header {
-  background: linear-gradient(135deg, #4a90e2, #357abd);
-  padding: 80rpx 30rpx 30rpx;
+  background-color: #4A90E2;
   color: white;
-}
-
-.title {
+  padding: 40rpx 0;
+  text-align: center;
   font-size: 36rpx;
   font-weight: bold;
-  color: white;
 }
 
-/* 标签页 */
 .tabs {
-  background: white;
   display: flex;
-  padding: 0 20rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  background-color: white;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
 }
 
-.tab-item {
+.tab {
   flex: 1;
-  padding: 30rpx 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
   position: relative;
+  padding: 10rpx 0;
 }
 
-.tab-item.active .tab-text {
-  color: #4a90e2;
+.tab.active {
+  color: #4A90E2;
   font-weight: bold;
 }
 
-.tab-item.active::after {
+.tab.active::after {
   content: '';
   position: absolute;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60rpx;
+  left: 30%;
+  width: 40%;
   height: 4rpx;
-  background: #4a90e2;
-  border-radius: 2rpx;
-}
-
-.tab-text {
-  font-size: 28rpx;
-  color: #666;
+  background-color: #4A90E2;
 }
 
 .tab-badge {
   position: absolute;
-  top: 20rpx;
-  right: 20rpx;
-  background: #ff4d4f;
+  top: -10rpx;
+  right: 25%;
+  background-color: #ff4d4f;
   color: white;
   font-size: 20rpx;
-  padding: 2rpx 8rpx;
-  border-radius: 20rpx;
-  min-width: 28rpx;
+  padding: 0 10rpx;
+  border-radius: 10rpx;
+  min-width: 24rpx;
+  height: 24rpx;
+  line-height: 24rpx;
   text-align: center;
 }
 
-.content {
+.order-list {
   padding: 20rpx;
+  background-color: #f5f5f5;
 }
 
-/* 订单卡片 */
-.order-item {
-  background: white;
-  border-radius: 12rpx;
+.order-card {
+  background-color: white;
+  border-radius: 16rpx;
   padding: 30rpx;
   margin-bottom: 20rpx;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
 }
 
 .order-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
   margin-bottom: 20rpx;
-  padding-bottom: 20rpx;
-  border-bottom: 1rpx solid #f0f0f0;
 }
 
 .order-no {
-  font-size: 26rpx;
-  color: #999;
+  font-size: 28rpx;
+  color: #666;
 }
 
 .order-status {
-  font-size: 28rpx;
+  font-size: 30rpx;
   font-weight: bold;
+}
+
+.order-info {
+  padding-bottom: 20rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  margin-bottom: 20rpx;
+}
+
+.customer-info {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+
+.customer-name {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.customer-phone {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.order-time {
+  font-size: 26rpx;
+  color: #999;
 }
 
 .order-content {
   margin-bottom: 20rpx;
 }
 
-.order-info {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-}
-
-.customer-name {
-  font-size: 28rpx;
-  color: #333;
-  font-weight: 500;
-}
-
-.order-time {
-  font-size: 24rpx;
-  color: #666;
-}
-
-.rider-info {
-  font-size: 24rpx;
-  color: #4a90e2;
-}
-
-/* 商品列表 */
-.order-items {
-  margin-top: 12rpx;
-  background-color: #f8f8f8;
-  border-radius: 8rpx;
-  padding: 20rpx;
-}
-
-.item-row {
+.product-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12rpx;
-  font-size: 26rpx;
+  margin-bottom: 10rpx;
 }
 
-.item-row:last-child {
-  margin-bottom: 0;
-}
-
-.item-name {
-  flex: 1;
+.product-name {
+  font-size: 28rpx;
   color: #333;
-  font-weight: 500;
+  flex: 1;
 }
 
-.item-details {
-  margin: 0 16rpx;
-  color: #666;
-  font-size: 24rpx;
-}
-
-.item-price {
-  color: #ff6b6b;
-  font-weight: 500;
-}
-
-/* 评价区域 */
-.review-section {
-  margin-top: 16rpx;
-  padding: 16rpx;
-  background-color: #f0f8ff;
-  border-radius: 8rpx;
-}
-
-.review-title {
-  font-size: 24rpx;
-  color: #666;
-  margin-bottom: 8rpx;
-}
-
-.review-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4rpx;
-}
-
-.review-rating {
-  font-size: 24rpx;
-  color: #ff9800;
-}
-
-.review-text {
+.product-detail {
+  text-align: right;
   font-size: 26rpx;
+  color: #666;
+}
+
+.product-options {
+  margin-right: 10rpx;
+}
+
+.product-quantity {
+  margin-right: 10rpx;
+}
+
+.product-price {
   color: #333;
 }
 
@@ -729,81 +610,126 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-top: 20rpx;
-  border-top: 1rpx solid #f0f0f0;
 }
 
 .order-amount {
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: bold;
-  color: #ff6b6b;
+  color: #ff4d4f;
 }
 
 .order-actions {
   display: flex;
-  gap: 16rpx;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.action-group {
+  display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 16rpx;
+  margin-bottom: 10rpx;
 }
 
-/* 按钮样式 */
 .action-btn {
-  padding: 10rpx 30rpx;
-  border-radius: 30rpx;
-  display: inline-flex;
+  font-size: 26rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 24rpx;
+  margin-left: 0;
+  line-height: 1.5;
+  min-width: 120rpx;
+  display: flex;
   align-items: center;
   justify-content: center;
-  white-space: nowrap;
-}
-
-.btn-text {
-  font-size: 24rpx;
-  color: white;
-  font-weight: 500;
-}
-
-.action-btn.detail {
-  background: linear-gradient(135deg, #d9d9d9, #bfbfbf);
-}
-
-.action-btn.contact {
-  background: linear-gradient(135deg, #4a90e2, #357abd);
-}
-
-.action-btn.reject {
-  background: linear-gradient(135deg, #ff6b6b, #ff5252);
 }
 
 .action-btn.accept {
-  background: linear-gradient(135deg, #52c41a, #389e0d);
+  background-color: #52c41a;
+  color: white;
+  border: none;
+  min-width: 120rpx;
+}
+
+.action-btn.reject {
+  background-color: #ff4d4f;
+  color: white;
+  border: none;
+  min-width: 120rpx;
 }
 
 .action-btn.complete {
-  background: linear-gradient(135deg, #52c41a, #389e0d);
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  min-width: 140rpx;
 }
 
 .action-btn.notify {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
+  background-color: #faad14;
+  color: white;
+  border: none;
+  min-width: 140rpx;
 }
 
-.action-btn.contact-rider {
-  background: linear-gradient(135deg, #9c27b0, #7b1fa2);
+.action-btn.contact {
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  min-width: 140rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 24rpx;
+}
+
+.action-btn.contact.customer {
+  background-color: #52c41a;
+}
+
+.action-btn.contact.rider {
+  background-color: #1890ff;
 }
 
 .action-btn.review {
-  background: linear-gradient(135deg, #ff9800, #f57c00);
+  background-color: #faad14;
+  color: white;
+  border: none;
+  min-width: 140rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 24rpx;
 }
 
-/* 空状态 */
+.rider-info {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 10rpx;
+  text-align: right;
+}
+
+.complete-info {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 10rpx;
+  text-align: right;
+}
+
 .empty {
-  padding: 150rpx 0;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 100rpx 0;
 }
 
 .empty-icon {
-  font-size: 120rpx;
+  font-size: 100rpx;
   margin-bottom: 20rpx;
 }
 
@@ -812,43 +738,67 @@ export default {
   color: #999;
 }
 
-/* 底部导航栏 */
-.tabbar {
+/* 自定义底部导航栏 - 优化样式确保图标正确显示 */
+.custom-tab-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: white;
+  height: 120rpx;
+  background-color: white;
   display: flex;
-  padding: 20rpx 0;
   border-top: 1rpx solid #f0f0f0;
-  box-shadow: 0 -2rpx 8rpx rgba(0, 0, 0, 0.05);
+  z-index: 999;
+  transition: all 0.3s ease;
 }
 
-.tabbar-item {
+.tab-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  position: relative;
+  color: #666;
+  transition: all 0.3s ease;
 }
 
-.tabbar-item.active .tabbar-icon {
-  color: #4a90e2;
+.tab-item.active {
+  color: #4A90E2;
 }
 
-.tabbar-item.active .tabbar-text {
-  color: #4a90e2;
-}
-
-.tabbar-icon {
-  font-size: 40rpx;
+.tab-icon {
+  font-size: 50rpx;
   margin-bottom: 8rpx;
-  color: #999;
+  display: block;
+  width: auto;
+  height: auto;
+  text-align: center;
+  line-height: 1;
 }
 
-.tabbar-text {
-  font-size: 22rpx;
-  color: #999;
+.tab-text {
+  font-size: 28rpx;
+  margin-top: 2rpx;
+  text-align: center;
+}
+
+.tab-badge {
+  position: absolute;
+  top: 10rpx;
+  right: 30%;
+  background-color: #ff4d4f;
+  color: white;
+  font-size: 20rpx;
+  padding: 0 10rpx;
+  border-radius: 10rpx;
+  min-width: 24rpx;
+  height: 24rpx;
+  line-height: 24rpx;
+  text-align: center;
+}
+
+.page-container {
+  padding-bottom: 140rpx;
 }
 </style>
