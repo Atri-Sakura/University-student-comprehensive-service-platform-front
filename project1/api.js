@@ -32,6 +32,15 @@ export const productAPI = {
   toggleProductStatus: `${baseUrl}/api/products`,      // 切换商品状态 (需要拼接id/status)
   uploadImage: `${baseUrl}/api/upload/image`           // 上传商品图片
 };
+// 商家订单相关接口
+export const merchantOrderAPI = {
+  list: `${baseUrl.replace('/auth', '')}/merchant/order/list`, // 查询商家订单列表
+  accept: (orderId) => `${baseUrl.replace('/auth', '')}/merchant/order/accept/${orderId}`, // 商家接单
+  reject: (orderId) => `${baseUrl.replace('/auth', '')}/merchant/order/reject/${orderId}`, // 商家拒单
+  produceComplete: (orderId) => `${baseUrl.replace('/auth', '')}/merchant/order/produce-complete/${orderId}`, // 出品完成
+  notifyRider: (orderId) => `${baseUrl.replace('/auth', '')}/merchant/order/notify-rider/${orderId}` // 通知骑手
+};
+
 
 // 门店设置相关接口
 export const storeAPI = {
@@ -93,5 +102,6 @@ export default {
   userAPI,
   productAPI,
   storeAPI,
+  merchantOrderAPI,
   请求
 };
