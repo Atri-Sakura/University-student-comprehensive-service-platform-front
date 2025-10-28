@@ -126,14 +126,76 @@
           <view class="section-title">经营趋势</view>
           <view class="section-actions" @click="changeTrendPeriod">近7天</view>
         </view>
-        <view class="chart-container">
+        
+        <!-- 有数据时显示趋势图 -->
+        <view class="chart-container" v-if="trendData.dates.length > 0">
+          <view class="chart-area">
+            <!-- Y轴刻度 -->
+            <view class="y-axis">
+              <view class="y-label" v-for="(label, index) in yAxisLabels" :key="index">{{ label }}</view>
+            </view>
+            
+            <!-- 图表区域 -->
+            <view class="chart-main">
+              <!-- 背景网格线 -->
+              <view class="grid-lines">
+                <view class="grid-line" v-for="n in 5" :key="n"></view>
+              </view>
+              
+              <!-- 营业额柱状图 -->
+              <view class="line-chart revenue-line">
+                <view 
+                  class="chart-bar revenue-bar" 
+                  v-for="(item, index) in trendData.revenue" 
+                  :key="'revenue-' + index"
+                  :style="{ height: item.percentage + '%' }"
+                >
+                  <view class="bar-dot revenue-dot"></view>
+                  <view 
+                    class="bar-value revenue-value" 
+                    :class="{ 'value-high': item.percentage > 60 }"
+                  >
+                    ¥{{ item.displayValue }}
+                  </view>
+                </view>
+              </view>
+              
+              <!-- 订单量柱状图 -->
+              <view class="line-chart order-line">
+                <view 
+                  class="chart-bar order-bar" 
+                  v-for="(item, index) in trendData.orders" 
+                  :key="'order-' + index"
+                  :style="{ height: item.percentage + '%' }"
+                >
+                  <view class="bar-dot order-dot"></view>
+                  <view 
+                    class="bar-value order-value" 
+                    :class="{ 'value-high': item.percentage > 60 }"
+                  >
+                    {{ item.value }}
+                  </view>
+                </view>
+              </view>
+            </view>
+          </view>
+          
+          <!-- X轴日期 -->
+          <view class="x-axis">
+            <view class="x-label" v-for="(date, index) in trendData.dates" :key="index">{{ date }}</view>
+          </view>
+        </view>
+        
+        <!-- 无数据时显示占位符 -->
+        <view class="chart-container" v-else>
           <view class="chart-placeholder">
             <svg class="chart-main-icon" viewBox="0 0 24 24" fill="currentColor">
               <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
             </svg>
-            <text>营业额与订单量趋势图</text>
+            <text>暂无趋势数据</text>
           </view>
         </view>
+        
         <view class="chart-legend">
           <view class="legend-item">
             <view class="legend-color color-1"></view>
@@ -169,6 +231,7 @@
           </view>
         </view>
         <view class="product-list">
+          <!-- 商品列表 -->
           <view class="product-item" v-for="(item, index) in productRanking" :key="index">
             <view class="product-rank" :class="index < 3 ? 'rank-' + (index+1) : ''">{{ index+1 }}</view>
             <view class="product-info">
@@ -176,6 +239,12 @@
               <view class="product-sales">销量: {{ item.sales }}份</view>
             </view>
             <view class="product-amount">¥{{ item.amount }}</view>
+          </view>
+          <!-- 空数据提示 -->
+          <view class="empty-data" v-if="productRanking.length === 0">
+            <view class="empty-icon">📦</view>
+            <view class="empty-text">暂无{{ rankingType === 'hot' ? '热销' : '滞销' }}商品数据</view>
+            <view class="empty-hint" v-if="rankingType === 'hot'">试试切换到"滞销商品"查看</view>
           </view>
         </view>
       </view>
@@ -186,32 +255,43 @@
           <view class="section-title">评价分析</view>
           <view class="section-actions">近30天</view>
         </view>
-        <view class="rating-overview">
-          <view class="rating-score">
-            <view class="score-value">{{ ratingData.overallScore }}</view>
-            <view class="score-label">综合评分</view>
-          </view>
-          <view class="rating-detail">
-            <view class="rating-bar" v-for="(item, idx) in ratingData.starDistribution" :key="idx">
-              <view class="bar-label">{{ 5-idx }}星</view>
-              <view class="bar-container">
-                <view class="bar-fill" :style="{ width: item.percentage + '%' }"></view>
+        
+        <!-- 有评价数据时显示 -->
+        <view v-if="ratingData.totalRatings > 0">
+          <view class="rating-overview">
+            <view class="rating-score">
+              <view class="score-value">{{ ratingData.overallScore }}</view>
+              <view class="score-label">综合评分</view>
+            </view>
+            <view class="rating-detail">
+              <view class="rating-bar" v-for="(item, idx) in ratingData.starDistribution" :key="idx">
+                <view class="bar-label">{{ 5-idx }}星</view>
+                <view class="bar-container">
+                  <view class="bar-fill" :style="{ width: item.percentage + '%' }"></view>
+                </view>
+                <view class="bar-count">{{ item.percentage }}%</view>
               </view>
-              <view class="bar-count">{{ item.percentage }}%</view>
+            </view>
+          </view>
+          <view class="keywords-section">
+            <view class="keywords-title">好评关键词</view>
+            <view class="keywords-list">
+              <view class="keyword-item" v-for="(keyword, index) in ratingData.positiveKeywords" :key="index">{{ keyword }}</view>
+            </view>
+          </view>
+          <view class="keywords-section">
+            <view class="keywords-title">差评关键词</view>
+            <view class="keywords-list">
+              <view class="keyword-item keyword-bad" v-for="(keyword, index) in ratingData.negativeKeywords" :key="index">{{ keyword }}</view>
             </view>
           </view>
         </view>
-        <view class="keywords-section">
-          <view class="keywords-title">好评关键词</view>
-          <view class="keywords-list">
-            <view class="keyword-item" v-for="(keyword, index) in ratingData.positiveKeywords" :key="index">{{ keyword }}</view>
-          </view>
-        </view>
-        <view class="keywords-section">
-          <view class="keywords-title">差评关键词</view>
-          <view class="keywords-list">
-            <view class="keyword-item keyword-bad" v-for="(keyword, index) in ratingData.negativeKeywords" :key="index">{{ keyword }}</view>
-          </view>
+        
+        <!-- 无评价数据时显示 -->
+        <view class="empty-data" v-else>
+          <view class="empty-icon">⭐</view>
+          <view class="empty-text">暂无评价数据</view>
+          <view class="empty-hint">期待顾客的第一条评价</view>
         </view>
       </view>
       
@@ -242,6 +322,12 @@
 </template>
 
 <script>
+import {
+  getSalesData,
+  getRatingsData,
+  getTopGoods
+} from '@/utils/merchantAnalytics.js';
+
 export default {
   name: 'DataAnalysis',
   data() {
@@ -250,7 +336,175 @@ export default {
       currentDateRange: '2023-11-15',
       rankingType: 'hot',
       currentTab: '', // 当前不在底部导航栏中，所以为空
+      isLoading: false, // 加载状态
+      
       coreData: {
+        orderCount: 0,
+        orderTrend: 0,
+        revenue: '0',
+        revenueTrend: 0,
+        actualRevenue: '0',
+        actualRevenueTrend: 0,
+        avgPrice: '0',
+        avgPriceTrend: 0
+      },
+      productRanking: [],
+      ratingData: {
+        overallScore: 0,
+        totalRatings: 0,
+        starDistribution: [
+          { star: 5, percentage: 0 },
+          { star: 4, percentage: 0 },
+          { star: 3, percentage: 0 },
+          { star: 2, percentage: 0 },
+          { star: 1, percentage: 0 }
+        ],
+        positiveKeywords: [],
+        negativeKeywords: []
+      },
+      
+      // 趋势数据
+      trendData: {
+        dates: [],
+        revenue: [],
+        orders: []
+      }
+    }
+  },
+  computed: {
+    // Y轴标签（动态计算）
+    yAxisLabels() {
+      if (this.trendData.revenue.length === 0) return ['0'];
+      
+      const maxRevenue = Math.max(...this.trendData.revenue.map(item => item.rawValue || 0));
+      const step = Math.ceil(maxRevenue / 4);
+      
+      return [
+        this.formatNumber(step * 4),
+        this.formatNumber(step * 3),
+        this.formatNumber(step * 2),
+        this.formatNumber(step),
+        '0'
+      ];
+    }
+  },
+  onLoad() {
+    // 页面加载时获取数据
+    this.loadAllData();
+  },
+  onShow() {
+    // 每次显示页面时刷新数据
+    this.updateDateRange();
+  },
+  methods: {
+    // ==================== 数据加载方法 ====================
+    
+    /**
+     * 加载所有数据（从后端）
+     */
+    async loadAllData() {
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
+      
+      try {
+        // 并行请求所有数据
+        const [salesRes, ratingsRes, topGoodsRes] = await Promise.all([
+          getSalesData().catch(() => ({ data: { code: 500, data: null } })),
+          getRatingsData().catch(() => ({ data: { code: 500, data: null } })),
+          getTopGoods(10, this.rankingType).catch(() => ({ data: { code: 500, data: null } }))
+        ]);
+        
+        // 处理销售数据
+        if (salesRes.data && salesRes.data.code === 200 && salesRes.data.data) {
+          const salesData = salesRes.data.data;
+          
+          // 使用后端实际返回的字段名
+          this.coreData.orderCount = salesData.orderCount || 0;
+          this.coreData.revenue = this.formatNumber(salesData.totalRevenue || 0);
+          this.coreData.actualRevenue = this.formatNumber(salesData.actualIncome || salesData.totalRevenue || 0);
+          this.coreData.avgPrice = this.formatNumber(salesData.avgOrderAmount || 0);
+          
+          // 趋势数据（与昨日对比，百分比）
+          this.coreData.orderTrend = salesData.orderCountChangePercent || 0;
+          this.coreData.revenueTrend = salesData.totalRevenueChangePercent || 0;
+          this.coreData.actualRevenueTrend = salesData.actualIncomeChangePercent || salesData.totalRevenueChangePercent || 0;
+          this.coreData.avgPriceTrend = salesData.avgOrderAmountChangePercent || 0;
+          
+          // 处理趋势数据
+          if (salesData.trendData || salesData.dailyData) {
+            this.processTrendData(salesData.trendData || salesData.dailyData);
+          } else {
+            this.generateMockTrendData();
+          }
+        }
+        
+        // 处理评价数据
+        if (ratingsRes.data && ratingsRes.data.code === 200 && ratingsRes.data.data) {
+          const ratingsData = ratingsRes.data.data;
+          
+          // 使用后端实际返回的字段名
+          this.ratingData.overallScore = ratingsData.avgRating || 0;
+          this.ratingData.totalRatings = ratingsData.totalReviews || 0;
+          
+          // 评分分布（使用 ratingDistributions）
+          if (ratingsData.ratingDistributions && ratingsData.ratingDistributions.length > 0) {
+            this.ratingData.starDistribution = ratingsData.ratingDistributions.map(item => ({
+              star: item.star || item.rating || 5,
+              percentage: item.percentage || item.percent || 0
+            }));
+          } else {
+            // 默认数据
+            this.ratingData.starDistribution = [
+              { star: 5, percentage: 0 },
+              { star: 4, percentage: 0 },
+              { star: 3, percentage: 0 },
+              { star: 2, percentage: 0 },
+              { star: 1, percentage: 0 }
+            ];
+          }
+          
+          // 关键词
+          this.ratingData.positiveKeywords = ratingsData.positiveKeywords || [];
+          this.ratingData.negativeKeywords = ratingsData.negativeKeywords || [];
+        }
+        
+        // 处理商品排行数据
+        if (topGoodsRes.data && topGoodsRes.data.code === 200 && topGoodsRes.data.data) {
+          const rankingData = topGoodsRes.data.data;
+          
+          // 根据类型选择热销或滞销商品
+          const topGoodsData = this.rankingType === 'hot' 
+            ? (rankingData.hotSellingProducts || [])
+            : (rankingData.slowMovingProducts || []);
+          
+          this.productRanking = topGoodsData.map(item => ({
+            name: item.productName || item.goodsName || item.name || '未知商品',
+            sales: item.salesVolume || item.salesCount || item.sales || 0,
+            amount: this.formatNumber(item.totalSales || item.salesAmount || item.amount || 0)
+          }));
+        }
+        
+      } catch (error) {
+        console.error('加载数据失败:', error);
+        
+        // 使用默认数据
+        this.loadDefaultData();
+        
+        uni.showToast({
+          title: '加载数据失败',
+          icon: 'none'
+        });
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    
+    /**
+     * 加载默认数据（兜底）
+     */
+    loadDefaultData() {
+      this.coreData = {
         orderCount: 86,
         orderTrend: 12,
         revenue: '5,268',
@@ -259,16 +513,19 @@ export default {
         actualRevenueTrend: 7,
         avgPrice: '61.3',
         avgPriceTrend: 3
-      },
-      productRanking: [
+      };
+      
+      this.productRanking = [
         { name: '招牌汉堡套餐', sales: 156, amount: '35.00' },
         { name: '经典炸鸡桶', sales: 134, amount: '68.00' },
         { name: '芝士牛肉汉堡', sales: 98, amount: '28.00' },
         { name: '薯条（大份）', sales: 87, amount: '15.00' },
         { name: '可乐（大杯）', sales: 76, amount: '8.00' }
-      ],
-      ratingData: {
+      ];
+      
+      this.ratingData = {
         overallScore: 4.8,
+        totalRatings: 2680,
         starDistribution: [
           { star: 5, percentage: 78 },
           { star: 4, percentage: 15 },
@@ -278,25 +535,83 @@ export default {
         ],
         positiveKeywords: ['味道好', '配送快', '包装精美', '服务热情', '性价比高'],
         negativeKeywords: ['等待时间长', '分量不足', '包装破损']
-      }
-    }
-  },
-  methods: {
+      };
+    },
+    
+    /**
+     * 格式化数字（添加千分位）
+     */
+    formatNumber(num) {
+      if (!num && num !== 0) return '0';
+      const number = parseFloat(num);
+      if (isNaN(number)) return '0';
+      return number.toLocaleString('zh-CN', { 
+        minimumFractionDigits: 0, 
+        maximumFractionDigits: 2 
+      });
+    },
+    
+    /**
+     * 计算百分比
+     */
+    calculatePercentage(count, total) {
+      if (!total || total === 0) return 0;
+      return Math.round((count / total) * 100);
+    },
+    
+    /**
+     * 更新日期范围显示
+     */
+    updateDateRange() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      this.currentDateRange = `${year}-${month}-${day}`;
+    },
+    
+    // ==================== 原有方法 ====================
+    
     goBack() {
       // 返回上一页
       uni.navigateBack();
     },
+    
     switchDateTab(tab) {
       this.currentDateTab = tab;
-      console.log('切换日期标签:', tab);
+      this.updateDateRange();
+      // 切换日期时重新加载数据
+      this.loadAllData();
     },
-    switchRankingType(type) {
+    
+    async switchRankingType(type) {
       this.rankingType = type;
-      console.log('切换排行类型:', type);
+      
+      // 重新加载商品排行数据
+      try {
+        const topGoodsRes = await getTopGoods(10, type);
+        
+        if (topGoodsRes.data && topGoodsRes.data.code === 200 && topGoodsRes.data.data) {
+          const rankingData = topGoodsRes.data.data;
+          
+          // 🔧 根据类型选择热销或滞销商品
+          const topGoodsData = type === 'hot' 
+            ? (rankingData.hotSellingProducts || [])
+            : (rankingData.slowMovingProducts || []);
+          
+          this.productRanking = topGoodsData.map(item => ({
+            name: item.productName || item.goodsName || item.name || '未知商品',
+            sales: item.salesVolume || item.salesCount || item.sales || 0,
+            amount: this.formatNumber(item.totalSales || item.salesAmount || item.amount || 0)
+          }));
+        }
+      } catch (error) {
+        console.error('切换排行榜失败:', error);
+      }
     },
+    
     switchTab(tab) {
       this.currentTab = tab;
-      console.log('切换底部导航:', tab);
       
       // 根据tab跳转到相应页面
       switch(tab) {
@@ -322,11 +637,113 @@ export default {
           break;
       }
     },
+    
     changeTrendPeriod() {
-      console.log('切换趋势周期');
+      // TODO: 实现趋势周期切换逻辑
+      // 暂时重新生成模拟数据
+      this.generateMockTrendData();
     },
+    
     viewAllRanking() {
-      console.log('查看全部排行');
+      // TODO: 跳转到商品排行详情页
+    },
+    
+    /**
+     * 处理趋势数据（从后端）
+     */
+    processTrendData(trendData) {
+      if (!trendData || trendData.length === 0) {
+        this.generateMockTrendData();
+        return;
+      }
+      
+      // 提取日期
+      this.trendData.dates = trendData.map(item => {
+        const date = item.date || item.day || '';
+        return date.substring(5); // '2025-10-28' -> '10-28'
+      });
+      
+      // 提取营业额数据
+      const revenueValues = trendData.map(item => item.revenue || item.totalRevenue || 0);
+      const maxRevenue = Math.max(...revenueValues, 1);
+      
+      this.trendData.revenue = revenueValues.map(value => ({
+        rawValue: value,
+        value: this.formatNumber(value),
+        displayValue: this.formatShortNumber(value), // 简化显示
+        percentage: (value / maxRevenue) * 75 // 最高75%高度，留出空间显示标签
+      }));
+      
+      // 提取订单量数据
+      const orderValues = trendData.map(item => item.orders || item.orderCount || 0);
+      const maxOrders = Math.max(...orderValues, 1);
+      
+      this.trendData.orders = orderValues.map(value => ({
+        rawValue: value,
+        value: value,
+        percentage: (value / maxOrders) * 75 // 最高75%高度，留出空间显示标签
+      }));
+    },
+    
+    /**
+     * 生成模拟趋势数据（7天）
+     */
+    generateMockTrendData() {
+      const today = new Date();
+      const dates = [];
+      const revenueValues = [];
+      const orderValues = [];
+      
+      // 生成7天的数据
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        dates.push(`${month}-${day}`);
+        
+        // 模拟营业额（20-100之间的随机数）
+        const revenue = Math.floor(Math.random() * 80) + 20;
+        revenueValues.push(revenue);
+        
+        // 模拟订单量（1-10之间的随机数）
+        const orders = Math.floor(Math.random() * 9) + 1;
+        orderValues.push(orders);
+      }
+      
+      this.trendData.dates = dates;
+      
+      const maxRevenue = Math.max(...revenueValues, 1);
+      this.trendData.revenue = revenueValues.map(value => ({
+        rawValue: value,
+        value: this.formatNumber(value),
+        displayValue: this.formatShortNumber(value),
+        percentage: (value / maxRevenue) * 75
+      }));
+      
+      const maxOrders = Math.max(...orderValues, 1);
+      this.trendData.orders = orderValues.map(value => ({
+        rawValue: value,
+        value: value,
+        percentage: (value / maxOrders) * 75
+      }));
+    },
+    
+    /**
+     * 格式化简短数字（用于图表显示）
+     */
+    formatShortNumber(num) {
+      if (!num && num !== 0) return '0';
+      const number = parseFloat(num);
+      if (isNaN(number)) return '0';
+      
+      if (number >= 10000) {
+        return (number / 10000).toFixed(1) + 'w';
+      } else if (number >= 1000) {
+        return (number / 1000).toFixed(1) + 'k';
+      } else {
+        return number.toFixed(0);
+      }
     }
   }
 }
@@ -555,9 +972,9 @@ export default {
 }
 
 .chart-container {
-  height: 300rpx;
+  height: 420rpx;
   position: relative;
-  margin: 20rpx 0;
+  margin: 24rpx 0;
 }
 
 .chart-placeholder {
@@ -574,32 +991,192 @@ export default {
   gap: 20rpx;
 }
 
+/* 趋势图具体样式 */
+.chart-area {
+  display: flex;
+  height: 380rpx;
+  margin-bottom: 24rpx;
+}
+
+.y-axis {
+  width: 90rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding-right: 20rpx;
+}
+
+.y-label {
+  font-size: 24rpx;
+  color: #999;
+  text-align: right;
+  line-height: 1.2;
+}
+
+.chart-main {
+  flex: 1;
+  position: relative;
+  border-left: 2rpx solid #e5e5e5;
+  border-bottom: 2rpx solid #e5e5e5;
+  padding: 0 12rpx;
+}
+
+.grid-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.grid-line {
+  height: 1rpx;
+  background: #f0f0f0;
+}
+
+.line-chart {
+  position: absolute;
+  bottom: 0;
+  left: 12rpx;
+  right: 12rpx;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.chart-bar {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0 5rpx;
+  transition: all 0.3s ease;
+  min-width: 20rpx;
+}
+
+.revenue-bar {
+  background: linear-gradient(to top, rgba(42, 140, 196, 0.9), rgba(42, 140, 196, 0.4));
+  border-radius: 8rpx 8rpx 0 0;
+  min-height: 20rpx;
+}
+
+.order-bar {
+  background: linear-gradient(to top, rgba(255, 159, 64, 0.9), rgba(255, 159, 64, 0.4));
+  border-radius: 8rpx 8rpx 0 0;
+  min-height: 20rpx;
+}
+
+.bar-dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: white;
+  margin-top: -7rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
+}
+
+.revenue-dot {
+  border: 3rpx solid #2a8cc4;
+}
+
+.order-dot {
+  border: 3rpx solid #ff9f40;
+}
+
+.bar-value {
+  position: absolute;
+  top: -40rpx;
+  font-size: 20rpx;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 3rpx 7rpx;
+  border-radius: 6rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.12);
+  left: 50%;
+}
+
+.revenue-value {
+  background: linear-gradient(135deg, rgba(42, 140, 196, 0.98), rgba(42, 140, 196, 0.92));
+  color: white;
+  z-index: 12;
+  transform: translateX(-100%) translateX(-8rpx);
+  border: 1rpx solid rgba(42, 140, 196, 1);
+}
+
+.order-value {
+  background: linear-gradient(135deg, rgba(255, 159, 64, 0.98), rgba(255, 159, 64, 0.92));
+  color: white;
+  z-index: 11;
+  transform: translateX(8rpx);
+  border: 1rpx solid rgba(255, 159, 64, 1);
+}
+
+/* 当柱子高度超过60%时，标签显示在柱子内部 */
+.revenue-value.value-high {
+  top: 8rpx !important;
+  transform: translateX(-100%) translateX(-6rpx);
+}
+
+.order-value.value-high {
+  top: 8rpx !important;
+  transform: translateX(6rpx);
+}
+
+.x-axis {
+  display: flex;
+  justify-content: space-around;
+  padding: 0 102rpx 0 107rpx;
+  margin-top: 16rpx;
+}
+
+.x-label {
+  font-size: 24rpx;
+  color: #666;
+  text-align: center;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
 .chart-legend {
   display: flex;
   justify-content: center;
-  gap: 40rpx;
-  margin-top: 20rpx;
+  align-items: center;
+  gap: 50rpx;
+  margin-top: 30rpx;
+  padding: 20rpx;
+  background: rgba(147, 210, 243, 0.05);
+  border-radius: 12rpx;
 }
 
 .legend-item {
   display: flex;
   align-items: center;
-  gap: 15rpx;
+  gap: 12rpx;
   font-size: 26rpx;
+  color: #666;
+  font-weight: 500;
 }
 
 .legend-color {
-  width: 20rpx;
-  height: 20rpx;
+  width: 24rpx;
+  height: 24rpx;
   border-radius: 50%;
+  box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
 }
 
 .color-1 {
-  background: #2a8cc4;
+  background: linear-gradient(135deg, rgba(42, 140, 196, 0.9), rgba(42, 140, 196, 0.6));
 }
 
 .color-2 {
-  background: #ff9f40;
+  background: linear-gradient(135deg, rgba(255, 159, 64, 0.9), rgba(255, 159, 64, 0.6));
 }
 
 /* 商品销量排行 */
@@ -795,6 +1372,34 @@ export default {
 .keyword-bad {
   background: rgba(255, 77, 79, 0.1);
   color: #ff4d4f;
+}
+
+/* 空数据提示 */
+.empty-data {
+  padding: 80rpx 40rpx;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300rpx;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+  opacity: 0.6;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #999;
+  margin-bottom: 12rpx;
+}
+
+.empty-hint {
+  font-size: 24rpx;
+  color: #bbb;
 }
 
 /* 自定义底部导航栏 - 按照配置修改 */
