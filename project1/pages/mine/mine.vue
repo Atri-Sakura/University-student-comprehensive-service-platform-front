@@ -2,8 +2,9 @@
   <view class="page-container">
     <!-- 顶部店铺信息 -->
     <view class="header-section">
-      <view class="shop-icon">
-        <text class="icon-text">🏪</text>
+      <view class="shop-icon" @click="changeLogo">
+        <image v-if="shopInfo.logo" class="logo-image" :src="shopInfo.logo" mode="aspectFill"></image>
+        <text v-else class="icon-text">🏪</text>
       </view>
       <view class="header-info">
         <text class="shop-name">{{ shopInfo.name }}</text>
@@ -13,8 +14,10 @@
 
     <!-- 店铺详情卡片 -->
     <view class="detail-card">
-      <view class="shop-icon-large">
-        <text class="icon-large-text">🏪</text>
+      <view class="shop-icon-large" @click="changeLogo">
+        <image v-if="shopInfo.logo" class="logo-image-large" :src="shopInfo.logo" mode="aspectFill"></image>
+        <text v-else class="icon-large-text">🏪</text>
+        <view class="logo-edit-hint">点击更换</view>
       </view>
       <view class="shop-name-row">
         <view class="shop-name-large">{{ shopInfo.name }}</view>
@@ -210,17 +213,29 @@
 </template>
 
 <script>
+import {
+  getMerchantBaseInfo,
+  updateMerchantBase,
+  getDeliverySettings,
+  updateDeliverySettings,
+  uploadCertificate,
+  getCertificates,
+  deleteCertificate
+} from '@/utils/merchantApi.js';
+
 export default {
   name: 'MinePage',
   data() {
     return {
+      merchantBaseId: null, // 商家ID（从后端获取）
       shopInfo: {
         name: '美味餐厅',
         openStatus: '营业中',
         hours: '08:00-22:00',
         status: 'open', // open, rest, closed
         phone: '138-0013-8000',
-        description: '本店提供美味健康的快餐食品，用心做好每一份餐品。'
+        description: '本店提供美味健康的快餐食品，用心做好每一份餐品。',
+        logo: '' // 店铺Logo URL
       },
       businessHours: {
         startTime: '08:00',
@@ -239,16 +254,109 @@ export default {
       certImages: {
         business: '', // 营业执照图片
         food: '' // 食品经营许可证图片
-      }
+      },
+      isLoading: false // 加载状态
     }
   },
+  onLoad() {
+    // 页面加载时从后端获取数据
+    this.loadAllData();
+  },
   onShow() {
-    // 从本地存储读取店铺信息
-    this.loadShopInfo();
+    // 每次显示页面时刷新数据
+    this.loadAllData();
   },
   methods: {
-    loadShopInfo() {
-      // 从本地存储加载店铺信息
+    // ==================== 数据加载方法 ====================
+    
+    /**
+     * 加载所有数据（从后端）
+     */
+    async loadAllData() {
+      if (this.isLoading) return;
+      
+      this.isLoading = true;
+      
+      try {
+        // 并行请求所有数据
+        const [baseInfoRes, deliveryRes, certRes] = await Promise.all([
+          getMerchantBaseInfo(),
+          getDeliverySettings().catch(() => ({ data: { data: null } })),
+          getCertificates().catch(() => ({ data: { data: [] } }))
+        ]);
+        
+        // 处理基础信息
+        if (baseInfoRes.data && baseInfoRes.data.code === 200) {
+          const data = baseInfoRes.data.data;
+          this.merchantBaseId = data.merchantBaseId;
+          
+          // 映射数据到前端格式
+          this.shopInfo.name = data.merchantName || '美味餐厅';
+          
+          // 优先使用后端返回的值，如果为空则使用本地缓存
+          const savedPhone = uni.getStorageSync('shopInfo')?.phone;
+          this.shopInfo.phone = data.merchantPhone || data.phone || savedPhone || '';
+          
+          this.shopInfo.description = data.description || '';
+          this.shopInfo.logo = data.logo || '';
+          
+          // 营业状态映射：1-营业中, 0-休息中, 2-打烊
+          const statusMap = { 1: 'open', 0: 'rest', 2: 'closed' };
+          this.shopInfo.status = statusMap[data.businessStatus] || 'open';
+          this.shopInfo.openStatus = this.getStatusText(this.shopInfo.status);
+          
+          // 营业时间
+          if (data.businessHours) {
+            this.shopInfo.hours = data.businessHours;
+            const times = data.businessHours.split('-');
+            if (times.length === 2) {
+              this.businessHours.startTime = times[0];
+              this.businessHours.endTime = times[1];
+            }
+          }
+          
+          // 配送设置
+          this.deliverySettings = {
+            range: data.deliveryRange || 3,
+            minPrice: data.deliveryMinPrice || 20,
+            fee: data.deliveryFee || 5
+          };
+          
+          // 保存到本地缓存
+          this.saveToLocal();
+          this.saveDeliverySettings();
+        }
+        
+        // 处理资质证书
+        if (certRes.data && certRes.data.data) {
+          const certs = certRes.data.data;
+          certs.forEach(cert => {
+            if (cert.type === 'business') {
+              this.certImages.business = cert.imageUrl || '';
+            } else if (cert.type === 'food') {
+              this.certImages.food = cert.imageUrl || '';
+            }
+          });
+        }
+        
+      } catch (error) {
+        console.error('加载数据失败:', error);
+        
+        // 失败时从本地缓存加载
+        this.loadFromLocal();
+        uni.showToast({
+          title: '加载数据失败',
+          icon: 'none'
+        });
+      } finally {
+        this.isLoading = false;
+      }
+    },
+    
+    /**
+     * 从本地缓存加载（兜底方案）
+     */
+    loadFromLocal() {
       const savedInfo = uni.getStorageSync('shopInfo');
       if (savedInfo) {
         this.shopInfo = { ...this.shopInfo, ...savedInfo };
@@ -256,28 +364,94 @@ export default {
       const savedHours = uni.getStorageSync('businessHours');
       if (savedHours) {
         this.businessHours = savedHours;
-        this.shopInfo.hours = `${savedHours.startTime}-${savedHours.endTime}`;
       }
-      // 加载资质证书图片
       const savedCertImages = uni.getStorageSync('certImages');
       if (savedCertImages) {
         this.certImages = savedCertImages;
       }
+      // 加载配送设置
+      this.loadDeliverySettings();
     },
-    saveShopInfo() {
-      // 保存店铺信息到本地存储
+    
+    /**
+     * 保存到本地缓存
+     */
+    saveToLocal() {
       uni.setStorageSync('shopInfo', {
         name: this.shopInfo.name,
         openStatus: this.shopInfo.openStatus,
         hours: this.shopInfo.hours,
         status: this.shopInfo.status,
         phone: this.shopInfo.phone,
-        description: this.shopInfo.description
+        description: this.shopInfo.description,
+        logo: this.shopInfo.logo // 🔧 保存Logo
       });
       uni.setStorageSync('businessHours', this.businessHours);
+      uni.setStorageSync('certImages', this.certImages);
     },
+    
+    /**
+     * 保存基础信息到后端
+     */
+    async saveShopInfoToBackend() {
+      if (!this.merchantBaseId) {
+        uni.showToast({
+          title: '商家ID未获取',
+          icon: 'none'
+        });
+        return false;
+      }
+      
+      try {
+        // 状态映射：open-1, rest-0, closed-2
+        const statusMap = { 'open': 1, 'rest': 0, 'closed': 2 };
+        
+        const data = {
+          merchantBaseId: this.merchantBaseId,
+          merchantName: this.shopInfo.name,
+          merchantPhone: this.shopInfo.phone,
+          businessStatus: statusMap[this.shopInfo.status],
+          businessHours: this.shopInfo.hours,
+          description: this.shopInfo.description,
+          logo: this.shopInfo.logo,
+          deliveryRange: this.deliverySettings.range,
+          deliveryMinPrice: this.deliverySettings.minPrice,
+          deliveryFee: this.deliverySettings.fee
+        };
+        
+        const res = await updateMerchantBase(data);
+        
+        if (res.data && res.data.code === 200) {
+          // 保存到本地缓存
+          this.saveToLocal();
+          return true;
+        } else {
+          throw new Error(res.data?.msg || '保存失败');
+        }
+      } catch (error) {
+        console.error('保存失败:', error);
+        uni.showToast({
+          title: error.message || '保存失败',
+          icon: 'none'
+        });
+        return false;
+      }
+    },
+    
+    // ==================== 原有方法（已修改）====================
+    
+    loadShopInfo() {
+      // 保留此方法用于兼容性，实际调用 loadAllData
+      this.loadAllData();
+    },
+    
+    saveShopInfo() {
+      // 保留此方法用于兼容性，实际调用 saveShopInfoToBackend
+      return this.saveShopInfoToBackend();
+    },
+    
     saveCertImages() {
-      // 保存资质证书图片到本地存储
+      // 保存到本地缓存
       uni.setStorageSync('certImages', this.certImages);
     },
     getStatusText(status) {
@@ -288,32 +462,36 @@ export default {
       };
       return statusMap[status] || '营业中';
     },
-    editShopName() {
+    async editShopName() {
       uni.showModal({
         title: '修改店铺名称',
         editable: true,
         placeholderText: '请输入新的店铺名称',
         content: this.shopInfo.name,
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm && res.content) {
             this.shopInfo.name = res.content;
-            this.saveShopInfo(); // 保存到本地存储
-            uni.showToast({
-              title: '修改成功',
-              icon: 'success'
-            });
+            const success = await this.saveShopInfo();
+            if (success) {
+              uni.showToast({
+                title: '修改成功',
+                icon: 'success'
+              });
+            }
           }
         }
       });
     },
-    changeStatus(status) {
+    async changeStatus(status) {
       this.shopInfo.status = status;
       this.shopInfo.openStatus = this.getStatusText(status);
-      this.saveShopInfo(); // 保存到本地存储
-      uni.showToast({
-        title: `已切换到${this.getStatusText(status)}`,
-        icon: 'success'
-      });
+      const success = await this.saveShopInfo();
+      if (success) {
+        uni.showToast({
+          title: `已切换到${this.getStatusText(status)}`,
+          icon: 'success'
+        });
+      }
     },
     editPhone() {
       this.editModalTitle = '修改联系电话';
@@ -337,7 +515,7 @@ export default {
       this.editModalValue = '';
       this.editModalType = '';
     },
-    confirmEdit() {
+    async confirmEdit() {
       if (!this.editModalValue.trim()) {
         uni.showToast({
           title: '内容不能为空',
@@ -348,17 +526,26 @@ export default {
       
       if (this.editModalType === 'description') {
         this.shopInfo.description = this.editModalValue;
-        this.saveShopInfo(); // 保存到本地存储
       } else if (this.editModalType === 'phone') {
         this.shopInfo.phone = this.editModalValue;
-        this.saveShopInfo(); // 保存到本地存储
       }
       
-      this.closeEditModal();
-      uni.showToast({
-        title: '修改成功',
-        icon: 'success'
+      // 显示加载提示
+      uni.showLoading({
+        title: '保存中...'
       });
+      
+      const success = await this.saveShopInfo();
+      
+      uni.hideLoading();
+      this.closeEditModal();
+      
+      if (success) {
+        uni.showToast({
+          title: '修改成功',
+          icon: 'success'
+        });
+      }
     },
     viewCert(type) {
       const certName = type === 'business' ? '营业执照' : '食品经营许可证';
@@ -383,14 +570,27 @@ export default {
               uni.showModal({
                 title: '确认删除',
                 content: `确定要删除${certName}吗？`,
-                success: (modalRes) => {
+                success: async (modalRes) => {
                   if (modalRes.confirm) {
-                    this.certImages[type] = '';
-                    this.saveCertImages();
-                    uni.showToast({
-                      title: '删除成功',
-                      icon: 'success'
-                    });
+                    try {
+                      const deleteRes = await deleteCertificate(type);
+                      if (deleteRes.data && deleteRes.data.code === 200) {
+                        this.certImages[type] = '';
+                        this.saveCertImages();
+                        uni.showToast({
+                          title: '删除成功',
+                          icon: 'success'
+                        });
+                      } else {
+                        throw new Error(deleteRes.data.msg || '删除失败');
+                      }
+                    } catch (error) {
+                      console.error('删除失败:', error);
+                      uni.showToast({
+                        title: error.message || '删除失败',
+                        icon: 'none'
+                      });
+                    }
                   }
                 }
               });
@@ -402,23 +602,48 @@ export default {
         this.uploadCertImage(type, certName);
       }
     },
-    uploadCertImage(type, certName) {
+    async uploadCertImage(type, certName) {
       uni.chooseImage({
         count: 1,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
-        success: (res) => {
+        success: async (res) => {
           const tempFilePath = res.tempFilePaths[0];
-          this.certImages[type] = tempFilePath;
-          this.saveCertImages();
-          uni.showToast({
-            title: `${certName}上传成功`,
-            icon: 'success'
+          
+          // 显示加载提示
+          uni.showLoading({
+            title: '上传中...'
           });
+          
+          try {
+            // 调用上传接口
+            const uploadRes = await uploadCertificate(type, tempFilePath);
+            
+            if (uploadRes.code === 200) {
+              // 上传成功，更新图片地址
+              this.certImages[type] = uploadRes.data.imageUrl || tempFilePath;
+              this.saveCertImages();
+              
+              uni.hideLoading();
+              uni.showToast({
+                title: `${certName}上传成功`,
+                icon: 'success'
+              });
+            } else {
+              throw new Error(uploadRes.msg || '上传失败');
+            }
+          } catch (error) {
+            console.error('上传失败:', error);
+            uni.hideLoading();
+            uni.showToast({
+              title: error.message || '上传失败',
+              icon: 'none'
+            });
+          }
         },
         fail: () => {
           uni.showToast({
-            title: '上传失败',
+            title: '选择图片失败',
             icon: 'none'
           });
         }
@@ -432,29 +657,36 @@ export default {
       this.businessHours.endTime = e.detail.value;
       this.updateBusinessHours();
     },
-    updateBusinessHours() {
+    async updateBusinessHours() {
       this.shopInfo.hours = `${this.businessHours.startTime}-${this.businessHours.endTime}`;
-      this.saveShopInfo(); // 保存到本地存储
-      uni.showToast({
-        title: '营业时间已更新',
-        icon: 'success'
-      });
+      const success = await this.saveShopInfo();
+      if (success) {
+        uni.showToast({
+          title: '营业时间已更新',
+          icon: 'success'
+        });
+      }
     },
-    editRange() {
+    async editRange() {
       uni.showModal({
         title: '设置配送范围',
         editable: true,
         placeholderText: '请输入配送范围(公里)',
         content: this.deliverySettings.range.toString(),
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm && res.content) {
             const range = parseInt(res.content);
             if (!isNaN(range) && range > 0) {
               this.deliverySettings.range = range;
-              uni.showToast({
-                title: '设置成功',
-                icon: 'success'
-              });
+              
+              // 🔧 保存到后端数据库
+              const success = await this.saveShopInfo();
+              if (success) {
+                uni.showToast({
+                  title: '设置成功',
+                  icon: 'success'
+                });
+              }
             } else {
               uni.showToast({
                 title: '请输入有效的数字',
@@ -465,21 +697,26 @@ export default {
         }
       });
     },
-    editMinPrice() {
+    async editMinPrice() {
       uni.showModal({
         title: '设置起送价',
         editable: true,
         placeholderText: '请输入起送价',
         content: this.deliverySettings.minPrice.toString(),
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm && res.content) {
             const price = parseFloat(res.content);
             if (!isNaN(price) && price >= 0) {
               this.deliverySettings.minPrice = price;
-              uni.showToast({
-                title: '设置成功',
-                icon: 'success'
-              });
+              
+              // 🔧 保存到后端数据库
+              const success = await this.saveShopInfo();
+              if (success) {
+                uni.showToast({
+                  title: '设置成功',
+                  icon: 'success'
+                });
+              }
             } else {
               uni.showToast({
                 title: '请输入有效的金额',
@@ -490,21 +727,26 @@ export default {
         }
       });
     },
-    editDeliveryFee() {
+    async editDeliveryFee() {
       uni.showModal({
         title: '设置配送费',
         editable: true,
         placeholderText: '请输入配送费',
         content: this.deliverySettings.fee.toString(),
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm && res.content) {
             const fee = parseFloat(res.content);
             if (!isNaN(fee) && fee >= 0) {
               this.deliverySettings.fee = fee;
-              uni.showToast({
-                title: '设置成功',
-                icon: 'success'
-              });
+              
+              // 🔧 保存到后端数据库
+              const success = await this.saveShopInfo();
+              if (success) {
+                uni.showToast({
+                  title: '设置成功',
+                  icon: 'success'
+                });
+              }
             } else {
               uni.showToast({
                 title: '请输入有效的金额',
@@ -515,12 +757,198 @@ export default {
         }
       });
     },
-    modifyDeliverySettings() {
-      uni.showToast({
-        title: '配送设置已保存',
-        icon: 'success'
+    async modifyDeliverySettings() {
+      // 🔧 通过基础信息接口保存配送设置到后端数据库
+      console.log('💾 保存配送设置到后端数据库:', this.deliverySettings);
+      
+      try {
+        // 调用 saveShopInfo，会将配送设置一起保存到后端
+        const success = await this.saveShopInfo();
+        
+        if (success) {
+          uni.showToast({
+            title: '配送设置已保存',
+            icon: 'success',
+            duration: 2000
+          });
+        }
+      } catch (error) {
+        console.error('保存配送设置失败:', error);
+        uni.showToast({
+          title: error.message || '保存失败',
+          icon: 'none'
+        });
+      }
+    },
+    
+    /**
+     * 保存配送设置到本地缓存
+     */
+    saveDeliverySettings() {
+      uni.setStorageSync('deliverySettings', this.deliverySettings);
+      console.log('✅ 配送设置已保存到本地缓存');
+    },
+    
+    /**
+     * 从本地缓存加载配送设置
+     */
+    loadDeliverySettings() {
+      const saved = uni.getStorageSync('deliverySettings');
+      if (saved) {
+        this.deliverySettings = saved;
+        console.log('✅ 从本地缓存加载配送设置:', saved);
+      }
+    },
+    /**
+     * 更换Logo
+     */
+    changeLogo() {
+      uni.showActionSheet({
+        itemList: this.shopInfo.logo ? ['查看Logo', '更换Logo', '删除Logo'] : ['上传Logo'],
+        success: (res) => {
+          if (this.shopInfo.logo) {
+            // 已有Logo
+            if (res.tapIndex === 0) {
+              // 查看Logo
+              uni.previewImage({
+                urls: [this.shopInfo.logo],
+                current: 0
+              });
+            } else if (res.tapIndex === 1) {
+              // 更换Logo
+              this.uploadLogo();
+            } else if (res.tapIndex === 2) {
+              // 删除Logo
+              this.deleteLogo();
+            }
+          } else {
+            // 没有Logo
+            if (res.tapIndex === 0) {
+              // 上传Logo
+              this.uploadLogo();
+            }
+          }
+        }
       });
     },
+    
+    /**
+     * 上传Logo
+     */
+    uploadLogo() {
+      uni.chooseImage({
+        count: 1,
+        sizeType: ['compressed'],
+        sourceType: ['album', 'camera'],
+        success: (res) => {
+          const tempFilePath = res.tempFilePaths[0];
+          
+          // 显示加载提示
+          uni.showLoading({
+            title: '上传中...'
+          });
+          
+          // 🔧 上传到服务器（通用文件上传接口）
+          uni.uploadFile({
+            url: 'http://localhost:8080/common/upload', // 通用文件上传接口
+            filePath: tempFilePath,
+            name: 'file',
+            header: {
+              'Authorization': `Bearer ${uni.getStorageSync('token')}`
+            },
+            success: (uploadRes) => {
+              try {
+                const data = JSON.parse(uploadRes.data);
+                
+                if (data.code === 200) {
+                  // 上传成功，获取图片URL
+                  const logoUrl = data.data.url || data.data.imageUrl || data.url;
+                  
+                  console.log('🖼️ Logo上传成功，URL:', logoUrl);
+                  
+                  // 更新Logo URL
+                  this.shopInfo.logo = logoUrl;
+                  
+                  // 保存到后端
+                  this.saveShopInfo().then(success => {
+                    uni.hideLoading();
+                    
+                    if (success) {
+                      uni.showToast({
+                        title: 'Logo更换成功',
+                        icon: 'success'
+                      });
+                    } else {
+                      // 保存失败，恢复原logo
+                      this.shopInfo.logo = '';
+                      uni.showToast({
+                        title: '保存失败',
+                        icon: 'none'
+                      });
+                    }
+                  });
+                } else {
+                  throw new Error(data.msg || '上传失败');
+                }
+              } catch (error) {
+                console.error('上传失败:', error);
+                uni.hideLoading();
+                uni.showToast({
+                  title: error.message || '上传失败',
+                  icon: 'none'
+                });
+              }
+            },
+            fail: (err) => {
+              console.error('上传失败:', err);
+              uni.hideLoading();
+              uni.showToast({
+                title: '上传失败',
+                icon: 'none'
+              });
+            }
+          });
+        },
+        fail: () => {
+          uni.showToast({
+            title: '选择图片失败',
+            icon: 'none'
+          });
+        }
+      });
+    },
+    
+    /**
+     * 删除Logo
+     */
+    async deleteLogo() {
+      uni.showModal({
+        title: '确认删除',
+        content: '确定要删除Logo吗？',
+        success: async (res) => {
+          if (res.confirm) {
+            const oldLogo = this.shopInfo.logo;
+            this.shopInfo.logo = '';
+            
+            const success = await this.saveShopInfo();
+            if (success) {
+              uni.showToast({
+                title: 'Logo已删除',
+                icon: 'success'
+              });
+            } else {
+              // 保存失败，恢复原logo
+              this.shopInfo.logo = oldLogo;
+              uni.showToast({
+                title: '删除失败',
+                icon: 'none'
+              });
+            }
+          }
+        }
+      });
+    },
+    
     switchTab(tab) {
       const urlMap = {
         index: '/pages/index/index',
@@ -563,6 +991,20 @@ export default {
   align-items: center;
   justify-content: center;
   margin-right: 20rpx;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.shop-icon:active {
+  opacity: 0.8;
+}
+
+.logo-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 16rpx;
+  object-fit: cover;
 }
 
 .icon-text {
@@ -605,6 +1047,34 @@ export default {
   align-items: center;
   justify-content: center;
   margin: 0 auto 20rpx;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.shop-icon-large:active {
+  transform: scale(0.95);
+  opacity: 0.9;
+}
+
+.logo-image-large {
+  width: 100%;
+  height: 100%;
+  border-radius: 20rpx;
+  object-fit: cover;
+}
+
+.logo-edit-hint {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 20rpx;
+  text-align: center;
+  padding: 4rpx 0;
+  line-height: 1.2;
 }
 
 .icon-large-text {

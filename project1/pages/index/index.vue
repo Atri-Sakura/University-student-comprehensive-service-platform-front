@@ -101,6 +101,8 @@
 </template>
 
 <script>
+import { merchantAPI, request } from '@/utils/api.js';
+
 export default {
   name: 'RestaurantHome',
   data() {
@@ -112,15 +114,15 @@ export default {
       },
       todayDate: '',
       todayData: {
-        orderCount: 86,
-        orderTrend: 12,
-        revenue: '5,268',
-        revenueTrend: 8
+        orderCount: 0,
+        orderTrend: 0,
+        revenue: '0',
+        revenueTrend: 0
       },
       orderStatus: {
-        pending: 12,
-        toDeliver: 8,
-        delivering: 5
+        pending: 0,
+        toDeliver: 0,
+        delivering: 0
       },
       functions: [
         { name: '商品管理', icon: '🍴', color: '#B3D9FF', path: '/pages/products/products' },
@@ -136,16 +138,16 @@ export default {
   },
   onLoad() {
     this.getTodayDate();
-    this.loadTodayData();
-    this.loadShopInfo();
+    this.loadAllData();
   },
   onShow() {
-    // 每次显示页面时重新加载店铺信息
-    this.loadShopInfo();
+    // 每次显示页面时重新加载数据
+    this.loadAllData();
   },
   methods: {
-    loadShopInfo() {
-      // 从本地存储加载店铺信息
+    // 统一加载所有数据（从后端的 /merchant/orders/status 接口获取）
+    loadAllData() {
+      // 先从本地缓存加载店铺信息（快速显示）
       const savedInfo = uni.getStorageSync('shopInfo');
       if (savedInfo) {
         this.shopData = {
@@ -155,18 +157,68 @@ export default {
           businessHours: savedInfo.hours || this.shopData.businessHours
         };
       }
+      
+      // 从后端统一接口获取所有数据
+      request(merchantAPI.getOrderStatus, {
+        method: 'GET',
+        success: (res) => {
+          if (res.statusCode === 200 && res.data.code === 200) {
+            const data = res.data.data;
+            
+            // 1. 更新店铺信息
+            if (data.shopName || data.name || data.merchantName || data.shopInfo) {
+              const shopInfo = data.shopInfo || data;
+              this.shopData = {
+                name: shopInfo.shopName || shopInfo.name || shopInfo.merchantName || this.shopData.name,
+                businessStatus: shopInfo.businessStatus || shopInfo.status || this.shopData.businessStatus,
+                businessHours: shopInfo.businessHours || shopInfo.hours || this.shopData.businessHours
+              };
+              // 保存到本地缓存
+              uni.setStorageSync('shopInfo', {
+                name: this.shopData.name,
+                openStatus: this.shopData.businessStatus,
+                hours: this.shopData.businessHours
+              });
+            }
+            
+            // 2. 更新今日数据统计
+            this.todayData = {
+              orderCount: data.orderCount || data.ordersCount || 0,
+              orderTrend: data.orderTrend || 0,
+              revenue: data.revenue || '0',
+              revenueTrend: data.revenueTrend || 0
+            };
+            
+            // 3. 更新订单状态统计
+            this.orderStatus = {
+              pending: data.pending || data.pendingCount || 0,
+              toDeliver: data.toDeliver || data.toDeliverCount || data.waitingDeliveryCount || 0,
+              delivering: data.delivering || data.deliveringCount || 0
+            };
+          } else {
+            uni.showToast({
+              title: res.data.message || '获取数据失败',
+              icon: 'none'
+            });
+          }
+        },
+        fail: (err) => {
+          console.error('请求失败:', err);
+          uni.showToast({
+            title: '网络请求失败',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      });
     },
+    
     getTodayDate() {
       const date = new Date();
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       this.todayDate = `${year}-${month}-${day}`;
-    },
-    loadTodayData() {
-      // 这里可以调用API获取今日数据
-      // 现在使用模拟数据
-      console.log('加载今日数据');
     },
     goToAnalytics() {
       // 跳转到数据分析页面

@@ -68,32 +68,6 @@
           <text class="empty-btn-text">添加商品</text>
         </view>
       </view>
-
-      <!-- 分页组件 -->
-      <view class="pagination" v-if="total > 0">
-        <view class="pagination-info">
-          <text class="pagination-text">共 {{ total }} 条，第 {{ pageNum }}/{{ totalPages }} 页</text>
-        </view>
-        <view class="pagination-buttons">
-          <view 
-            class="pagination-btn" 
-            :class="{ disabled: pageNum === 1 }"
-            @click="prevPage"
-          >
-            <text class="pagination-btn-text">上一页</text>
-          </view>
-          <view class="pagination-num">
-            <text class="page-num">{{ pageNum }}</text>
-          </view>
-          <view 
-            class="pagination-btn" 
-            :class="{ disabled: pageNum >= totalPages }"
-            @click="nextPage"
-          >
-            <text class="pagination-btn-text">下一页</text>
-          </view>
-        </view>
-      </view>
     </view>
 
     <!-- 编辑商品弹窗 -->
@@ -203,8 +177,6 @@
 </template>
 
 <script>
-import { productAPI, 请求 } from '@/utils/api.js';
-
 export default {
   name: 'ProductsPage',
   data() {
@@ -224,130 +196,45 @@ export default {
         emoji: '🍔',
         status: true
       },
-      products: [],
-      loading: false,
-      // 分页相关
-      pageNum: 1,           // 当前页码
-      pageSize: 10,         // 每页显示数量
-      total: 0              // 总记录数
+      editingIndex: -1,
+      products: [
+        { name: '招牌汉堡套餐', emoji: '🍔', description: '汉堡+薯条+可乐', price: '35.00', stock: 50, category: '套餐', status: true },
+        { name: '经典炸鸡桶', emoji: '🍗', description: '香脆炸鸡8块', price: '68.00', stock: 30, category: '主食', status: true },
+        { name: '芝士牛肉汉堡', emoji: '🍔', description: '双层牛肉芝士', price: '28.00', stock: 45, category: '主食', status: true },
+        { name: '薯条（大份）', emoji: '🍟', description: '金黄酥脆薯条', price: '15.00', stock: 100, category: '小吃', status: true },
+        { name: '可乐（大杯）', emoji: '🥤', description: '冰镇可口可乐', price: '8.00', stock: 80, category: '饮料', status: true },
+        { name: '鸡米花', emoji: '🍿', description: '香脆鸡米花', price: '18.00', stock: 60, category: '小吃', status: true },
+        { name: '奶茶（珍珠）', emoji: '🧋', description: '珍珠奶茶', price: '12.00', stock: 70, category: '饮料', status: true },
+        { name: '鸡翅（2个）', emoji: '🍗', description: '香辣鸡翅', price: '16.00', stock: 40, category: '小吃', status: false }
+      ]
     }
-  },
-  onLoad() {
-    // 页面加载时获取商品列表
-    this.loadProducts();
   },
   computed: {
     filteredProducts() {
-      // 后端已经处理了分页，直接返回商品列表
-      return this.products;
-    },
-    // 计算总页数
-    totalPages() {
-      return Math.ceil(this.total / this.pageSize);
+      let products = this.products;
+      
+      // 按分类筛选
+      if (this.currentCategory !== 0) {
+        const categoryName = this.categories[this.currentCategory];
+        products = products.filter(p => p.category === categoryName);
+      }
+      
+      // 按搜索文本筛选
+      if (this.searchText) {
+        products = products.filter(p => 
+          p.name.toLowerCase().includes(this.searchText.toLowerCase())
+        );
+      }
+      
+      return products;
     }
   },
   methods: {
-    // 加载商品列表
-    async loadProducts() {
-      this.loading = true;
-      try {
-        // 构建查询参数（若依分页格式）
-        const params = {
-          pageNum: this.pageNum,
-          pageSize: this.pageSize
-        };
-        
-        // 添加搜索关键词
-        if (this.searchText) {
-          params.name = this.searchText;
-        }
-        
-        // 添加分类筛选
-        if (this.currentCategory !== 0) {
-          params.category = this.categories[this.currentCategory];
-        }
-        
-        // 将参数转为查询字符串
-        const queryString = Object.keys(params)
-          .map(key => `${key}=${encodeURIComponent(params[key])}`)
-          .join('&');
-        
-        const url = `${productAPI.getProductList}?${queryString}`;
-        
-        const res = await 请求(url, {
-          method: 'GET',
-          success: (result) => {
-            if (result.statusCode === 200 && result.data.code === 200) {
-              // 若依分页格式：rows 和 total
-              const rows = result.data.rows || [];
-              
-              // 将后端的各种可能的 ID 字段统一映射为 id
-              this.products = rows.map(item => {
-                // 按优先级查找 ID：goodsId > goods_id > id
-                const goodsId = item.goodsId || item.goods_id || item.id || item.GoodsId;
-                return {
-                  ...item,
-                  id: goodsId,
-                  goodsId: goodsId  // 同时保留 goodsId，确保兼容性
-                };
-              });
-              
-              this.total = result.data.total || 0;
-              
-              // 如果没有数据，给出提示
-              if (this.products.length === 0) {
-                console.log('商品列表为空');
-              }
-            } else {
-              uni.showToast({
-                title: result.data.msg || result.data.message || '获取商品列表失败',
-                icon: 'none'
-              });
-            }
-          },
-          fail: (err) => {
-            console.error('获取商品列表失败:', err);
-            uni.showToast({
-              title: '网络请求失败',
-              icon: 'none'
-            });
-          }
-        });
-      } catch (error) {
-        console.error('加载商品列表异常:', error);
-      } finally {
-        this.loading = false;
-      }
-    },
     switchCategory(index) {
       this.currentCategory = index;
-      // 切换分类时重置到第一页
-      this.pageNum = 1;
-      this.loadProducts();
     },
     onSearch() {
-      // 搜索时重置到第一页
-      this.pageNum = 1;
-      this.loadProducts();
-    },
-    // 分页方法
-    prevPage() {
-      if (this.pageNum > 1) {
-        this.pageNum--;
-        this.loadProducts();
-      }
-    },
-    nextPage() {
-      if (this.pageNum < this.totalPages) {
-        this.pageNum++;
-        this.loadProducts();
-      }
-    },
-    goToPage(page) {
-      if (page >= 1 && page <= this.totalPages) {
-        this.pageNum = page;
-        this.loadProducts();
-      }
+      // 搜索逻辑已在计算属性中处理
     },
     addProduct() {
       this.editingProduct = {
@@ -361,12 +248,16 @@ export default {
         emoji: '🍔',
         status: true
       };
+      this.editingIndex = -1;
       this.showEditModal = true;
     },
     editProduct(item) {
+      // 找到原始产品的索引
+      this.editingIndex = this.products.findIndex(p => p === item);
       // 复制商品信息到编辑对象
       this.editingProduct = {
-        ...item
+        ...item,
+        id: this.editingIndex
       };
       this.showEditModal = true;
     },
@@ -376,9 +267,7 @@ export default {
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
         success: (res) => {
-          const tempFilePath = res.tempFilePaths[0];
-          // 上传图片到服务器
-          this.uploadImage(tempFilePath);
+          this.editingProduct.image = res.tempFilePaths[0];
         },
         fail: () => {
           uni.showToast({
@@ -388,59 +277,10 @@ export default {
         }
       });
     },
-    // 上传图片到服务器
-    uploadImage(filePath) {
-      uni.showLoading({
-        title: '上传中...'
-      });
-      
-      const token = uni.getStorageSync('token');
-      
-      uni.uploadFile({
-        url: productAPI.uploadImage,
-        filePath: filePath,
-        name: 'file',
-        header: {
-          'Authorization': `Bearer ${token}`
-        },
-        success: (res) => {
-          uni.hideLoading();
-          try {
-            const data = JSON.parse(res.data);
-            if (data.code === 200) {
-              this.editingProduct.image = data.data.url; // 假设后端返回图片URL
-              uni.showToast({
-                title: '上传成功',
-                icon: 'success'
-              });
-            } else {
-              uni.showToast({
-                title: data.msg || data.message || '上传失败',
-                icon: 'none'
-              });
-            }
-          } catch (error) {
-            console.error('解析上传响应失败:', error);
-            uni.showToast({
-              title: '上传失败',
-              icon: 'none'
-            });
-          }
-        },
-        fail: (err) => {
-          uni.hideLoading();
-          console.error('上传图片失败:', err);
-          uni.showToast({
-            title: '上传失败',
-            icon: 'none'
-          });
-        }
-      });
-    },
     closeModal() {
       this.showEditModal = false;
     },
-    async saveProduct() {
+    saveProduct() {
       // 验证必填项
       if (!this.editingProduct.name) {
         uni.showToast({
@@ -464,233 +304,67 @@ export default {
         return;
       }
 
-      uni.showLoading({
-        title: this.editingProduct.id ? '保存中...' : '添加中...'
-      });
+      // 格式化价格
+      this.editingProduct.price = parseFloat(this.editingProduct.price).toFixed(2);
+      this.editingProduct.stock = parseInt(this.editingProduct.stock);
 
-      try {
-        if (this.editingProduct.id) {
-          // 编辑现有商品 - goodsId 在 URL 中
-          const goodsId = this.editingProduct.id || this.editingProduct.goodsId;
-          
-          if (!goodsId) {
-            uni.hideLoading();
-            uni.showToast({
-              title: '商品ID不存在，无法修改',
-              icon: 'none'
-            });
-            return;
-          }
-          
-          const productData = {
-            name: this.editingProduct.name,
-            description: this.editingProduct.description,
-            price: parseFloat(this.editingProduct.price).toFixed(2),
-            stock: parseInt(this.editingProduct.stock),
-            category: this.editingProduct.category,
-            image: this.editingProduct.image,
-            emoji: this.editingProduct.emoji,
-            status: this.editingProduct.status
-          };
-          
-          await 请求(`${productAPI.updateProduct}/${goodsId}`, {
-            method: 'PUT',
-            data: productData,
-            success: (res) => {
-              uni.hideLoading();
-              if (res.statusCode === 200 && res.data.code === 200) {
-                uni.showToast({
-                  title: '修改成功',
-                  icon: 'success'
-                });
-                // 重新加载商品列表
-                this.loadProducts();
-                this.closeModal();
-              } else {
-                uni.showToast({
-                  title: res.data.msg || res.data.message || '修改失败',
-                  icon: 'none'
-                });
-              }
-            },
-            fail: (err) => {
-              uni.hideLoading();
-              console.error('修改商品失败:', err);
-              uni.showToast({
-                title: '网络请求失败',
-                icon: 'none'
-              });
-            }
-          });
-        } else {
-          // 添加新商品 - 不需要 goodsId
-          const productData = {
-            name: this.editingProduct.name,
-            description: this.editingProduct.description,
-            price: parseFloat(this.editingProduct.price).toFixed(2),
-            stock: parseInt(this.editingProduct.stock),
-            category: this.editingProduct.category,
-            image: this.editingProduct.image,
-            emoji: this.editingProduct.emoji,
-            status: this.editingProduct.status
-          };
-          
-          await 请求(productAPI.addProduct, {
-            method: 'POST',
-            data: productData,
-            success: (res) => {
-              uni.hideLoading();
-              if (res.statusCode === 200 && res.data.code === 200) {
-                uni.showToast({
-                  title: '添加成功',
-                  icon: 'success'
-                });
-                // 重新加载商品列表
-                this.loadProducts();
-                this.closeModal();
-              } else {
-                uni.showToast({
-                  title: res.data.msg || res.data.message || '添加失败',
-                  icon: 'none'
-                });
-              }
-            },
-            fail: (err) => {
-              uni.hideLoading();
-              console.error('添加商品失败:', err);
-              uni.showToast({
-                title: '网络请求失败',
-                icon: 'none'
-              });
-            }
-          });
-        }
-      } catch (error) {
-        uni.hideLoading();
-        console.error('保存商品异常:', error);
+      if (this.editingIndex >= 0) {
+        // 编辑现有商品
+        this.products.splice(this.editingIndex, 1, {
+          name: this.editingProduct.name,
+          description: this.editingProduct.description,
+          price: this.editingProduct.price,
+          stock: this.editingProduct.stock,
+          category: this.editingProduct.category,
+          image: this.editingProduct.image,
+          emoji: this.editingProduct.emoji,
+          status: this.editingProduct.status
+        });
         uni.showToast({
-          title: '操作失败',
-          icon: 'none'
+          title: '修改成功',
+          icon: 'success'
+        });
+      } else {
+        // 添加新商品
+        this.products.unshift({
+          name: this.editingProduct.name,
+          description: this.editingProduct.description,
+          price: this.editingProduct.price,
+          stock: this.editingProduct.stock,
+          category: this.editingProduct.category,
+          image: this.editingProduct.image,
+          emoji: this.editingProduct.emoji,
+          status: true
+        });
+        uni.showToast({
+          title: '添加成功',
+          icon: 'success'
         });
       }
+
+      this.closeModal();
     },
     deleteProduct(item, index) {
-      const goodsId = item.id || item.goodsId;
-      
-      if (!goodsId) {
-        uni.showToast({
-          title: '商品ID不存在，无法删除',
-          icon: 'none'
-        });
-        return;
-      }
-      
       uni.showModal({
         title: '确认删除',
         content: `确定要删除"${item.name}"吗？`,
-        success: async (res) => {
+        success: (res) => {
           if (res.confirm) {
-            uni.showLoading({
-              title: '删除中...'
+            this.products.splice(index, 1);
+            uni.showToast({
+              title: '删除成功',
+              icon: 'success'
             });
-            
-            try {
-              await 请求(`${productAPI.deleteProduct}/${goodsId}`, {
-                method: 'DELETE',
-                success: (result) => {
-                  uni.hideLoading();
-                  if (result.statusCode === 200 && result.data.code === 200) {
-                    uni.showToast({
-                      title: '删除成功',
-                      icon: 'success'
-                    });
-                    // 重新加载商品列表
-                    this.loadProducts();
-                  } else {
-                    uni.showToast({
-                      title: result.data.msg || result.data.message || '删除失败',
-                      icon: 'none'
-                    });
-                  }
-                },
-                fail: (err) => {
-                  uni.hideLoading();
-                  console.error('删除商品失败:', err);
-                  uni.showToast({
-                    title: '网络请求失败',
-                    icon: 'none'
-                  });
-                }
-              });
-            } catch (error) {
-              uni.hideLoading();
-              console.error('删除商品异常:', error);
-              uni.showToast({
-                title: '操作失败',
-                icon: 'none'
-              });
-            }
           }
         }
       });
     },
-    async toggleStatus(item) {
-      const goodsId = item.id || item.goodsId;
-      
-      if (!goodsId) {
-        uni.showToast({
-          title: '商品ID不存在，无法操作',
-          icon: 'none'
-        });
-        return;
-      }
-      
-      const newStatus = !item.status;
-      
-      uni.showLoading({
-        title: '操作中...'
+    toggleStatus(item) {
+      item.status = !item.status;
+      uni.showToast({
+        title: item.status ? '商品已上架' : '商品已下架',
+        icon: 'success'
       });
-      
-      try {
-        // 根据当前状态选择上架或下架接口
-        const apiUrl = newStatus 
-          ? `${productAPI.upProduct}/${goodsId}`     // 上架
-          : `${productAPI.downProduct}/${goodsId}`;  // 下架
-        
-        await 请求(apiUrl, {
-          method: 'PUT',
-          success: (res) => {
-            uni.hideLoading();
-            if (res.statusCode === 200 && res.data.code === 200) {
-              item.status = newStatus;
-              uni.showToast({
-                title: newStatus ? '商品已上架' : '商品已下架',
-                icon: 'success'
-              });
-            } else {
-              uni.showToast({
-                title: res.data.msg || res.data.message || '操作失败',
-                icon: 'none'
-              });
-            }
-          },
-          fail: (err) => {
-            uni.hideLoading();
-            console.error('切换商品状态失败:', err);
-            uni.showToast({
-              title: '网络请求失败',
-              icon: 'none'
-            });
-          }
-        });
-      } catch (error) {
-        uni.hideLoading();
-        console.error('切换商品状态异常:', error);
-        uni.showToast({
-          title: '操作失败',
-          icon: 'none'
-        });
-      }
     }
   }
 }
@@ -1175,73 +849,5 @@ export default {
 .confirm-btn .modal-btn-text {
   color: white;
 }
-
-/* 分页组件样式 */
-.pagination {
-  background: white;
-  margin: 20rpx;
-  padding: 30rpx;
-  border-radius: 16rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.08);
-}
-
-.pagination-info {
-  text-align: center;
-  margin-bottom: 20rpx;
-}
-
-.pagination-text {
-  font-size: 24rpx;
-  color: #666;
-}
-
-.pagination-buttons {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20rpx;
-}
-
-.pagination-btn {
-  padding: 15rpx 35rpx;
-  background: linear-gradient(135deg, #4A90E2, #5BA3F5);
-  border-radius: 30rpx;
-  box-shadow: 0 2rpx 8rpx rgba(74, 144, 226, 0.3);
-  transition: all 0.3s;
-}
-
-.pagination-btn.disabled {
-  background: #e0e0e0;
-  box-shadow: none;
-  opacity: 0.5;
-}
-
-.pagination-btn-text {
-  font-size: 26rpx;
-  color: white;
-  font-weight: 500;
-}
-
-.pagination-btn.disabled .pagination-btn-text {
-  color: #999;
-}
-
-.pagination-num {
-  min-width: 80rpx;
-  height: 60rpx;
-  background: #f5f7fa;
-  border-radius: 12rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2rpx solid #4A90E2;
-}
-
-.page-num {
-  font-size: 28rpx;
-  color: #4A90E2;
-  font-weight: bold;
-}
 </style>
-
 
