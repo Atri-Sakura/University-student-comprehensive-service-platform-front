@@ -477,9 +477,9 @@ export default {
     // 查看订单详情
     viewOrderDetail(item) {
       console.log('查看订单详情:', item.id);
-      // 跳转到订单详情页面，使用现有的finance/order-detail页面
+      // 跳转到订单详情页面，使用list目录下的order-detail页面
       uni.navigateTo({
-        url: `/pages/finance/order-detail?id=${item.id}&orderNo=${item.orderNo}`
+        url: `/pages/list/order-detail?id=${item.id}&orderNo=${item.orderNo}`
       });
     },
     
