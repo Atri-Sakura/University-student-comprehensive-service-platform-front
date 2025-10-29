@@ -54,27 +54,26 @@
           <view class="order-actions">
             <!-- 待接单状态 -->
             <view v-if="item.status === '待接单'" class="action-group">
+              <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
               <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
               <button class="action-btn reject" @click="rejectOrder(item)">拒单</button>
               <button class="action-btn accept" @click="acceptOrder(item)">接单</button>
             </view>
             
-            <!-- 待出品状态 -->
-            <view v-if="item.status === '待出品'" class="action-group">
+            <!-- 待取货状态 -->
+            <view v-if="item.status === '待取货'" class="action-group">
+              <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
               <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
-              <button class="action-btn complete" @click="markProduceComplete(item)">出品完成</button>
-            </view>
-            
-            <!-- 待配送状态 -->
-            <view v-if="item.status === '待配送'" class="action-group">
-              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
-              <button class="action-btn notify" @click="notifyRider(item)">通知骑手</button>
+              <button class="action-btn notify" @click="notifyRider(item)">通知骑手取餐</button>
             </view>
             
             <!-- 配送中状态 -->
-            <view v-if="item.status === '配送中'" class="action-group">
-              <button class="action-btn contact rider" @click="contactRider(item)">联系骑手</button>
-              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+            <view v-if="item.status === '配送中'">
+              <view class="action-group tight-group">
+                <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
+                <button class="action-btn contact rider" @click="contactRider(item)">联系骑手</button>
+                <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              </view>
               <view class="rider-info" v-if="item.riderName">
                 <text>骑手：{{ item.riderName }}</text>
                 <text>{{ item.riderAcceptTime }}</text>
@@ -82,9 +81,12 @@
             </view>
             
             <!-- 已完成状态 -->
-            <view v-if="item.status === '已完成'" class="action-group">
-              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
-              <button v-if="item.review" class="action-btn review" @click="viewReview(item)">查看评价</button>
+            <view v-if="item.status === '已完成'">
+              <view class="action-group tight-group">
+                <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
+                <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+                <button v-if="item.review" class="action-btn review" @click="viewReview(item)">查看评价</button>
+              </view>
               <view class="complete-info" v-if="item.completeTime">
                 <text>完成时间：{{ item.completeTime }}</text>
               </view>
@@ -123,119 +125,31 @@
 </template>
 
 <script>
+import { merchantOrderAPI, request } from '../../utils/api.js'
+
 export default {
   name: 'OrderPage',
   data() {
     return {
       currentTab: 0,
       tabs: [
-        { name: '待处理', count: 3 },
-        { name: '配送中', count: 2 },
-        { name: '已完成', count: 1 }
-      ],
-      allOrders: [
-        {
-          id: '1',
-          orderNo: '20241022001',
-          customerName: '张先生',
-          phone: '13800138001',
-          status: '待接单',
-          orderTime: '2024-10-22 10:30',
-          amount: '128.00',
-          items: [
-            { name: '麻辣香锅', price: '48.00', quantity: 1, options: '微辣' },
-            { name: '米饭', price: '3.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '2',
-          orderNo: '20241022002',
-          customerName: '李女士',
-          phone: '13900139002',
-          status: '待出品',
-          orderTime: '2024-10-22 10:45',
-          amount: '85.50',
-          items: [
-            { name: '宫保鸡丁', price: '32.50', quantity: 1 },
-            { name: '糖醋排骨', price: '45.00', quantity: 1 },
-            { name: '米饭', price: '3.00', quantity: 2 }
-          ]
-        },
-        {
-          id: '3',
-          orderNo: '20241022003',
-          customerName: '王先生',
-          phone: '13700137003',
-          status: '待配送',
-          orderTime: '2024-10-22 11:00',
-          amount: '68.00',
-          items: [
-            { name: '牛肉面', price: '28.00', quantity: 2 },
-            { name: '小菜', price: '6.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '4',
-          orderNo: '20241022004',
-          customerName: '赵女士',
-          phone: '13600136004',
-          status: '配送中',
-          orderTime: '2024-10-22 11:15',
-          amount: '98.00',
-          riderName: '李骑手',
-          riderPhone: '13800138000',
-          riderAcceptTime: '2024-10-22 11:30',
-          items: [
-            { name: '烤鱼套餐', price: '88.00', quantity: 1 },
-            { name: '米饭', price: '3.00', quantity: 2 },
-            { name: '可乐', price: '8.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '5',
-          orderNo: '20241022005',
-          customerName: '钱先生',
-          phone: '13500135005',
-          status: '配送中',
-          orderTime: '2024-10-22 11:20',
-          amount: '45.00',
-          riderName: '王骑手',
-          riderPhone: '13900139000',
-          riderAcceptTime: '2024-10-22 11:35',
-          items: [
-            { name: '汉堡套餐', price: '45.00', quantity: 1 }
-          ]
-        },
-        {
-          id: '6',
-          orderNo: '20241022006',
-          customerName: '陈女士',
-          phone: '13400134006',
-          status: '已完成',
-          orderTime: '2024-10-22 08:30',
-          completeTime: '2024-10-22 09:20',
-          amount: '89.00',
-          review: {
-            rating: 5,
-            content: '味道很好，配送很快！'
-          },
-          items: [
-            { name: '早餐套餐', price: '25.00', quantity: 2 },
-            { name: '豆浆', price: '8.00', quantity: 1 },
-            { name: '油条', price: '6.00', quantity: 2 }
-          ]
-        }
-      ]
+      { name: '待处理', count: 0 },
+      { name: '配送中', count: 0 },
+      { name: '已完成', count: 0 }
+    ],
+      allOrders: []
     }
   },
+  created() {
+    // 页面加载时获取订单列表
+    this.getOrderList()
+  },
   computed: {
+    // 待处理订单：待接单、待取货
     pendingOrders() {
       return this.allOrders.filter(order => 
         order.status === '待接单' || 
-        order.status === '待出品' || 
-        order.status === '待配送'
+        order.status === '待取货'
       )
     },
     deliveringOrders() {
@@ -259,11 +173,135 @@ export default {
       this.currentTab = index
     },
     
+    // 获取订单列表
+    async getOrderList() {
+      try {
+        console.log('开始获取订单列表...')
+        const res = await request(merchantOrderAPI.list, {
+          method: 'GET'
+        })
+        
+        // 打印完整响应数据，用于调试
+        console.log('API响应数据:', res)
+        
+        // 检查响应是否有效
+        if (!res) {
+          throw new Error('响应为空')
+        }
+        
+        // 统一处理响应数据
+        let orderData = []
+        
+        // 处理微信小程序/uni-app标准响应格式
+        if (res.statusCode === 200 && res.data) {
+          // 后端返回的标准格式：{code: 200, msg: "", total: 0, rows: []}
+          if (res.data.code === 200 || res.data.code === 1) {
+            console.log('后端返回成功状态码:', res.data.code)
+            orderData = res.data.rows || []
+          } else {
+            // 后端返回错误状态码
+            throw new Error(res.data.msg || '后端返回错误')
+          }
+        } else {
+          // 非标准响应格式
+          throw new Error(`请求失败，状态码: ${res.statusCode || '未知'}`)
+        }
+        
+        // 处理获取到的数据
+        if (orderData.length > 0) {
+          console.log(`成功获取到 ${orderData.length} 条订单数据`)
+          // 将后端返回的数据转换为前端所需的格式
+          this.allOrders = this.transformOrderData(orderData)
+          console.log('转换后的订单数据:', this.allOrders)
+          this.updateOrderCount()
+          uni.showToast({
+            title: '获取订单成功',
+            icon: 'success'
+          })
+        } else {
+          console.log('获取订单成功，但暂无数据')
+          this.allOrders = []
+          this.updateOrderCount()
+        }
+      } catch (error) {
+        console.error('获取订单列表失败:', error)
+        uni.showToast({
+          title: error.message || '获取订单失败',
+          icon: 'none'
+        })
+      }
+    },
+    
+    // 转换后端订单数据格式为前端所需格式
+    transformOrderData(backendOrders) {
+      return backendOrders.map(order => {
+        // 根据后端返回的订单状态进行完整映射
+        const statusMap = {
+          1: '待接单',
+          2: '待取货',
+          3: '配送中',
+          4: '已送达',
+          5: '已完成',
+          6: '已取消'
+        }
+        
+        // 使用后端返回的状态，如果找不到对应映射则默认为'待接单'
+        let orderStatus = statusMap[order.orderStatus] || '待接单'
+        
+        // 使用后端实际的商品数据，处理orderTakeoutDetailList为null的情况
+        let items = []
+        try {
+          if (order.orderTakeoutDetailList && Array.isArray(order.orderTakeoutDetailList)) {
+            items = order.orderTakeoutDetailList.map(item => ({
+              name: item.productName || '商品',
+              options: item.productOption || '',
+              quantity: item.productCount || 1,
+              price: item.price || 0
+            }))
+          } else {
+            // 当没有商品详情时，使用订单金额作为商品信息
+            items = [{
+              name: '商品',
+              options: '',
+              quantity: 1,
+              price: order.payAmount || 0
+            }]
+          }
+        } catch (error) {
+          console.error('处理商品数据失败:', error)
+          // 错误情况下提供默认商品信息
+          items = [{
+            name: '商品',
+            options: '',
+            quantity: 1,
+            price: order.payAmount || 0
+          }]
+        }
+        
+        return {
+          id: order.orderMainId,
+          orderNo: order.orderNo,
+          customerName: order.deliverContact || '顾客',
+          phone: order.deliverPhone || '',
+          orderTime: order.createTime,
+          status: orderStatus,
+          amount: order.payAmount,
+          items: items,
+          completeTime: order.completeTime,
+          riderName: order.riderName,
+          riderPhone: order.riderPhone,
+          riderAcceptTime: order.riderAcceptTime,
+          review: order.review
+        }
+      })
+    },
+    
+
+    
     getStatusColor(status) {
       const colors = {
         '待接单': '#ff9800',
-        '待出品': '#ff6b00',
-        '待配送': '#ff5722',
+        '待取货': '#ff6b00',
         '配送中': '#2196f3',
         '已完成': '#52c41a'
       }
@@ -275,64 +313,107 @@ export default {
       uni.showModal({
         title: '接单确认',
         content: '确定要接受该订单吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            // 更新订单状态为待出品
-            item.status = '待出品'
-            this.updateOrderCount()
-            uni.showToast({
-              title: '接单成功',
-              icon: 'success'
-            })
+            try {
+              // 使用orderMainId作为后端API的订单ID参数
+              const orderId = Number(item.id) // 由于我们在transformOrderData中已经将orderMainId赋给了id，这里仍然使用item.id
+              // 调用后端接单接口
+              const response = await request(merchantOrderAPI.accept(orderId), {
+                method: 'PUT'
+              })
+              
+              // 适配后端AjaxResult格式
+              if (response.statusCode === 200) {
+                // 后端返回的是AjaxResult对象，检查code字段
+                if (response.data && (response.data.code === 200 || response.data.code === 1)) {
+                  // 更新前端订单状态
+                  item.status = '待取货'
+                  this.updateOrderCount()
+                  uni.showToast({
+                    title: '接单成功',
+                    icon: 'success'
+                  })
+                } else {
+                  uni.showToast({
+                    title: (response.data && response.data.msg) || '接单失败',
+                    icon: 'none'
+                  })
+                }
+              } else {
+                uni.showToast({
+                  title: '请求失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('接单失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
     },
     
-    // 出品完成
-    markProduceComplete(item) {
-      uni.showModal({
-        title: '出品完成确认',
-        content: '确定该订单已出品完成吗？',
-        success: (res) => {
-          if (res.confirm) {
-            // 更新订单状态为待配送
-            item.status = '待配送'
-            this.updateOrderCount()
-            uni.showToast({
-              title: '出品完成',
-              icon: 'success'
-            })
-          }
-        }
-      })
-    },
+
     
-    // 通知骑手
+    // 通知骑手取餐
     notifyRider(item) {
       uni.showModal({
-        title: '通知骑手',
-        content: '确定要通知骑手取餐吗？',
-        success: (res) => {
+        title: '通知骑手取餐',
+        content: '确定要通知骑手来取餐吗？',
+        success: async (res) => {
           if (res.confirm) {
-            // 模拟骑手接单
-            setTimeout(() => {
-              item.status = '配送中'
-              item.riderAcceptTime = new Date().toLocaleString('zh-CN')
-              item.riderName = '李骑手'
-              item.riderPhone = '13800138000'
-              this.updateOrderCount()
-              uni.showToast({
-                title: '骑手已接单',
-                icon: 'success'
+            try {
+              // 确保订单ID为数字类型
+              const orderId = Number(item.id)
+              // 调用后端接口
+              const response = await request(merchantOrderAPI.notifyRider(orderId), {
+                method: 'PUT'
               })
-            }, 1000)
+              
+              // 适配后端AjaxResult格式
+              if (response.statusCode === 200) {
+                // 后端返回的是AjaxResult对象，检查code字段
+                if (response.data && (response.data.code === 200 || response.data.code === 1)) {
+                  // 更新订单状态和骑手信息
+                  item.status = '配送中'
+                  item.riderName = response.data.data?.riderName || item.riderName
+                  item.riderPhone = response.data.data?.riderPhone || item.riderPhone
+                  item.riderAcceptTime = response.data.data?.riderAcceptTime || new Date().toLocaleString('zh-CN')
+                  this.updateOrderCount()
+                  uni.showToast({
+                    title: '骑手已接单',
+                    icon: 'success'
+                  })
+                } else {
+                  uni.showToast({
+                    title: (response.data && response.data.msg) || '通知骑手失败',
+                    icon: 'none'
+                  })
+                }
+              } else {
+                uni.showToast({
+                  title: '请求失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('通知骑手失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
     },
     
-    // 更新标签计数
+    // 更新订单数量统计
     updateOrderCount() {
       this.tabs[0].count = this.pendingOrders.length
       this.tabs[1].count = this.deliveringOrders.length
@@ -395,9 +476,11 @@ export default {
     
     // 查看订单详情
     viewOrderDetail(item) {
+      console.log('查看订单详情:', item.id);
+      // 跳转到订单详情页面，使用现有的finance/order-detail页面
       uni.navigateTo({
-        url: `/pages/orders/detail?id=${item.id}`
-      })
+        url: `/pages/finance/order-detail?id=${item.id}&orderNo=${item.orderNo}`
+      });
     },
     
     // 查看评价
@@ -411,20 +494,51 @@ export default {
       }
     },
     
-    // 拒单
+    // 拒单操作
     rejectOrder(item) {
       uni.showModal({
         title: '拒单确认',
         content: '确定要拒绝该订单吗？',
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            // 从订单列表中移除
-            this.allOrders = this.allOrders.filter(order => order.id !== item.id)
-            this.updateOrderCount()
-            uni.showToast({
-              title: '拒单成功',
-              icon: 'success'
-            })
+            try {
+              // 使用orderMainId作为后端API的订单ID参数
+              const orderId = Number(item.id) // 由于我们在transformOrderData中已经将orderMainId赋给了id，这里仍然使用item.id
+              // 调用后端拒单接口
+              const response = await request(merchantOrderAPI.reject(orderId), {
+                method: 'PUT'
+              })
+              
+              // 适配后端AjaxResult格式
+              if (response.statusCode === 200) {
+                // 后端返回的是AjaxResult对象，检查code字段
+                if (response.data && (response.data.code === 200 || response.data.code === 1)) {
+                  // 从订单列表中移除
+                  this.allOrders = this.allOrders.filter(order => order.id !== item.id)
+                  this.updateOrderCount()
+                  uni.showToast({
+                    title: '拒单成功',
+                    icon: 'success'
+                  })
+                } else {
+                  uni.showToast({
+                    title: (response.data && response.data.msg) || '拒单失败',
+                    icon: 'none'
+                  })
+                }
+              } else {
+                uni.showToast({
+                  title: '请求失败',
+                  icon: 'none'
+                })
+              }
+            } catch (error) {
+              console.error('拒单失败:', error)
+              uni.showToast({
+                title: '网络错误，请重试',
+                icon: 'none'
+              })
+            }
           }
         }
       })
@@ -632,6 +746,11 @@ export default {
   margin-bottom: 10rpx;
 }
 
+.action-group.tight-group {
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+
 .action-btn {
   font-size: 26rpx;
   padding: 10rpx 24rpx;
@@ -697,6 +816,20 @@ export default {
   background-color: #faad14;
   color: white;
   border: none;
+  min-width: 140rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  padding: 10rpx 24rpx;
+  border-radius: 24rpx;
+}
+
+/* 查看详情按钮样式 - 增加清晰的边框 */
+.action-btn.detail {
+  background-color: #ffffff;
+  color: #4A90E2;
+  border: 2rpx solid #4A90E2;
   min-width: 140rpx;
   display: flex;
   align-items: center;
