@@ -26,6 +26,12 @@
         "navigationBarTitleText": "订单"
       }
     },
+	  {
+	  "path": "pages/list/order-detail",
+	  "style": {
+	    "navigationBarTitleText": "订单详情"
+	  }
+	},
     {
       "path": "pages/message/message",
       "style": {
@@ -93,6 +99,7 @@
 	    "navigationBarTitleText": "交易详情"
 	  }
 	},
+	  
 	{
 	  "path": "pages/finance/withdraw",
 	  "style": {
