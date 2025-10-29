@@ -76,7 +76,7 @@
 </template>
 
 <script>
-import { getActivityDetail, updateActivity } from '../../utils/merchantApi.js';
+import { getActivityDetail, updateActivity } from '../../utils/merchantActivityApi.js';
 
 export default {
   name: 'ActivityEditNew',

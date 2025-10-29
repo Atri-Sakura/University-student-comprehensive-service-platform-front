@@ -71,7 +71,7 @@
 </template>
 
 <script>
-import { getActivityList, deleteActivity, addMerchantActivity } from '../../utils/merchantApi.js';
+import { getActivityList, deleteActivity, addMerchantActivity } from '../../utils/merchantActivityApi.js';
 
 export default {
   name: 'ActivityManagement',
