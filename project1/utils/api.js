@@ -1,5 +1,5 @@
 // API接口配置文件
-const baseUrl = 'http://localhost:8080/';
+const baseUrl = 'http://192.168.100.168:8080/';
 
 // 获取token的函数
 const getToken = () => {
@@ -40,6 +40,15 @@ export const merchantAPI = {
   // getActivities: `${baseUrl}merchant/activities/list`,   // 获取活动列表
   // getFinanceData: `${baseUrl}merchant/finance/summary`,  // 获取财务汇总
   // getReviews: `${baseUrl}merchant/reviews/list`          // 获取评价列表
+};
+
+// 商家订单相关接口
+export const merchantOrderAPI = {
+  list: `${baseUrl}merchant/takeoutorder/list`,                    // 获取订单列表
+  accept: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`, // 接受订单
+  reject: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`, // 拒绝订单
+  notifyRider: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`, // 通知骑手
+  detail: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`  // 订单详情
 };
 
 // 通用请求方法（Promise 封装）
@@ -114,5 +123,6 @@ export default {
   loginAPI,
   registerAPI,
   merchantAPI,
+  merchantOrderAPI,
   request
 };
