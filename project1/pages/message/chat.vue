@@ -97,10 +97,13 @@
 </template>
 
 <script>
+import { getMessageList, sendMessage as sendMessageAPI, uploadChatImage, sendLocation as sendLocationAPI, chatWebSocket, markChatRead } from '@/utils/chatApi.js';
+
 export default {
   name: 'ChatPage',
   data() {
     return {
+      chatId: null, // 会话ID
       chatInfo: {
         title: '',
         icon: '',
@@ -109,11 +112,18 @@ export default {
       messageList: [],
       inputMessage: '',
       scrollToView: '',
-      showActions: false
+      showActions: false,
+      pageNum: 1,
+      pageSize: 50,
+      hasMore: true,
+      loading: false
     }
   },
   onLoad(options) {
     // 接收从消息列表传来的参数
+    if (options.chatId) {
+      this.chatId = parseInt(options.chatId);
+    }
     if (options.title) {
       this.chatInfo.title = decodeURIComponent(options.title);
     }
@@ -126,109 +136,201 @@ export default {
     
     // 加载历史消息
     this.loadMessages();
+    
+    // 标记会话为已读
+    if (this.chatId) {
+      this.markAsRead();
+    }
+    
+    // 连接WebSocket
+    this.connectWebSocket();
+  },
+  onUnload() {
+    // 页面卸载时断开WebSocket
+    this.disconnectWebSocket();
   },
   methods: {
     // 加载历史消息
-    loadMessages() {
-      // 模拟历史消息数据
-      const now = new Date();
-      const mockMessages = [
-        {
-          type: 'system',
-          content: '欢迎进入聊天',
-          time: this.formatTime(new Date(now - 3600000)),
-          showTime: true
-        },
-        {
-          type: 'normal',
-          isSelf: false,
-          avatar: this.chatInfo.icon || '👤',
-          content: '您好，有什么可以帮您的吗？',
-          time: this.formatTime(new Date(now - 3500000)),
-          showTime: false
-        },
-        {
-          type: 'normal',
-          isSelf: true,
-          avatar: '🙂',
-          content: '我想咨询一下订单相关的问题',
-          time: this.formatTime(new Date(now - 3400000)),
-          showTime: false
-        },
-        {
-          type: 'normal',
-          isSelf: false,
-          avatar: this.chatInfo.icon || '👤',
-          content: '好的，请问您的订单号是多少？',
-          time: this.formatTime(new Date(now - 3300000)),
-          showTime: false
+    async loadMessages() {
+      if (this.loading || !this.hasMore || !this.chatId) {
+        return;
+      }
+      
+      this.loading = true;
+      
+      try {
+        const res = await getMessageList({
+          chatId: this.chatId,
+          pageNum: this.pageNum,
+          pageSize: this.pageSize
+        });
+        
+        if (res.data.code === 200) {
+          const messages = res.data.data.list || [];
+          
+          // 转换消息格式
+          const formattedMessages = messages.map(msg => this.formatMessage(msg));
+          
+          // 插入到消息列表前面（历史消息）
+          this.messageList = [...formattedMessages, ...this.messageList];
+          
+          // 判断是否还有更多消息
+          this.hasMore = messages.length >= this.pageSize;
+          this.pageNum++;
+          
+          // 第一次加载滚动到底部
+          if (this.pageNum === 2) {
+            this.$nextTick(() => {
+              this.scrollToBottom();
+            });
+          }
+        } else {
+          uni.showToast({
+            title: res.data.msg || '加载消息失败',
+            icon: 'none'
+          });
         }
-      ];
-      
-      this.messageList = mockMessages;
-      
-      // 滚动到底部
-      this.$nextTick(() => {
-        this.scrollToBottom();
-      });
+      } catch (error) {
+        console.error('加载消息失败:', error);
+        uni.showToast({
+          title: '加载消息失败',
+          icon: 'none'
+        });
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // 格式化消息数据
+    formatMessage(msg) {
+      return {
+        id: msg.messageId,
+        type: msg.messageType === 'system' ? 'system' : 'normal',
+        isSelf: msg.isSelf,
+        avatar: msg.isSelf ? '🙂' : (this.chatInfo.icon || '👤'),
+        content: msg.content,
+        time: this.formatTime(new Date(msg.createTime)),
+        showTime: msg.showTime || false,
+        messageType: msg.messageType
+      };
     },
     
     // 发送消息
-    sendMessage() {
+    async sendMessage() {
       if (!this.inputMessage.trim()) {
         return;
       }
       
-      const newMessage = {
+      if (!this.chatId) {
+        uni.showToast({
+          title: '会话ID不存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      const content = this.inputMessage.trim();
+      this.inputMessage = '';
+      
+      // 先在界面上显示消息（乐观更新）
+      const tempMessage = {
         type: 'normal',
         isSelf: true,
         avatar: '🙂',
-        content: this.inputMessage.trim(),
+        content: content,
         time: this.formatTime(new Date()),
-        showTime: false
+        showTime: false,
+        sending: true // 发送中标记
       };
       
-      this.messageList.push(newMessage);
-      this.inputMessage = '';
+      this.messageList.push(tempMessage);
       
       // 滚动到底部
       this.$nextTick(() => {
         this.scrollToBottom();
       });
       
-      // 模拟对方回复
-      setTimeout(() => {
-        this.receiveMessage();
-      }, 1000);
+      try {
+        const res = await sendMessageAPI({
+          chatId: this.chatId,
+          content: content,
+          messageType: 'text'
+        });
+        
+        if (res.data.code === 200) {
+          // 发送成功，更新消息状态
+          tempMessage.sending = false;
+          tempMessage.id = res.data.data.messageId;
+          
+          // 通过WebSocket发送
+          chatWebSocket.send({
+            type: 'message',
+            chatId: this.chatId,
+            messageId: res.data.data.messageId,
+            content: content
+          });
+        } else {
+          // 发送失败，标记失败
+          tempMessage.sendFailed = true;
+          uni.showToast({
+            title: res.data.msg || '发送失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        console.error('发送消息失败:', error);
+        tempMessage.sendFailed = true;
+        uni.showToast({
+          title: '发送失败',
+          icon: 'none'
+        });
+      }
     },
     
-    // 接收消息（模拟）
-    receiveMessage() {
-      const replies = [
-        '收到，我帮您查询一下',
-        '好的，请稍等',
-        '这个问题我需要进一步确认',
-        '明白了，马上为您处理',
-        '感谢您的反馈'
-      ];
-      
-      const randomReply = replies[Math.floor(Math.random() * replies.length)];
-      
-      const newMessage = {
-        type: 'normal',
-        isSelf: false,
-        avatar: this.chatInfo.icon || '👤',
-        content: randomReply,
-        time: this.formatTime(new Date()),
-        showTime: false
-      };
-      
-      this.messageList.push(newMessage);
-      
-      // 滚动到底部
-      this.$nextTick(() => {
-        this.scrollToBottom();
+    // 接收WebSocket消息
+    handleWebSocketMessage(data) {
+      if (data.type === 'message' && data.chatId === this.chatId) {
+        // 收到新消息
+        const newMessage = this.formatMessage(data.message);
+        this.messageList.push(newMessage);
+        
+        // 滚动到底部
+        this.$nextTick(() => {
+          this.scrollToBottom();
+        });
+        
+        // 标记为已读
+        this.markAsRead();
+      }
+    },
+    
+    // 连接WebSocket
+    connectWebSocket() {
+      chatWebSocket.connect({
+        onMessage: this.handleWebSocketMessage.bind(this),
+        onError: (err) => {
+          console.error('WebSocket错误:', err);
+        },
+        onClose: () => {
+          console.log('WebSocket连接关闭');
+        }
       });
+    },
+    
+    // 断开WebSocket
+    disconnectWebSocket() {
+      chatWebSocket.close();
+    },
+    
+    // 标记为已读
+    async markAsRead() {
+      if (!this.chatId) return;
+      
+      try {
+        await markChatRead(this.chatId);
+      } catch (error) {
+        console.error('标记已读失败:', error);
+      }
     },
     
     // 滚动到底部
@@ -272,26 +374,69 @@ export default {
     
     // 选择图片
     selectImage() {
+      if (!this.chatId) {
+        uni.showToast({
+          title: '会话ID不存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
       uni.chooseImage({
         count: 1,
-        success: (res) => {
-          uni.showToast({
-            title: '图片发送成功',
-            icon: 'success'
-          });
-          this.hideActions();
+        sizeType: ['compressed'],
+        sourceType: ['album', 'camera'],
+        success: async (res) => {
+          const filePath = res.tempFilePaths[0];
           
-          // 添加图片消息
-          const newMessage = {
-            type: 'normal',
-            isSelf: true,
-            avatar: '🙂',
-            content: '[图片]',
-            time: this.formatTime(new Date()),
-            showTime: false
-          };
-          this.messageList.push(newMessage);
-          this.scrollToBottom();
+          // 显示上传中
+          uni.showLoading({
+            title: '上传中...'
+          });
+          
+          try {
+            const uploadRes = await uploadChatImage(filePath, this.chatId);
+            
+            if (uploadRes.code === 200) {
+              // 添加图片消息
+              const newMessage = {
+                type: 'normal',
+                isSelf: true,
+                avatar: '🙂',
+                content: '[图片]',
+                time: this.formatTime(new Date()),
+                showTime: false,
+                imageUrl: uploadRes.data.imageUrl
+              };
+              this.messageList.push(newMessage);
+              
+              this.$nextTick(() => {
+                this.scrollToBottom();
+              });
+              
+              uni.showToast({
+                title: '发送成功',
+                icon: 'success'
+              });
+            } else {
+              uni.showToast({
+                title: uploadRes.msg || '上传失败',
+                icon: 'none'
+              });
+            }
+          } catch (error) {
+            console.error('上传图片失败:', error);
+            uni.showToast({
+              title: '上传失败',
+              icon: 'none'
+            });
+          } finally {
+            uni.hideLoading();
+            this.hideActions();
+          }
+        },
+        fail: () => {
+          this.hideActions();
         }
       });
     },
@@ -299,7 +444,7 @@ export default {
     // 选择文件
     selectFile() {
       uni.showToast({
-        title: '文件选择功能',
+        title: '文件功能开发中',
         icon: 'none'
       });
       this.hideActions();
@@ -307,11 +452,76 @@ export default {
     
     // 发送位置
     sendLocation() {
-      uni.showToast({
-        title: '位置分享功能',
-        icon: 'none'
+      if (!this.chatId) {
+        uni.showToast({
+          title: '会话ID不存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      uni.chooseLocation({
+        success: async (res) => {
+          uni.showLoading({
+            title: '发送中...'
+          });
+          
+          try {
+            const locationRes = await sendLocationAPI({
+              chatId: this.chatId,
+              latitude: res.latitude.toString(),
+              longitude: res.longitude.toString(),
+              address: res.address,
+              name: res.name
+            });
+            
+            if (locationRes.data.code === 200) {
+              // 添加位置消息
+              const newMessage = {
+                type: 'normal',
+                isSelf: true,
+                avatar: '🙂',
+                content: `[位置] ${res.name || res.address}`,
+                time: this.formatTime(new Date()),
+                showTime: false,
+                location: {
+                  latitude: res.latitude,
+                  longitude: res.longitude,
+                  address: res.address,
+                  name: res.name
+                }
+              };
+              this.messageList.push(newMessage);
+              
+              this.$nextTick(() => {
+                this.scrollToBottom();
+              });
+              
+              uni.showToast({
+                title: '发送成功',
+                icon: 'success'
+              });
+            } else {
+              uni.showToast({
+                title: locationRes.data.msg || '发送失败',
+                icon: 'none'
+              });
+            }
+          } catch (error) {
+            console.error('发送位置失败:', error);
+            uni.showToast({
+              title: '发送失败',
+              icon: 'none'
+            });
+          } finally {
+            uni.hideLoading();
+            this.hideActions();
+          }
+        },
+        fail: () => {
+          this.hideActions();
+        }
       });
-      this.hideActions();
     },
     
     // 语音通话

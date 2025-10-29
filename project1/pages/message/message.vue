@@ -79,6 +79,8 @@
 </template>
 
 <script>
+import { getChatList, getUnreadCount } from '@/utils/chatApi.js';
+
 export default {
   name: 'MessagePage',
   data() {
@@ -89,7 +91,8 @@ export default {
         { name: '群聊' },
         { name: '系统通知' }
       ],
-      messages: [
+      messages: [],
+      mockMessages: [
         {
           id: 0,
           name: '在线客服',
@@ -239,8 +242,20 @@ export default {
           unread: 0,
           emoji: ''
         }
-      ]
+      ],
+      loading: false,
+      unreadTotal: 0
     }
+  },
+  onLoad() {
+    // 加载会话列表
+    this.loadChatList();
+    // 加载未读消息数
+    this.loadUnreadCount();
+  },
+  onShow() {
+    // 每次显示页面时刷新未读消息数
+    this.loadUnreadCount();
   },
   computed: {
     filteredMessages() {
@@ -258,6 +273,106 @@ export default {
     }
   },
   methods: {
+    // 加载会话列表
+    async loadChatList() {
+      if (this.loading) return;
+      
+      this.loading = true;
+      
+      try {
+        const res = await getChatList({
+          pageNum: 1,
+          pageSize: 50
+        });
+        
+        if (res.data.code === 200) {
+          const chatList = res.data.data.list || [];
+          
+          // 转换数据格式
+          this.messages = chatList.map(chat => ({
+            id: chat.chatId,
+            chatId: chat.chatId,
+            name: chat.chatName || chat.userName,
+            type: chat.chatType || 'group', // group:群聊, system:系统
+            avatarIcon: chat.avatarIcon || '👥',
+            avatarBg: chat.avatarBg || 'linear-gradient(135deg, #64B5F6, #42A5F5)',
+            lastMessage: chat.lastMessage || '',
+            time: this.formatChatTime(chat.lastMessageTime),
+            unread: chat.unreadCount || 0,
+            emoji: chat.emoji || ''
+          }));
+          
+          // 如果没有真实数据，使用模拟数据
+          if (this.messages.length === 0) {
+            this.messages = this.mockMessages;
+          }
+        } else {
+          // 加载失败，使用模拟数据
+          console.warn('加载会话列表失败，使用模拟数据');
+          this.messages = this.mockMessages;
+        }
+      } catch (error) {
+        console.error('加载会话列表失败:', error);
+        // 加载失败，使用模拟数据
+        this.messages = this.mockMessages;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // 加载未读消息数
+    async loadUnreadCount() {
+      try {
+        const res = await getUnreadCount();
+        
+        if (res.data.code === 200) {
+          this.unreadTotal = res.data.data.unreadCount || 0;
+          
+          // 更新底部导航栏的角标（如果需要）
+          if (this.unreadTotal > 0) {
+            uni.setTabBarBadge({
+              index: 2, // 消息tab的索引
+              text: this.unreadTotal > 99 ? '99+' : this.unreadTotal.toString()
+            });
+          } else {
+            uni.removeTabBarBadge({
+              index: 2
+            });
+          }
+        }
+      } catch (error) {
+        console.error('加载未读消息数失败:', error);
+      }
+    },
+    
+    // 格式化会话时间
+    formatChatTime(timestamp) {
+      if (!timestamp) return '';
+      
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diff = now - date;
+      
+      if (diff < 60000) { // 1分钟内
+        return '刚刚';
+      } else if (diff < 3600000) { // 1小时内
+        return Math.floor(diff / 60000) + '分钟前';
+      } else if (diff < 86400000) { // 今天
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${hours}:${minutes}`;
+      } else if (diff < 172800000) { // 昨天
+        return '昨天';
+      } else if (diff < 604800000) { // 本周
+        const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        return weekdays[date.getDay()];
+      } else {
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        return `${month}-${day}`;
+      }
+    },
+    
     // 切换分类标签
     switchCategory(index) {
       this.currentTab = index;
@@ -266,11 +381,17 @@ export default {
     // 打开聊天界面
     openChat(item) {
       // 清除未读标记
+      const originalUnread = item.unread;
       item.unread = 0;
       
-      // 跳转到聊天界面
+      // 更新未读总数
+      if (originalUnread > 0) {
+        this.unreadTotal = Math.max(0, this.unreadTotal - originalUnread);
+      }
+      
+      // 跳转到聊天界面（需要传递chatId）
       uni.navigateTo({
-        url: `/pages/message/chat?title=${encodeURIComponent(item.name)}&icon=${encodeURIComponent(item.avatarIcon)}&iconColor=${encodeURIComponent(item.avatarBg)}`
+        url: `/pages/message/chat?chatId=${item.chatId || item.id}&title=${encodeURIComponent(item.name)}&icon=${encodeURIComponent(item.avatarIcon)}&iconColor=${encodeURIComponent(item.avatarBg)}`
       });
     },
     
