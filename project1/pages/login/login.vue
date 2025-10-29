@@ -92,10 +92,7 @@
 
 <script>
 // 导入API配置
-import { request } from '../../utils/api.js';
-
-// 配置API基础URL
-const API_BASE_URL = 'http://localhost:8080';
+import { request, captchaAPI, loginAPI } from '../../utils/api.js';
 
 export default {
 	data() {
@@ -142,79 +139,68 @@ export default {
 			});
 		},
 		
-		// 处理登录
-		async handleLogin() {
-			if (!this.validateForm()) {
-				return
-			}
-			
-			// 显示加载提示
-			uni.showLoading({
-				title: '登录中...'
-			})
-			
-			// 根据身份选择不同的登录接口
-			const identityName = this.identityOptions[this.identityIndex];
-			const identityKey = this.identityMap[identityName];
-			
-			let loginUrl = '';
-			switch(identityKey) {
-				case 'student':
-					loginUrl = `${API_BASE_URL}/platform/auth/user/login`;
-					break;
-				case 'rider':
-					loginUrl = `${API_BASE_URL}/platform/auth/rider/login`;
-					break;
-				case 'merchant':
-					loginUrl = `${API_BASE_URL}/platform/auth/merchant/login`;
-					break;
-			}
-			
-			try {
-				const response = await fetch(loginUrl, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-						phonenumber: this.phoneNumber,
-						password: this.password,
-						code: this.verificationCode,
-						uuid: this.uuid || uni.getStorageSync('captchaUuid')
-					})
-				});
+	// 处理登录
+	async handleLogin() {
+		if (!this.validateForm()) {
+			return
+		}
+		
+		// 显示加载提示
+		uni.showLoading({
+			title: '登录中...'
+		})
+		
+		// 根据身份选择不同的登录接口
+		const identityName = this.identityOptions[this.identityIndex];
+		const identityKey = this.identityMap[identityName];
+		
+		// 使用统一的 API 配置
+		let loginUrl = loginAPI[identityKey];
+		
+		try {
+			// 使用 request 函数替代 fetch
+			const response = await request(loginUrl, {
+				method: 'POST',
+				data: {
+					phonenumber: this.phoneNumber,
+					password: this.password,
+					code: this.verificationCode,
+					uuid: this.uuid || uni.getStorageSync('captchaUuid')
+				},
+				isToken: false // 登录接口不需要 token
+			});
 
-				const result = await response.json();
-				console.log('登录响应:', result);
+			const result = response.data;
+			console.log('登录响应:', result);
+			
+			uni.hideLoading();
+
+			if (result.code === 200) {
+				// 保存token
+				uni.setStorageSync('token', result.token);
+				uni.setStorageSync('userType', identityKey);
+				uni.setStorageSync('identity', identityName);
+				uni.setStorageSync('identityKey', identityKey);
 				
-				uni.hideLoading();
-
-				if (result.code === 200) {
-					// 保存token
-					uni.setStorageSync('token', result.token);
-					uni.setStorageSync('userType', identityKey);
-					uni.setStorageSync('identity', identityName);
-					uni.setStorageSync('identityKey', identityKey);
-					
-					this.showMessage('登录成功！', 'success');
-					
-					// 跳转到首页
-					setTimeout(() => {
-						uni.switchTab({
-							url: '/pages/index/index'
-						})
-					}, 1000);
-				} else {
-					this.showMessage(result.msg || '登录失败', 'error');
-					this.refreshCaptcha();
-				}
-			} catch (error) {
-				uni.hideLoading();
-				console.error('登录错误:', error);
-				this.showMessage('网络错误，请稍后重试', 'error');
+				this.showMessage('登录成功！', 'success');
+				
+				// 跳转到首页
+				setTimeout(() => {
+					uni.switchTab({
+						url: '/pages/index/index'
+					})
+				}, 1000);
+			} else {
+				this.showMessage(result.msg || '登录失败', 'error');
 				this.refreshCaptcha();
 			}
-		},
+		} catch (error) {
+			uni.hideLoading();
+			console.error('登录错误:', error);
+			this.showMessage('网络错误，请稍后重试', 'error');
+			this.refreshCaptcha();
+		}
+	},
 		
 		// 处理注册
 		handleRegister() {
@@ -241,42 +227,43 @@ export default {
 			// 这里可以跳转到找回密码页面
 		},
 		
-		// 刷新验证码
-		async refreshCaptcha() {
-			// 首先使用静态验证码确保页面有验证码显示
-			this.setStaticCaptcha();
-			
-			// 然后尝试从服务器获取验证码
-			try {
-				// 根据参考代码，使用正确的验证码接口路径
-				console.log('尝试获取服务器验证码');
-				const response = await fetch(`${API_BASE_URL}/captchaImage`, {
-					method: 'GET',
-					headers: {
-						'Content-Type': 'application/json'
-					}
-				});
+	// 刷新验证码
+	async refreshCaptcha() {
+		// 首先使用静态验证码确保页面有验证码显示
+		this.setStaticCaptcha();
+		
+		// 然后尝试从服务器获取验证码
+		try {
+			// 根据参考代码，使用正确的验证码接口路径
+			console.log('尝试获取服务器验证码');
+			// 在 uni-app 中使用统一的 API 配置
+			const response = await request(captchaAPI.getImage, {
+				method: 'GET',
+				// request 函数不需要设置 isToken，因为验证码接口不需要 token
+				isToken: false
+			});
 
-				const result = await response.json();
-				console.log('验证码响应:', result);
+			// response 已经包含了解析后的数据
+			const result = response.data;
+			console.log('验证码响应:', result);
 
-				if (result.code === 200 && result.img) {
-					// 获取uuid并保存
-					this.uuid = result.uuid;
-					uni.setStorageSync('captchaUuid', result.uuid);
-					
-					// 显示Base64图片
-					this.captchaImage = 'data:image/jpeg;base64,' + result.img;
-					console.log('服务器验证码加载成功');
-				} else {
-					console.log('服务器验证码返回错误或无图片:', result.msg);
-					// 保持使用静态验证码
-				}
-			} catch (error) {
-				console.error('获取服务器验证码失败:', error);
+			if (result.code === 200 && result.img) {
+				// 获取uuid并保存
+				this.uuid = result.uuid;
+				uni.setStorageSync('captchaUuid', result.uuid);
+				
+				// 显示Base64图片
+				this.captchaImage = 'data:image/jpeg;base64,' + result.img;
+				console.log('服务器验证码加载成功');
+			} else {
+				console.log('服务器验证码返回错误或无图片:', result.msg);
 				// 保持使用静态验证码
 			}
-		},
+		} catch (error) {
+			console.error('获取服务器验证码失败:', error);
+			// 保持使用静态验证码
+		}
+	},
 		
 		// 设置静态验证码
 		setStaticCaptcha() {
