@@ -5,13 +5,12 @@
     </view>
     
     <scroll-view class="content" scroll-y>
-      <!-- 基本信息 -->
+      <!-- 活动基本信息 -->
       <view class="section">
-        <view class="section-title">基本信息</view>
+        <view class="section-title">活动信息</view>
         
         <view class="form-item">
-          <view class="form-label">活动名称</view>
-          <!-- 简化为最基础的输入框实现 -->
+          <view class="form-label">活动名称 <text class="required">*</text></view>
           <input 
             v-model="activity.name" 
             placeholder="请输入活动名称" 
@@ -21,14 +20,14 @@
         </view>
         
         <view class="form-item">
-          <view class="form-label">活动类型</view>
+          <view class="form-label">活动类型 <text class="required">*</text></view>
           <picker class="form-picker" @change="onTypeChange" :value="typeIndex" :range="activityTypes">
             <view class="picker-text">{{ activityTypes[typeIndex] }}</view>
           </picker>
         </view>
         
         <view class="form-item">
-          <view class="form-label">活动时间</view>
+          <view class="form-label">活动时间 <text class="required">*</text></view>
           <view class="date-container">
             <input 
               class="date-input" 
@@ -49,88 +48,21 @@
         </view>
         
         <view class="form-item">
-          <view class="form-label">活动描述</view>
+          <view class="form-label">活动内容 <text class="required">*</text></view>
           <textarea 
             class="form-textarea" 
             v-model="activity.description" 
-            placeholder="请输入活动描述"
-            rows="3"
+            placeholder="请输入活动内容描述"
+            rows="4"
           ></textarea>
         </view>
-      </view>
-      
-      <!-- 活动规则 -->
-      <view class="section">
-        <view class="section-title">活动规则</view>
-        
-        <view class="rules-container">
-          <view class="rule-item" v-for="(rule, index) in activity.rules" :key="index">
-            <input 
-              class="rule-input condition" 
-              v-model="rule.condition" 
-              placeholder="条件" 
-            />
-            <input 
-              class="rule-input result" 
-              v-model="rule.result" 
-              placeholder="结果" 
-            />
-          </view>
-          
-          <view class="add-rule-btn" @click="addRule">添加规则</view>
-        </view>
-      </view>
-      
-      <!-- 适用商品 -->
-      <view class="section">
-        <view class="section-title">适用商品</view>
-        
-        <view class="switch-item">
-          <view class="switch-label">全店商品参与</view>
-<switch class="form-switch" :checked="activity.allProducts" @change="activity.allProducts = $event.detail.value" />
-        </view>
-        
-        <view class="form-item" v-if="!activity.allProducts">
-          <view class="form-label">选择商品（可选）</view>
-          <view class="products-container">
-            <view class="product-item" v-for="(product, index) in products" :key="index">
-              <text class="product-name">{{ product.name }}</text>
-              <text class="product-price">¥{{ product.price.toFixed(2) }}</text>
-            </view>
-            <view class="add-product-btn" @click="selectProducts">选择商品</view>
-          </view>
-        </view>
-      </view>
-      
-      <!-- 高级设置 -->
-      <view class="section">
-        <view class="section-title">高级设置</view>
-        
-        <view class="switch-item">
-          <view class="switch-label">启用活动</view>
-<switch class="form-switch" :checked="activity.enabled" @change="activity.enabled = $event.detail.value" />
-        </view>
         
         <view class="form-item">
-          <view class="form-label">每人限参与次数</view>
-          <!-- 简化为最基础的输入框实现 -->
-          <input 
-            v-model.number="activity.maxParticipations" 
-            type="number" 
-            placeholder="请输入次数" 
-            class="simple-input"
-          />
-        </view>
-        
-        <view class="form-item">
-          <view class="form-label">活动预算（元）</view>
-          <!-- 简化为最基础的输入框实现 -->
-          <input 
-            v-model.number="activity.budget" 
-            type="number" 
-            placeholder="请输入预算金额" 
-            class="simple-input"
-          />
+          <view class="form-label">活动状态</view>
+          <view class="status-container">
+            <switch class="form-switch" :checked="activity.enabled" @change="activity.enabled = $event.detail.value" />
+            <text class="status-text">{{ activity.enabled ? '启用' : '禁用' }}</text>
+          </view>
         </view>
       </view>
     </scroll-view>
@@ -144,41 +76,36 @@
 </template>
 
 <script>
+import { addActivity, updateActivity, getActivityDetail } from '../../utils/merchantApi.js';
+
 export default {
   name: 'ActivityEdit',
   data() {
     return {
       isEdit: false,
+      activityId: '',
       activity: {
         name: '',
-        type: 'new_user',
+        type: '满减',
         startDate: '',
         endDate: '',
         description: '',
-        rules: [
-          { condition: '', result: '' }
-        ],
-        allProducts: true,
-        selectedProducts: [],
-        enabled: true,
-        maxParticipations: 1,
-        budget: 5000
+        enabled: true
       },
-      activityTypes: ['新客立减', '满减优惠', '折扣商品', '买一送一'],
+      activityTypes: ['满减', '折扣', '赠品', '积分'],
       typeIndex: 0,
-      products: [
-        { id: 1, name: '招牌汉堡', price: 35.00 },
-        { id: 2, name: '薯条(大份)', price: 15.00 },
-        { id: 3, name: '可乐(大杯)', price: 18.50 },
-        { id: 4, name: '意式披萨', price: 45.00 }
-      ]
-    }
+      merchantBaseId: '',
+      loading: false
+    };
   },
   onLoad(options) {
+    // 页面加载时获取活动数据
+    this.merchantBaseId = getApp().globalData.merchantId || '';
+    
     if (options.id) {
       this.isEdit = true;
-      // 这里可以根据ID加载活动数据
-      this.loadActivityData(options.id);
+      this.activityId = options.id;
+      this.loadActivityData();
     } else {
       // 设置默认日期为今天和一个月后
       const today = new Date();
@@ -196,62 +123,68 @@ export default {
       const day = String(date.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     },
-    loadActivityData(id) {
-      // 模拟加载活动数据
-      // 实际项目中应该从API获取
-      this.activity = {
-        name: '新客立减活动',
-        type: 'new_user',
-        startDate: '2023-11-01',
-        endDate: '2023-11-30',
-        description: '新用户首次下单立减15元',
-        rules: [
-          { condition: '新用户', result: '立减15元' }
-        ],
-        allProducts: true,
-        selectedProducts: [],
-        enabled: true,
-        maxParticipations: 1,
-        budget: 5000
-      };
+    loadActivityData() {
+      // 加载活动详情数据
+      this.loading = true;
+      // 显示加载提示
+      uni.showLoading({
+        title: '加载中...'
+      });
       
-      // 设置类型索引
-      const typeMap = {
-        'new_user': 0,
-        'discount': 1,
-        'sale': 2,
-        'buy_one_get_one': 3
-      };
-      this.typeIndex = typeMap[this.activity.type] || 0;
+      // 调用API获取活动详情
+      getActivityDetail(this.activityId)
+        .then(res => {
+          uni.hideLoading();
+          if (res.code === 0 && res.data) {
+            const detail = res.data;
+            // 根据后端返回的结构映射数据
+            this.activity = {
+              name: detail.activityName || '',
+              type: detail.activityType || '满减',
+              startDate: this.formatDate(detail.startTime),
+              endDate: this.formatDate(detail.endTime),
+              description: detail.content || '',
+              enabled: detail.status === 1
+            };
+            // 设置活动类型索引
+            this.typeIndex = this.activityTypes.indexOf(this.activity.type);
+          } else {
+            uni.showToast({
+              title: '加载活动失败',
+              icon: 'none'
+            });
+          }
+          this.loading = false;
+        })
+        .catch(err => {
+          uni.hideLoading();
+          console.error('加载活动详情失败:', err);
+          uni.showToast({
+            title: '网络错误，请稍后重试',
+            icon: 'none'
+          });
+          this.loading = false;
+        });
     },
     onTypeChange(e) {
-      this.typeIndex = e.target.value;
-      const typeMap = ['new_user', 'discount', 'sale', 'buy_one_get_one'];
-      this.activity.type = typeMap[this.typeIndex];
+      const index = e.detail.value;
+      this.typeIndex = index;
+      this.activity.type = this.activityTypes[index];
     },
     showStartDatePicker() {
-      const date = this.activity.startDate ? new Date(this.activity.startDate) : new Date();
-      // 这里可以使用uni-app的日期选择器
+      // 移除模态框，允许直接选择日期
+      // 系统会自动弹出日期选择器
     },
     showEndDatePicker() {
-      const date = this.activity.endDate ? new Date(this.activity.endDate) : new Date();
-      // 这里可以使用uni-app的日期选择器
-    },
-    addRule() {
-      this.activity.rules.push({ condition: '', result: '' });
-    },
-    selectProducts() {
-      uni.showToast({
-        title: '商品选择功能开发中',
-        icon: 'none'
-      });
+      // 移除模态框，允许直接选择日期
+      // 系统会自动弹出日期选择器
     },
     cancel() {
       uni.navigateBack();
     },
     saveActivity() {
       // 表单验证
-      if (!this.activity.name) {
+      if (!this.activity.name.trim()) {
         uni.showToast({
           title: '请输入活动名称',
           icon: 'none'
@@ -267,19 +200,73 @@ export default {
         return;
       }
       
-      // 保存活动
-      console.log('保存活动数据:', this.activity);
+      if (!this.activity.description.trim()) {
+        uni.showToast({
+          title: '请输入活动内容',
+          icon: 'none'
+        });
+        return;
+      }
       
-      uni.showToast({
-        title: this.isEdit ? '修改成功' : '创建成功',
-        icon: 'success',
-        duration: 2000,
-        success: () => {
-          setTimeout(() => {
-            uni.navigateBack();
-          }, 2000);
-        }
+      // 构建提交数据，严格按照后端API要求的字段结构
+      const activityData = {
+        merchantBaseId: this.merchantBaseId,
+        activityName: this.activity.name,
+        activityType: this.activity.type,
+        content: this.activity.description,
+        startTime: new Date(this.activity.startDate).getTime(),
+        endTime: new Date(this.activity.endDate).getTime(),
+        status: this.activity.enabled ? 1 : 0
+      };
+      
+      // 显示加载提示
+      this.loading = true;
+      uni.showLoading({
+        title: this.isEdit ? '保存中...' : '创建中...'
       });
+      
+      // 根据编辑模式调用不同的API
+      const savePromise = this.isEdit ? 
+        updateActivity(activityData) : 
+        addActivity(activityData);
+      
+      savePromise
+        .then(res => {
+          uni.hideLoading();
+          this.loading = false;
+          // 修改条件判断，适应可能的不同返回码
+          if (res.code === 200 || res.code === 0 || (res && !res.code)) {
+            uni.showToast({
+              title: this.isEdit ? '保存成功' : '创建成功',
+              icon: 'success'
+            });
+            // 创建成功跳转到活动页面，编辑则返回上一页
+            setTimeout(() => {
+              if (this.isEdit) {
+                uni.navigateBack();
+              } else {
+                // 使用正确的路径跳转到活动列表页面
+                uni.reLaunch({
+                  url: '../activities/activities'
+                });
+              }
+            }, 1000); // 缩短延时以提高响应速度
+          } else {
+            uni.showToast({
+              title: res.data?.msg || '保存失败',
+              icon: 'none'
+            });
+          }
+        })
+        .catch(err => {
+          console.error('保存活动失败:', err);
+          uni.hideLoading();
+          this.loading = false;
+          uni.showToast({
+            title: '网络错误，请稍后重试',
+            icon: 'none'
+          });
+        });
     }
   }
 }
@@ -313,6 +300,13 @@ export default {
   display: flex;
   flex-direction: column;
   align-items: center;
+  background-color: #f8f8f8;
+}
+
+.content {
+  width: 100%;
+  max-width: 700rpx;
+  padding-bottom: 120rpx;
 }
 
 .section {
@@ -321,17 +315,16 @@ export default {
   padding: 30rpx;
   margin-bottom: 24rpx;
   width: 100%;
-  max-width: 650rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
 }
-
-/* 调整内容区域的内边距，避免边缘溢出 */
-
 
 .section-title {
   font-size: 32rpx;
   font-weight: bold;
   color: #333;
   margin-bottom: 30rpx;
+  border-left: 6rpx solid #07c160;
+  padding-left: 20rpx;
 }
 
 .form-item {
@@ -340,76 +333,86 @@ export default {
 
 .form-label {
   font-size: 28rpx;
-  color: #666;
+  color: #333;
   margin-bottom: 16rpx;
+  font-weight: 500;
 }
 
-.form-input,
-.form-textarea {
-  width: 100%;
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
-  padding: 20rpx;
-  font-size: 28rpx;
-  box-sizing: border-box;
-  background-color: #ffffff;
-  color: #333333;
+.form-label .required {
+  color: #ff4757;
+  margin-left: 5rpx;
 }
 
+/* 输入框样式 */
+  .simple-input,
+  .form-input,
+  .date-input {
+    width: 90%;
+    height: 88rpx;
+    line-height: 88rpx;
+    padding: 0 24rpx;
+    border: 2rpx solid #e0e0e0;
+    border-radius: 10rpx;
+    font-size: 28rpx;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    color: #333333;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    outline: none;
+  }
+
+.simple-input:focus,
 .form-input:focus,
+.date-input:focus {
+  border-color: #07c160;
+}
+
+/* 文本域样式 */
+  .form-textarea {
+    width: 90%;
+    min-height: 200rpx;
+    border: 2rpx solid #e0e0e0;
+    border-radius: 10rpx;
+    padding: 24rpx;
+    font-size: 28rpx;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    color: #333333;
+    resize: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    outline: none;
+    line-height: 1.6;
+  }
+
 .form-textarea:focus {
-  border-color: #A8D8EA;
+  border-color: #07c160;
 }
 
-/* 为问题输入框创建全新的简单样式，避免任何可能的冲突 */
-.simple-input {
-  width: 100%;
-  height: 80rpx;
-  line-height: 80rpx;
-  padding: 0 20rpx;
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
-  font-size: 28rpx;
-  box-sizing: border-box;
-  background-color: #ffffff;
-  color: #333333;
-}
-
-/* 直接针对input元素设置样式，不使用深度选择器 */
-input {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  outline: none;
-}
-
-/* 确保所有输入框都可以正常交互 */
-input[type="text"],
-input[type="number"] {
-  pointer-events: auto;
-  user-select: text;
-  -webkit-user-select: text;
-  background-color: #ffffff;
-}
-
-.form-textarea {
-  min-height: 150rpx;
-  resize: none;
-}
-
-.form-picker {
-  width: 90%;
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
-  padding: 20rpx;
-  font-size: 28rpx;
-  position: relative;
-}
+/* 选择器样式 */
+  .form-picker {
+    width: 90%;
+    height: 88rpx;
+    line-height: 88rpx;
+    border: 2rpx solid #e0e0e0;
+    border-radius: 10rpx;
+    padding: 0 24rpx;
+    font-size: 28rpx;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
 
 .form-picker::after {
   content: '▼';
   position: absolute;
-  right: 20rpx;
+  right: 24rpx;
   top: 50%;
   transform: translateY(-50%);
   color: #999;
@@ -420,134 +423,83 @@ input[type="number"] {
   color: #333;
 }
 
+/* 日期选择区域样式 */
 .date-container {
   display: flex;
   align-items: center;
-  gap: 16rpx;
+  width: 90%;
 }
 
 .date-input {
   flex: 1;
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
-  padding: 20rpx;
-  font-size: 28rpx;
+  margin: 0;
 }
 
 .date-separator {
   font-size: 28rpx;
   color: #666;
+  white-space: nowrap;
+  padding: 0 16rpx;
 }
 
-.rules-container {
-  margin-top: 16rpx;
-}
-
-.rule-item {
+/* 状态开关样式 */
+.status-container {
   display: flex;
-  gap: 16rpx;
-  margin-bottom: 16rpx;
-}
-
-.rule-input {
-  flex: 1;
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
-  padding: 20rpx;
-  font-size: 28rpx;
-}
-
-.add-rule-btn {
-  text-align: center;
-  color: #2196F3;
-  font-size: 28rpx;
-  padding: 20rpx;
-  border: 2rpx dashed #2196F3;
-  border-radius: 8rpx;
-  margin-top: 16rpx;
-}
-
-.switch-item {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 30rpx;
-}
-
-.switch-label {
-  font-size: 28rpx;
-  color: #333;
 }
 
 .form-switch {
-  transform: scale(0.8);
+  transform: scale(0.9);
 }
 
-.products-container {
-  border: 2rpx solid #e0e0e0;
-  border-radius: 8rpx;
-  padding: 20rpx;
-}
-
-.product-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
-}
-
-.product-item:last-child {
-  border-bottom: none;
-}
-
-.product-name {
+.status-text {
+  margin-left: 20rpx;
   font-size: 28rpx;
-  color: #333;
+  color: #666;
 }
 
-.product-price {
-  font-size: 28rpx;
-  color: #FF5722;
-  font-weight: 500;
-}
-
-.add-product-btn {
-  text-align: center;
-  color: #2196F3;
-  font-size: 28rpx;
-  padding: 16rpx;
-  margin-top: 16rpx;
-  border: 2rpx dashed #2196F3;
-  border-radius: 8rpx;
-}
-
+/* 底部按钮样式 */
 .footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: white;
   padding: 24rpx 30rpx;
   display: flex;
   gap: 20rpx;
-  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
+  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.1);
 }
 
-.cancel-btn,
 .save-btn {
   flex: 1;
-  padding: 24rpx;
-  border-radius: 8rpx;
-  font-size: 32rpx;
-  font-weight: 500;
-}
-
-.cancel-btn {
-  background: #f5f5f5;
-  color: #666;
-  border: 2rpx solid #e0e0e0;
-}
-
-.save-btn {
-  background: linear-gradient(135deg, #A8D8EA, #B3E5F0);
-  color: #333;
+  height: 90rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #07c160;
+  color: #fff;
+  font-size: 34rpx;
+  font-weight: bold;
+  border-radius: 10rpx;
   border: none;
+}
+
+.save-btn:active {
+  background-color: #06ad56;
+}
+
+/* 加载状态样式 */
+.loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 20rpx 40rpx;
+  border-radius: 10rpx;
+  font-size: 28rpx;
+  z-index: 999;
 }
 </style>
