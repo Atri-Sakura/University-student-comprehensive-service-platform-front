@@ -32,9 +32,15 @@
 
     <!-- 商品列表 -->
     <view class="content">
-      <view class="product-item" v-for="(item, index) in filteredProducts" :key="index">
+      <!-- 加载中 -->
+      <view v-if="loading && products.length === 0" class="loading-container">
+        <text class="loading-text">加载中...</text>
+      </view>
+
+      <!-- 商品列表 -->
+      <view class="product-item" v-for="(item, index) in filteredProducts" :key="item.id || index">
         <view class="product-image">
-          <image v-if="item.image" :src="item.image" mode="aspectFill" />
+          <image v-if="item.image" :src="item.image" mode="aspectFill" lazy-load />
           <text v-else class="product-emoji">{{ item.emoji }}</text>
         </view>
         <view class="product-info">
@@ -49,7 +55,7 @@
           <view class="action-btn edit-btn" @click="editProduct(item)">
             <text class="action-text">编辑</text>
           </view>
-          <view class="action-btn delete-btn" @click="deleteProduct(item, index)">
+          <view class="action-btn delete-btn" @click="deleteProduct(item)">
             <text class="action-text">删除</text>
           </view>
           <view class="switch-btn" @click="toggleStatus(item)">
@@ -61,7 +67,18 @@
         </view>
       </view>
 
-      <view v-if="filteredProducts.length === 0" class="empty">
+      <!-- 加载更多 -->
+      <view v-if="!showEmpty && hasMore && products.length > 0" class="load-more">
+        <text class="load-more-text">{{ loadingMore ? '加载中...' : '上拉加载更多' }}</text>
+      </view>
+
+      <!-- 没有更多 -->
+      <view v-if="!showEmpty && !hasMore && products.length > 0" class="no-more">
+        <text class="no-more-text">没有更多了</text>
+      </view>
+
+      <!-- 空状态 -->
+      <view v-if="showEmpty" class="empty">
         <text class="empty-icon">📦</text>
         <text class="empty-text">暂无商品</text>
         <view class="empty-btn" @click="addProduct">
@@ -117,6 +134,23 @@
             />
           </view>
 
+          <!-- 商品标签 -->
+          <view class="form-item">
+            <text class="form-label">商品标签</text>
+            <view class="tags-select">
+              <view 
+                class="tag-option" 
+                v-for="(tag, index) in availableTags" 
+                :key="index"
+                :class="{ selected: isTagSelected(tag.code) }"
+                @click="toggleTag(tag)"
+              >
+                <text class="tag-option-text">{{ tag.name }}</text>
+              </view>
+            </view>
+            <text class="tag-hint">已选择: {{ selectedTags.length }} 个标签</text>
+          </view>
+
           <!-- 商品分类 -->
           <view class="form-item">
             <text class="form-label">商品分类</text>
@@ -126,14 +160,30 @@
                 v-for="(cat, index) in categories.slice(1)" 
                 :key="index"
                 :class="{ selected: editingProduct.category === cat }"
-                @click="editingProduct.category = cat"
+                @click="selectCategory(cat)"
               >
                 <text class="category-option-text">{{ cat }}</text>
               </view>
             </view>
           </view>
 
-          <!-- 价格和库存 -->
+          <!-- 商品子分类 -->
+          <view class="form-item" v-if="subCategories.length > 0">
+            <text class="form-label">商品子分类</text>
+            <view class="category-select">
+              <view 
+                class="category-option" 
+                v-for="(subCat, index) in subCategories" 
+                :key="index"
+                :class="{ selected: editingProduct.subCategory === subCat }"
+                @click="editingProduct.subCategory = subCat"
+              >
+                <text class="category-option-text">{{ subCat }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 价格和原价 -->
           <view class="form-row">
             <view class="form-item half">
               <text class="form-label">商品价格</text>
@@ -150,16 +200,32 @@
               </view>
             </view>
             <view class="form-item half">
-              <text class="form-label">库存数量</text>
-              <input 
-                class="form-input" 
-                type="number" 
-                :value="editingProduct.stock"
-                @input="editingProduct.stock = $event.detail.value"
-                placeholder="0"
-                placeholder-style="color: #999;"
-              />
+              <text class="form-label">商品原价</text>
+              <view class="price-input-wrapper">
+                <text class="price-symbol">¥</text>
+                <input 
+                  class="form-input price-input" 
+                  type="digit" 
+                  :value="editingProduct.originalPrice"
+                  @input="editingProduct.originalPrice = $event.detail.value"
+                  placeholder="0.00"
+                  placeholder-style="color: #999;"
+                />
+              </view>
             </view>
+          </view>
+
+          <!-- 库存 -->
+          <view class="form-item">
+            <text class="form-label">库存数量</text>
+            <input 
+              class="form-input" 
+              type="number" 
+              :value="editingProduct.stock"
+              @input="editingProduct.stock = $event.detail.value"
+              placeholder="0"
+              placeholder-style="color: #999;"
+            />
           </view>
         </view>
 
@@ -177,39 +243,79 @@
 </template>
 
 <script>
+import goodsApi from '@/utils/goodsApi.js'
+
 export default {
   name: 'ProductsPage',
+  
   data() {
     return {
+      // ===== 搜索和筛选 =====
       searchText: '',
       currentCategory: 0,
       categories: ['全部', '主食', '饮料', '小吃', '套餐'],
+      // 分类和子分类的映射关系
+      categorySubMap: {
+        '主食': ['面食', '米饭', '包子', '饺子', '粥类'],
+        '饮料': ['茶饮', '咖啡', '果汁', '奶茶', '汽水'],
+        '小吃': ['炸物', '凉菜', '甜品', '卤味', '烧烤'],
+        '套餐': ['单人套餐', '双人套餐', '家庭套餐', '聚会套餐']
+      },
+      subCategories: [], // 当前主分类下的子分类列表
+      
+      // 商品标签列表（中文名 → 英文编码）
+      availableTags: [
+        { name: '辣的', code: 'FOOD_SPICY' },
+        { name: '快餐', code: 'FAST_FOOD' },
+        { name: '面食', code: 'FOOD_NOODLE' },
+        { name: '汤类', code: 'SOUP' },
+        { name: '小吃', code: 'SNACK' },
+        { name: '鸡肉', code: 'CHICKEN' },
+        { name: '海鲜', code: 'SEAFOOD' },
+        { name: '健康', code: 'HEALTH' },
+        { name: '素食', code: 'VEGETARIAN' },
+        { name: '沙拉', code: 'SALAD' },
+        { name: '热销', code: 'HOT_SALE' },
+        { name: '新品', code: 'NEW' },
+        { name: '推荐', code: 'RECOMMEND' }
+      ],
+      selectedTags: [], // 当前选中的标签
+      
+      // ===== 商品列表 =====
+      products: [],
+      
+      // ===== 分页 =====
+      pageNum: 1,
+      pageSize: 10,
+      total: 0,
+      hasMore: true,
+      
+      // ===== 编辑状态 =====
       showEditModal: false,
       editingProduct: {
         id: null,
         name: '',
         description: '',
         price: '',
+        originalPrice: '',
         stock: '',
         category: '主食',
+        subCategory: '',
         image: '',
         emoji: '🍔',
-        status: true
+        status: true,
+        tagCodes: ''
       },
       editingIndex: -1,
-      products: [
-        { name: '招牌汉堡套餐', emoji: '🍔', description: '汉堡+薯条+可乐', price: '35.00', stock: 50, category: '套餐', status: true },
-        { name: '经典炸鸡桶', emoji: '🍗', description: '香脆炸鸡8块', price: '68.00', stock: 30, category: '主食', status: true },
-        { name: '芝士牛肉汉堡', emoji: '🍔', description: '双层牛肉芝士', price: '28.00', stock: 45, category: '主食', status: true },
-        { name: '薯条（大份）', emoji: '🍟', description: '金黄酥脆薯条', price: '15.00', stock: 100, category: '小吃', status: true },
-        { name: '可乐（大杯）', emoji: '🥤', description: '冰镇可口可乐', price: '8.00', stock: 80, category: '饮料', status: true },
-        { name: '鸡米花', emoji: '🍿', description: '香脆鸡米花', price: '18.00', stock: 60, category: '小吃', status: true },
-        { name: '奶茶（珍珠）', emoji: '🧋', description: '珍珠奶茶', price: '12.00', stock: 70, category: '饮料', status: true },
-        { name: '鸡翅（2个）', emoji: '🍗', description: '香辣鸡翅', price: '16.00', stock: 40, category: '小吃', status: false }
-      ]
+      
+      // ===== 加载状态 =====
+      loading: false,
+      refreshing: false,
+      loadingMore: false
     }
   },
   computed: {
+    // 过滤后的商品列表
     filteredProducts() {
       let products = this.products;
       
@@ -227,47 +333,394 @@ export default {
       }
       
       return products;
+    },
+    
+    // 是否显示空状态
+    showEmpty() {
+      return !this.loading && this.filteredProducts.length === 0;
+    },
+    
+    // 是否是添加模式
+    isAddMode() {
+      return !this.editingProduct.id;
     }
   },
+  
+  // 页面生命周期
+  onLoad() {
+    this.loadGoodsList(true);
+  },
+  
+  // 下拉刷新
+  onPullDownRefresh() {
+    this.onRefresh().then(() => {
+      uni.stopPullDownRefresh();
+    });
+  },
+  
+  // 上拉加载
+  onReachBottom() {
+    this.onLoadMore();
+  },
   methods: {
+    // ===== 数据加载 =====
+    
+    /**
+     * 加载商品列表
+     * @param {Boolean} isRefresh - 是否刷新（重置页码）
+     */
+    async loadGoodsList(isRefresh = false) {
+      // 刷新时重置页码
+      if (isRefresh) {
+        this.pageNum = 1;
+        this.products = [];
+      }
+      
+      // 防止重复加载
+      if (this.loading) return;
+      
+      this.loading = true;
+      
+      try {
+        const res = await goodsApi.getGoodsList({
+          pageNum: this.pageNum,
+          pageSize: this.pageSize
+        });
+        
+        if (res.code === 200) {
+          // 数据转换
+          const newProducts = res.rows.map(item => this.mapBackendToFrontend(item));
+          
+          // 刷新或追加
+          if (isRefresh) {
+            this.products = newProducts;
+          } else {
+            this.products.push(...newProducts);
+          }
+          
+          // 更新分页信息
+          this.total = res.total || 0;
+          this.hasMore = this.products.length < this.total;
+        } else {
+          this.handleError(res, '加载商品列表失败');
+        }
+      } catch (error) {
+        this.handleError(error, '加载商品列表失败');
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    /**
+     * 下拉刷新
+     */
+    async onRefresh() {
+      this.refreshing = true;
+      await this.loadGoodsList(true);
+      this.refreshing = false;
+    },
+    
+    /**
+     * 上拉加载更多
+     */
+    async onLoadMore() {
+      if (!this.hasMore || this.loading || this.loadingMore) return;
+      
+      this.loadingMore = true;
+      this.pageNum++;
+      await this.loadGoodsList(false);
+      this.loadingMore = false;
+    },
+    
+    // ===== 搜索和筛选 =====
+    
+    /**
+     * 搜索输入处理
+     */
+    onSearch() {
+      // 搜索逻辑已在计算属性中处理
+      // 可在此处添加防抖优化或调用后端搜索接口
+    },
+    
+    /**
+     * 切换分类
+     */
     switchCategory(index) {
       this.currentCategory = index;
     },
-    onSearch() {
-      // 搜索逻辑已在计算属性中处理
+    
+    /**
+     * 选择商品分类（在编辑弹窗中）
+     * @param {String} category - 分类名称
+     */
+    async selectCategory(category) {
+      // 更新选中的分类
+      this.editingProduct.category = category;
+      
+      // 清空之前选择的子分类
+      this.editingProduct.subCategory = '';
+      
+      // 加载该分类下的子分类
+      await this.loadSubCategories(category);
     },
+    
+    /**
+     * 加载子分类列表（从本地映射表）
+     * @param {String} category - 主分类名称
+     */
+    loadSubCategories(category) {
+      if (!category || category === '全部') {
+        this.subCategories = [];
+        return;
+      }
+      
+      // 从本地映射表获取子分类
+      this.subCategories = this.categorySubMap[category] || [];
+    },
+    
+    // ===== 添加商品 =====
+    
+    /**
+     * 打开添加商品弹窗
+     */
     addProduct() {
-      this.editingProduct = {
-        id: null,
-        name: '',
-        description: '',
-        price: '',
-        stock: '',
-        category: '主食',
-        image: '',
-        emoji: '🍔',
-        status: true
-      };
+      this.editingProduct = this.getEmptyProduct();
       this.editingIndex = -1;
+      this.selectedTags = []; // 清空选中的标签
       this.showEditModal = true;
     },
-    editProduct(item) {
-      // 找到原始产品的索引
-      this.editingIndex = this.products.findIndex(p => p === item);
-      // 复制商品信息到编辑对象
-      this.editingProduct = {
-        ...item,
-        id: this.editingIndex
-      };
+    
+    // ===== 编辑商品 =====
+    
+    /**
+     * 编辑商品
+     * @param {Object} item - 商品对象
+     */
+    async editProduct(item) {
+      // 可选：调用详情接口获取完整数据
+      // try {
+      //   const res = await goodsApi.getGoodsDetail(item.id);
+      //   if (res.code === 200) {
+      //     this.editingProduct = this.mapBackendToFrontend(res.data);
+      //   }
+      // } catch (error) {
+      //   this.handleError(error, '获取商品详情失败');
+      //   return;
+      // }
+      
+      // 直接使用列表数据
+      this.editingIndex = this.products.findIndex(p => p.id === item.id);
+      this.editingProduct = { ...item };
       this.showEditModal = true;
+      
+      // 如果商品有分类，加载对应的子分类
+      if (this.editingProduct.category) {
+        await this.loadSubCategories(this.editingProduct.category);
+      }
+      
+      // 初始化选中的标签
+      this.initSelectedTags(this.editingProduct.tagCodes);
     },
+    
+    /**
+     * 保存商品（添加或编辑）
+     */
+    async saveProduct() {
+      // 验证表单
+      if (!this.validateProduct()) {
+        return;
+      }
+      
+      try {
+        // 转换数据格式
+        const data = this.mapFrontendToBackend(this.editingProduct);
+        
+        if (this.isAddMode) {
+          // 添加商品
+          const res = await goodsApi.addGoods(data);
+          if (res.code === 200) {
+            uni.showToast({ 
+              title: '添加成功', 
+              icon: 'success' 
+            });
+            this.closeModal();
+            this.onRefresh(); // 刷新列表
+          } else {
+            this.handleError(res, '添加失败');
+          }
+        } else {
+          // 修改商品
+          const res = await goodsApi.updateGoods(this.editingProduct.id, data);
+          if (res.code === 200) {
+            uni.showToast({ 
+              title: '修改成功', 
+              icon: 'success' 
+            });
+            this.closeModal();
+            this.onRefresh(); // 刷新列表
+          } else {
+            this.handleError(res, '修改失败');
+          }
+        }
+      } catch (error) {
+        this.handleError(error, '保存失败');
+      }
+    },
+    
+    // ===== 删除商品 =====
+    
+    /**
+     * 删除商品
+     * @param {Object} item - 商品对象
+     */
+    deleteProduct(item) {
+      uni.showModal({
+        title: '确认删除',
+        content: `确定要删除"${item.name}"吗？`,
+        success: async (res) => {
+          if (res.confirm) {
+            try {
+              const result = await goodsApi.deleteGoods(item.id);
+              if (result.code === 200) {
+                uni.showToast({ 
+                  title: '删除成功', 
+                  icon: 'success' 
+                });
+                this.onRefresh(); // 刷新列表
+              } else {
+                this.handleError(result, '删除失败');
+              }
+            } catch (error) {
+              this.handleError(error, '删除失败');
+            }
+          }
+        }
+      });
+    },
+    
+    // ===== 上下架 =====
+    
+    /**
+     * 切换商品上下架状态
+     * @param {Object} item - 商品对象
+     */
+    async toggleStatus(item) {
+      const newStatus = !item.status;
+      const api = newStatus ? goodsApi.upGoods : goodsApi.downGoods;
+      
+      try {
+        const res = await api(item.id);
+        if (res.code === 200) {
+          uni.showToast({
+            title: newStatus ? '商品已上架' : '商品已下架',
+            icon: 'success'
+          });
+          // 刷新列表，确保数据与后端一致
+          this.onRefresh();
+        } else {
+          this.handleError(res, '操作失败');
+        }
+      } catch (error) {
+        this.handleError(error, '操作失败');
+      }
+    },
+    
+    // ===== 标签处理 =====
+    
+    /**
+     * 判断标签是否被选中
+     * @param {String} code - 标签编码
+     */
+    isTagSelected(code) {
+      return this.selectedTags.includes(code);
+    },
+    
+    /**
+     * 切换标签选中状态
+     * @param {Object} tag - 标签对象 {name, code}
+     */
+    toggleTag(tag) {
+      const index = this.selectedTags.indexOf(tag.code);
+      if (index > -1) {
+        // 已选中，取消选择
+        this.selectedTags.splice(index, 1);
+      } else {
+        // 未选中，添加选择
+        this.selectedTags.push(tag.code);
+      }
+    },
+    
+    /**
+     * 初始化选中的标签（从 tagCodes 字符串）
+     * @param {String} tagCodes - 标签编码字符串（如："FOOD_SPICY,FAST_FOOD"）
+     */
+    initSelectedTags(tagCodes) {
+      if (!tagCodes) {
+        this.selectedTags = [];
+        return;
+      }
+      
+      // 将字符串分割为数组
+      this.selectedTags = tagCodes.split(',').filter(code => code.trim());
+    },
+    
+    /**
+     * 获取标签编码字符串（逗号分隔）
+     * @returns {String} 如："FOOD_SPICY,FAST_FOOD"
+     */
+    getTagCodesString() {
+      return this.selectedTags.join(',');
+    },
+    
+    // ===== 图片处理 =====
+    
+    /**
+     * 选择图片
+     */
     chooseImage() {
       uni.chooseImage({
         count: 1,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
-        success: (res) => {
-          this.editingProduct.image = res.tempFilePaths[0];
+        success: async (res) => {
+          const tempFilePath = res.tempFilePaths[0];
+          
+          // 立即显示本地图片预览
+          this.editingProduct.image = tempFilePath;
+          
+          // 上传图片到服务器
+          uni.showLoading({ title: '上传中...' });
+          
+          try {
+            const imageUrl = await this.uploadImage(tempFilePath);
+            
+            // 上传成功，使用服务器返回的URL
+            this.editingProduct.image = imageUrl;
+            
+            uni.hideLoading();
+            uni.showToast({ 
+              title: '图片上传成功', 
+              icon: 'success' 
+            });
+            
+            // ⚠️ 临时方案：因后端 addImage 接口有bug，暂时跳过单独调用
+            // 图片URL已保存在 editingProduct.image 中
+            // 在点击"保存"按钮时会一起提交到后端
+            
+            if (this.editingProduct.id) {
+              // 提示用户需要点击保存
+              uni.showToast({
+                title: '请点击"保存"按钮保存图片',
+                icon: 'none',
+                duration: 2000
+              });
+            }
+          } catch (error) {
+            uni.hideLoading();
+            this.editingProduct.image = '';
+            
+            this.handleError(error, '图片上传失败');
+          }
         },
         fail: () => {
           uni.showToast({
@@ -277,95 +730,214 @@ export default {
         }
       });
     },
+    
+    /**
+     * 上传图片到服务器
+     * @param {String} filePath - 本地图片路径
+     * @returns {Promise<String>} 服务器图片URL
+     */
+    uploadImage(filePath) {
+      return new Promise((resolve, reject) => {
+        const token = uni.getStorageSync('token');
+        const uploadUrl = 'http://localhost:8080/common/upload';
+        
+        uni.uploadFile({
+          url: uploadUrl,
+          filePath: filePath,
+          name: 'file', // 后端接收的参数名
+          header: {
+            'Authorization': 'Bearer ' + token
+          },
+          success: (uploadRes) => {
+            try {
+              const data = JSON.parse(uploadRes.data);
+              
+              if (data.code === 200) {
+                const imageUrl = data.url || data.fileName;
+                
+                // 返回服务器上的图片URL
+                resolve(imageUrl);
+              } else {
+                const errorMsg = data.msg || '上传失败';
+                
+                reject(new Error(errorMsg));
+              }
+            } catch (e) {
+              reject(new Error('解析响应失败'));
+            }
+          },
+          fail: (error) => {
+            reject(error);
+          }
+        });
+      });
+    },
+    
+    // ===== 工具方法 =====
+    
+    /**
+     * 获取空商品对象
+     */
+    getEmptyProduct() {
+      return {
+        id: null,
+        name: '',
+        description: '',
+        price: '',
+        originalPrice: '',
+        stock: '',
+        category: '主食',
+        subCategory: '',
+        image: '',
+        emoji: '🍔',
+        status: true,
+        tagCodes: ''
+      };
+    },
+    
+    /**
+     * 验证商品数据
+     */
+    validateProduct() {
+      if (!this.editingProduct.name) {
+        uni.showToast({ 
+          title: '请输入商品名称', 
+          icon: 'none' 
+        });
+        return false;
+      }
+      if (!this.editingProduct.price) {
+        uni.showToast({ 
+          title: '请输入商品价格', 
+          icon: 'none' 
+        });
+        return false;
+      }
+      if (!this.editingProduct.stock && this.editingProduct.stock !== 0) {
+        uni.showToast({ 
+          title: '请输入库存数量', 
+          icon: 'none' 
+        });
+        return false;
+      }
+      return true;
+    },
+    
+    /**
+     * 后端数据转换为前端格式
+     * @param {Object} data - 后端数据
+     */
+    mapBackendToFrontend(data) {
+      return {
+        id: data.merchantGoodsId,
+        name: data.goodsName,
+        category: data.category,
+        subCategory: data.subCategory,
+        price: data.price,
+        originalPrice: data.originalPrice,
+        stock: data.stock,
+        description: data.description,
+        tagCodes: data.tagCodes,
+        status: data.status === 1, // 转为boolean
+        image: data.mainImageUrl,
+        imageList: data.imageList || [],
+        salesCount: data.salesCount || 0,
+        avgRating: data.avgRating || 0,
+        emoji: this.getCategoryEmoji(data.category) // 根据分类获取emoji
+      };
+    },
+    
+    /**
+     * 前端数据转换为后端格式
+     * @param {Object} data - 前端数据
+     */
+    mapFrontendToBackend(data) {
+      return {
+        goodsName: data.name,
+        category: data.category,
+        subCategory: data.subCategory || '',
+        price: parseFloat(data.price),
+        originalPrice: data.originalPrice ? parseFloat(data.originalPrice) : null,
+        stock: parseInt(data.stock),
+        description: data.description || '',
+        tagCodes: this.getTagCodesString(),  // 从选中的标签生成编码字符串
+        mainImageUrl: data.image || '',  // 商品主图URL
+        // 添加必需字段
+        status: data.status ? 1 : 0,  // 上架状态：1-上架，0-下架
+        salesCount: 0,                 // 初始销量为0
+        avgRating: 0,                  // 初始评分为0
+        ratingCount: 0,                // 初始评分次数为0
+        fiveStarRate: 0,               // 初始五星率为0
+        fourStarRate: 0,               // 初始四星率为0
+        threeStarRate: 0,              // 初始三星率为0
+        twoStarRate: 0,                // 初始二星率为0
+        oneStarRate: 0                 // 初始一星率为0
+      };
+    },
+    
+    /**
+     * 根据分类获取emoji
+     * @param {String} category - 分类名称
+     */
+    getCategoryEmoji(category) {
+      const emojiMap = {
+        '主食': '🍔',
+        '饮料': '🥤',
+        '小吃': '🍟',
+        '套餐': '🍱'
+      };
+      return emojiMap[category] || '🍔';
+    },
+    
+    /**
+     * 关闭弹窗
+     */
     closeModal() {
       this.showEditModal = false;
     },
-    saveProduct() {
-      // 验证必填项
-      if (!this.editingProduct.name) {
-        uni.showToast({
-          title: '请输入商品名称',
-          icon: 'none'
-        });
-        return;
-      }
-      if (!this.editingProduct.price) {
-        uni.showToast({
-          title: '请输入商品价格',
-          icon: 'none'
-        });
-        return;
-      }
-      if (!this.editingProduct.stock) {
-        uni.showToast({
-          title: '请输入库存数量',
-          icon: 'none'
-        });
-        return;
-      }
-
-      // 格式化价格
-      this.editingProduct.price = parseFloat(this.editingProduct.price).toFixed(2);
-      this.editingProduct.stock = parseInt(this.editingProduct.stock);
-
-      if (this.editingIndex >= 0) {
-        // 编辑现有商品
-        this.products.splice(this.editingIndex, 1, {
-          name: this.editingProduct.name,
-          description: this.editingProduct.description,
-          price: this.editingProduct.price,
-          stock: this.editingProduct.stock,
-          category: this.editingProduct.category,
-          image: this.editingProduct.image,
-          emoji: this.editingProduct.emoji,
-          status: this.editingProduct.status
-        });
-        uni.showToast({
-          title: '修改成功',
-          icon: 'success'
-        });
-      } else {
-        // 添加新商品
-        this.products.unshift({
-          name: this.editingProduct.name,
-          description: this.editingProduct.description,
-          price: this.editingProduct.price,
-          stock: this.editingProduct.stock,
-          category: this.editingProduct.category,
-          image: this.editingProduct.image,
-          emoji: this.editingProduct.emoji,
-          status: true
-        });
-        uni.showToast({
-          title: '添加成功',
-          icon: 'success'
-        });
-      }
-
-      this.closeModal();
-    },
-    deleteProduct(item, index) {
-      uni.showModal({
-        title: '确认删除',
-        content: `确定要删除"${item.name}"吗？`,
-        success: (res) => {
-          if (res.confirm) {
-            this.products.splice(index, 1);
-            uni.showToast({
-              title: '删除成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    toggleStatus(item) {
-      item.status = !item.status;
-      uni.showToast({
-        title: item.status ? '商品已上架' : '商品已下架',
-        icon: 'success'
-      });
-    }
+    
+     /**
+      * 错误处理
+      * @param {Object} error - 错误对象
+      * @param {String} defaultMsg - 默认错误信息
+      */
+     handleError(error, defaultMsg = '操作失败') {
+       console.error(error);
+       
+       // 从响应对象中提取错误信息
+       const errorData = error.data || error;
+       const code = errorData.code || error.statusCode;
+       
+       // 处理未登录
+       if (code === 401) {
+         uni.showToast({
+           title: '请先登录',
+           icon: 'none',
+           duration: 2000
+         });
+         setTimeout(() => {
+           uni.navigateTo({ url: '/pages/login/login' });
+         }, 2000);
+         return;
+       }
+       
+       // 处理权限不足
+       if (code === 403) {
+         uni.showToast({
+           title: '没有权限操作',
+           icon: 'none'
+         });
+         return;
+       }
+       
+       // 显示错误信息
+       const msg = errorData.msg || errorData.message || error.errMsg || defaultMsg;
+       uni.showToast({
+         title: msg,
+         icon: 'none',
+         duration: 2000
+       });
+     }
   }
 }
 </script>
@@ -598,6 +1170,45 @@ export default {
   color: #666;
 }
 
+/* 加载状态 */
+.loading-container {
+  padding: 100rpx 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999;
+}
+
+/* 加载更多 */
+.load-more {
+  padding: 40rpx 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.load-more-text {
+  font-size: 26rpx;
+  color: #999;
+}
+
+/* 没有更多 */
+.no-more {
+  padding: 40rpx 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.no-more-text {
+  font-size: 26rpx;
+  color: #999;
+}
+
 /* 空状态 */
 .empty {
   padding: 200rpx 0;
@@ -811,6 +1422,57 @@ export default {
 .category-option.selected .category-option-text {
   color: white;
   font-weight: 500;
+}
+
+/* 子分类加载状态 */
+.sub-category-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 30rpx;
+}
+
+.sub-category-loading .loading-text {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 标签选择 */
+.tags-select {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15rpx;
+  margin-bottom: 15rpx;
+}
+
+.tag-option {
+  padding: 15rpx 30rpx;
+  background: #f5f7fa;
+  border-radius: 30rpx;
+  border: 2rpx solid transparent;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.tag-option.selected {
+  background: linear-gradient(135deg, #FF6B9D, #FE5196);
+  border-color: #FF6B9D;
+}
+
+.tag-option-text {
+  font-size: 24rpx;
+  color: #666;
+}
+
+.tag-option.selected .tag-option-text {
+  color: white;
+  font-weight: 500;
+}
+
+.tag-hint {
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 10rpx;
 }
 
 /* 弹窗底部 */

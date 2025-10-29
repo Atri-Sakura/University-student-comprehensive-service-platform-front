@@ -6,16 +6,11 @@ const getToken = () => {
   return uni.getStorageSync('token');
 };
 
-// 验证码接口
-export const captchaAPI = {
-  getImage: `${baseUrl}captchaImage`  // 获取验证码图片
-};
-
 // 登录相关接口
 export const loginAPI = {
-  student: `${baseUrl}platform/auth/user/login`,      // 学生登录接口
-  rider: `${baseUrl}platform/auth/rider/login`,       // 骑手登录接口
-  merchant: `${baseUrl}platform/auth/merchant/login`  // 商家登录接口
+  student: `${baseUrl}user/login`,      // 学生登录接口
+  rider: `${baseUrl}rider/login`,       // 骑手登录接口
+  merchant: `${baseUrl}merchant/login`  // 商家登录接口
 };
 
 // 注册相关接口
@@ -125,7 +120,6 @@ export const request = (url, options = {}) => {
 // 导出API配置
 export default {
   baseUrl,
-  captchaAPI,
   loginAPI,
   registerAPI,
   merchantAPI,

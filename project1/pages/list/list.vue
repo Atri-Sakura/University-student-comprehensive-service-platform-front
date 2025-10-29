@@ -125,7 +125,7 @@
 </template>
 
 <script>
-import { merchantOrderAPI, request } from '../../utils/order.js'
+import { merchantOrderAPI, request } from '../../utils/api.js'
 
 export default {
   name: 'OrderPage',
