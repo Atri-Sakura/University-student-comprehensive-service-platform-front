@@ -94,7 +94,7 @@
 	  }
 	},
 	{
-	  "path": "pages/finance/order-detail",
+	  "path": "pages/finance/order-detail1",
 	  "style": {
 	    "navigationBarTitleText": "交易详情"
 	  }
@@ -104,6 +104,12 @@
 	  "path": "pages/finance/withdraw",
 	  "style": {
 	    "navigationBarTitleText": "申请提现"
+	  }
+	},
+	{
+	  "path": "pages/activities/activity-edit-new",
+	  "style": {
+	    "navigationBarTitleText": "编辑活动"
 	  }
 	}
   ],
