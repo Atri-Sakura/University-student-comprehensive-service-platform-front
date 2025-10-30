@@ -101,7 +101,7 @@
 </template>
 
 <script>
-import { merchantAPI, request } from '@/utils/api.js';
+import { merchantAPI, 请求 } from '@/utils/api.js';
 
 export default {
   name: 'RestaurantHome',
@@ -159,7 +159,7 @@ export default {
       }
       
       // 从后端统一接口获取所有数据
-      request(merchantAPI.getOrderStatus, {
+      请求(merchantAPI.getOrderStatus, {
         method: 'GET',
         success: (res) => {
           if (res.statusCode === 200 && res.data.code === 200) {
@@ -264,7 +264,13 @@ export default {
         uni.navigateTo({
           url: '/pages/activities/activities'
         });
-      } else {
+      } else if (path === '/pages/finance/finance') {
+        // 跳转到财务管理页面
+        uni.navigateTo({
+          url: '/pages/finance/finance'
+        });
+      }
+      else {
         uni.showToast({
           title: '功能开发中',
           icon: 'none'
