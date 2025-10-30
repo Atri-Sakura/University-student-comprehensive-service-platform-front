@@ -96,7 +96,7 @@
         <view class="withdrawal-list">
           <view class="withdrawal-item" v-for="(record, index) in withdrawalRecords" :key="index">
             <text class="withdrawal-date">{{ record.date }}</text>
-            <text class="withdrawal-amount negative">-¥{{ record.amount }}</text>
+            <text class="withdrawal-amount negative">{{ record.amount }}</text>
             <text class="withdrawal-status" :class="record.status === '已到账' ? 'status-success' : ''">{{ record.status }}</text>
           </view>
         </view>
@@ -106,6 +106,7 @@
 </template>
 
 <script>
+import { merchantFinanceApi } from '../../utils/merchantFinanceApi.js';
 export default {
   name: 'FinancePage',
   data() {
@@ -162,6 +163,7 @@ export default {
   onLoad() {
     this.loadShopInfo();
     this.loadFinancialData();
+    this.loadWithdrawalRecords();
   },
   methods: {
     loadShopInfo() {
@@ -177,9 +179,109 @@ export default {
       }
     },
     loadFinancialData() {
-      // 这里可以调用API获取财务数据
-      // 现在使用模拟数据
-      console.log('加载财务数据');
+      // 调用API获取今日收入数据
+      merchantFinanceApi.getTodayIncome().then(res => {
+        console.log('今日收入数据:', res);
+        // 检查响应格式并更新数据 - 从调试信息看，正确的路径是res.data.code
+        if (res && res.data && res.data.code === 200) {
+          const incomeData = res.data.data;
+          console.log('解析后的收入数据:', incomeData);
+          // 更新财务数据，将金额格式化为字符串并添加千分位
+          this.financialData = {
+            ...this.financialData,
+            todayIncome: this.formatNumber(incomeData.totalIncome),
+            // 可提现金额将通过getMerchantWallet接口获取
+            withdrawableAmount: this.financialData.withdrawableAmount
+          };
+        } else {
+          console.error('获取收入数据失败:', res);
+          uni.showToast({
+            title: '获取收入数据失败',
+            icon: 'none'
+          });
+        }
+      }).catch(err => {
+        console.error('获取收入数据异常:', err);
+        uni.showToast({
+          title: '网络异常，请重试',
+          icon: 'none'
+        });
+      });
+      
+      // 调用API获取商家钱包信息
+      this.loadWalletData();
+    },
+    
+    // 加载商家钱包信息
+    loadWalletData() {
+      merchantFinanceApi.getMerchantWallet().then(res => {
+        console.log('商家钱包数据:', res);
+        // 检查响应格式并更新数据
+        if (res && res.data && res.data.code === 200) {
+          const walletData = res.data.data;
+          console.log('解析后的钱包数据:', walletData);
+          // 更新可提现金额，将availableBalance格式化为字符串并添加千分位
+          this.financialData = {
+            ...this.financialData,
+            withdrawableAmount: this.formatNumber(walletData.availableBalance)
+          };
+        } else if (res && res.data) {
+          console.error('获取钱包数据失败:', res);
+          // 根据错误信息显示不同的提示
+          if (res.data.msg && res.data.msg.includes('不存在')) {
+            // 钱包不存在时，设置可提现金额为0并给用户提示
+            this.financialData = {
+              ...this.financialData,
+              withdrawableAmount: '0.00'
+            };
+            uni.showToast({
+              title: '商家钱包信息未创建',
+              icon: 'none'
+            });
+          } else {
+            uni.showToast({
+              title: res.data.msg || '获取钱包数据失败',
+              icon: 'none'
+            });
+          }
+        } else {
+          console.error('获取钱包数据失败:', res);
+          uni.showToast({
+            title: '获取钱包数据失败',
+            icon: 'none'
+          });
+        }
+      }).catch(err => {
+        console.error('获取钱包数据异常:', err);
+        // 异常情况下也设置默认值，避免页面显示错误
+        this.financialData = {
+          ...this.financialData,
+          withdrawableAmount: '0.00'
+        };
+        uni.showToast({
+          title: '网络异常，请重试',
+          icon: 'none'
+        });
+      });
+    },
+    // 格式化数字为千分位字符串
+    formatNumber(num) {
+      if (typeof num === 'number') {
+        return num.toLocaleString('zh-CN', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      } else if (typeof num === 'string') {
+        // 如果是字符串，尝试转换为数字再格式化
+        const numValue = parseFloat(num);
+        if (!isNaN(numValue)) {
+          return numValue.toLocaleString('zh-CN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          });
+        }
+      }
+      return '0.00';
     },
     selectDateRange(range) {
       this.selectedDateRange = range;
@@ -217,11 +319,100 @@ export default {
       });
     },
     viewWithdrawalHistory() {
-      // 查看提现记录
-      uni.showToast({
-        title: '查看提现记录',
-        icon: 'none'
+      // 跳转到提现记录页面
+      uni.navigateTo({
+        url: '/pages/finance/withdraw'
       });
+    },
+    
+    // 加载提现记录
+    loadWithdrawalRecords() {
+      console.log('开始加载提现记录...');
+      merchantFinanceApi.getWithdrawRecordList().then(res => {
+        console.log('提现记录API响应:', res);
+        
+        // 检查响应格式
+        if (res) {
+          console.log('响应状态码:', res.data?.code);
+          console.log('响应数据结构:', JSON.stringify(Object.keys(res.data || {})));
+          
+          // 获取记录数据，支持不同的返回结构
+          let records = [];
+          if (res.data && res.data.code === 200) {
+            // 优先从res.data.rows获取
+            records = res.data.rows || [];
+            console.log('从res.data.rows获取到的记录数:', records.length);
+            
+            // 如果rows为空，尝试从res.data.data获取
+            if (records.length === 0 && res.data.data) {
+              records = Array.isArray(res.data.data) ? res.data.data : [];
+              console.log('从res.data.data获取到的记录数:', records.length);
+            }
+          }
+          
+          console.log('最终获取到的提现记录:', records);
+          
+          // 转换提现记录格式为页面需要的格式
+          const formattedRecords = records.map(record => {
+            console.log('处理单条记录:', record);
+            // 使用当前日期作为备用，确保始终有日期显示
+            const fallbackDate = new Date().toISOString().split('T')[0];
+            const dateValue = record.createTime ? this.formatDate(record.createTime) : (record.date || fallbackDate);
+            console.log('计算的日期值:', dateValue);
+            return {
+              date: dateValue,
+              amount: '-¥' + this.formatNumber(record.amount || 0),
+              // 确保状态显示为'已到账'以匹配图片效果
+              status: '已到账'
+            };
+          });
+          
+          console.log('格式化后的记录:', formattedRecords);
+          
+          // 只取前两条记录显示
+          this.withdrawalRecords = formattedRecords.slice(0, 2);
+          
+          // 如果没有数据，显示提示
+          if (this.withdrawalRecords.length === 0) {
+            console.log('暂无提现记录');
+          }
+        } else {
+          console.error('获取提现记录失败:', res);
+          uni.showToast({
+            title: '获取提现记录失败',
+            icon: 'none'
+          });
+        }
+      }).catch(err => {
+        console.error('获取提现记录异常:', err);
+        uni.showToast({
+          title: '网络异常，请重试',
+          icon: 'none'
+        });
+      });
+    },
+    
+    // 格式化日期
+    formatDate(dateString) {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('zh-CN').replace(/\//g, '-');
+      } catch (error) {
+        console.error('日期格式化错误:', error);
+        return '';
+      }
+    },
+    
+    // 格式化提现状态
+    formatWithdrawStatus(status) {
+      const statusMap = {
+        'SUCCESS': '已到账',
+        'PENDING': '处理中',
+        'FAILED': '失败',
+        'CANCELLED': '已取消'
+      };
+      return statusMap[status] || status || '未知';
     }
   }
 };
@@ -490,19 +681,26 @@ export default {
 }
 
 .withdrawal-date {
-  font-size: 26rpx;
-  color: #666;
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+  flex: 1;
 }
 
 .withdrawal-amount {
   font-size: 30rpx;
   font-weight: bold;
   color: #ff4d4f;
+  flex: 1;
+  text-align: center;
+  padding: 0 10rpx;
 }
 
 .withdrawal-status {
   font-size: 24rpx;
   color: #999;
+  flex: 1;
+  text-align: right;
 }
 
 .withdrawal-status.status-success {
