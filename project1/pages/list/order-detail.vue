@@ -112,46 +112,13 @@
 </template>
 
 <script>
-import { merchantOrderAPI, request } from '../../utils/api.js'
+import { merchantOrderAPI, request } from '../../utils/order.js'
 
 export default {
   name: 'OrderDetailPage',
   data() {
     return {
-      orderData: {
-        status: '交易成功',
-        orderId: '#20231115001',
-        transactionTime: '2023-11-15 11:25',
-        paymentMethod: '微信支付',
-        transactionType: '线上订单',
-        productAmount: 68.50,
-        deliveryFee: 5.00,
-        discount: 5.00,
-        actualPayment: 68.50,
-        products: [
-          {
-            name: '招牌汉堡套餐',
-            spec: '加芝士 | 不要洋葱',
-            quantity: 1,
-            price: 35.00
-          },
-          {
-            name: '炸鸡块',
-            spec: '原味',
-            quantity: 1,
-            price: 20.00
-          },
-          {
-            name: '可乐',
-            spec: '中杯',
-            quantity: 1,
-            price: 15.50
-          }
-        ],
-        // 新增套餐详情和备注字段
-        mealDetails: '招牌汉堡套餐包含：招牌汉堡一个、中杯可乐一杯、薯条一份',
-        notes: '不要加辣，尽快送达'
-      },
+      orderData: {}, // 空对象，从后端获取实际数据
       loading: false,
       error: '',
       orderId: null // 保存订单ID用于重新加载
@@ -226,7 +193,7 @@ export default {
                 productAmount: orderDetail.totalAmount || 0,
                 deliveryFee: orderDetail.deliveryFee || 0,
                 discount: orderDetail.discountAmount || 0,
-                actualPayment: orderDetail.actualAmount || orderDetail.totalAmount || 0,
+                actualPayment: orderDetail.actualAmount || ((orderDetail.totalAmount || 0) + (orderDetail.deliveryFee || 0) - (orderDetail.discountAmount || 0)),
                 // 严格匹配后端订单项字段
                 products: this.transformProducts(orderDetail.orderItems || []),
                 // 获取套餐详情和备注信息
