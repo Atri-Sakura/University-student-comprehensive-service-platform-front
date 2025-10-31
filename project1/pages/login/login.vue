@@ -104,7 +104,7 @@ export default {
 				password: '',
 				showPassword: false,
 				verificationCode: '', // 验证码
-				captchaImage: '', // 验证码图片URL
+				captchaImage: '/static/c1.png', // 验证码图片URL（设置默认值确保页面加载时可见）
 				uuid: '', // 验证码UUID
 			identityIndex: 0,
 			identityOptions: ['学生', '骑手', '商家'],
@@ -116,21 +116,29 @@ export default {
 			}
 		}
 	},
-	methods: {
-		// 切换密码显示
-		togglePassword() {
-			this.showPassword = !this.showPassword
-		},
-		
-		// 身份选择变化
-		onIdentityChange(e) {
-			this.identityIndex = e.detail.value
-		},
-		
-		// 页面加载时获取验证码
-		onLoad() {
+	// 页面创建时获取验证码
+		created() {
 			this.refreshCaptcha();
 		},
+		
+		// 页面加载时获取验证码（增加兼容性）
+		onLoad() {
+			// 如果created中没有成功执行或captchaImage仍然为空，则再次尝试
+			if (!this.captchaImage) {
+				this.refreshCaptcha();
+			}
+		},
+		
+		methods: {
+			// 切换密码显示
+			togglePassword() {
+				this.showPassword = !this.showPassword
+			},
+			
+			// 身份选择变化
+			onIdentityChange(e) {
+				this.identityIndex = e.detail.value
+			},
 		
 		// 显示消息
 		showMessage(message, type) {
