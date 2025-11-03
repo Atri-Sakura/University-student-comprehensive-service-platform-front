@@ -157,7 +157,7 @@
         </view>
       </view>
       <view class="modify-btn" @click="modifyDeliverySettings">
-        <text class="modify-text">修改配送设置</text>
+        <text class="modify-text">保存配送设置</text>
       </view>
     </view>
     
@@ -216,6 +216,7 @@
 import {
   getMerchantBaseInfo,
   updateMerchantBase,
+  checkMerchantName,
   getDeliverySettings,
   updateDeliverySettings,
   uploadCertificate,
@@ -426,14 +427,21 @@ export default {
           this.saveToLocal();
           return true;
         } else {
-          throw new Error(res.data?.msg || '保存失败');
+          // 若后端返回名称冲突之类提示，前端展示
+          const msg = res.data?.msg || res.data?.message || '';
+          if (/已存在|重复|冲突/.test(msg)) {
+            uni.showToast({ title: '店铺名重复', icon: 'none' });
+            return false;
+          }
+          throw new Error(msg || '保存失败');
         }
       } catch (error) {
         console.error('保存失败:', error);
-        uni.showToast({
-          title: error.message || '保存失败',
-          icon: 'none'
-        });
+        // 统一解析后端唯一约束报错，输出友好提示
+        const rawMsg = String(error?.message || '');
+        const isDuplicate = /duplicate|unique|uk_merchant_name|Duplicate entry|UNIQUE/i.test(rawMsg);
+        const toastMsg = isDuplicate ? '店铺名重复' : (error.message || '保存失败');
+        uni.showToast({ title: toastMsg, icon: 'none' });
         return false;
       }
     },
@@ -470,13 +478,45 @@ export default {
         content: this.shopInfo.name,
         success: async (res) => {
           if (res.confirm && res.content) {
-            this.shopInfo.name = res.content;
-            const success = await this.saveShopInfo();
-            if (success) {
-              uni.showToast({
-                title: '修改成功',
-                icon: 'success'
-              });
+            const newName = res.content.trim();
+            if (!newName) {
+              uni.showToast({ title: '店铺名称不能为空', icon: 'none' });
+              return;
+            }
+            if (newName === this.shopInfo.name) {
+              return; // 未变化
+            }
+            const oldName = this.shopInfo.name;
+            try {
+              // 先调用后端校验是否重名
+              const checkRes = await checkMerchantName(newName).catch(() => ({ data: { code: 500 } }));
+              if (checkRes.data && checkRes.data.code === 200) {
+                // 兼容后端返回 {exists:true} 或 {data:{exists:true}}
+                const exists = checkRes.data.exists === true || checkRes.data.data === true || checkRes.data.data?.exists === true;
+                if (exists) {
+                  uni.showToast({ title: '店铺名重复', icon: 'none' });
+                  return;
+                }
+              }
+              // 未重复则保存
+              this.shopInfo.name = newName;
+              const success = await this.saveShopInfo();
+              if (success) {
+                uni.showToast({ title: '修改成功', icon: 'success' });
+              } else {
+                // 保存失败则回退显示
+                this.shopInfo.name = oldName;
+              }
+            } catch (e) {
+              // 若校验接口不可用，降级到保存时由后端校验
+              this.shopInfo.name = newName;
+              const success = await this.saveShopInfo();
+              if (success) {
+                uni.showToast({ title: '修改成功', icon: 'success' });
+              } else {
+                // 保存失败（可能重名），回退原名
+                this.shopInfo.name = oldName;
+              }
             }
           }
         }

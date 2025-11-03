@@ -80,8 +80,8 @@
               </view>
             </view>
             
-            <!-- 已完成状态 -->
-            <view v-if="item.status === '已完成'">
+            <!-- 已完成和已送达状态 -->
+            <view v-if="item.status === '已完成' || item.status === '已送达'">
               <view class="action-group tight-group">
                 <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
                 <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
@@ -140,6 +140,22 @@ export default {
       allOrders: []
     }
   },
+  onShow() {
+    // 从全局变量读取首页点击传来的初始状态并切换标签
+    const app = getApp();
+    const initStatus = app?.globalData?.orderListInitStatus;
+    if (initStatus) {
+      // 将状态映射到当前标签索引：
+      // 'pending' 和 'toDeliver' -> 待处理(索引0)，'delivering' -> 配送中(索引1)
+      if (initStatus === 'delivering') {
+        this.currentTab = 1;
+      } else {
+        this.currentTab = 0;
+      }
+      // 使用后清理，避免下次误用
+      app.globalData.orderListInitStatus = null;
+    }
+  },
   created() {
     // 页面加载时获取订单列表
     this.getOrderList()
@@ -156,7 +172,10 @@ export default {
       return this.allOrders.filter(order => order.status === '配送中')
     },
     completedOrders() {
-      return this.allOrders.filter(order => order.status === '已完成')
+      return this.allOrders.filter(order => 
+        order.status === '已完成' || 
+        order.status === '已送达'
+      )
     },
     currentOrders() {
       switch (this.currentTab) {
@@ -209,10 +228,17 @@ export default {
         
         // 处理获取到的数据
         if (orderData.length > 0) {
-          console.log(`成功获取到 ${orderData.length} 条订单数据`)
+          console.log(`成功获取到 ${orderData.length} 条原始订单数据`)
+          // 打印原始数据详情（前几个）以便分析
+          console.log('原始订单数据示例:', orderData.slice(0, 3))
           // 将后端返回的数据转换为前端所需的格式
-          this.allOrders = this.transformOrderData(orderData)
-          console.log('转换后的订单数据:', this.allOrders)
+          const transformedOrders = this.transformOrderData(orderData)
+          console.log(`转换后得到 ${transformedOrders.length} 条订单数据`)
+          this.allOrders = transformedOrders
+          // 打印不同状态订单的数量
+          console.log('待处理订单数量:', this.pendingOrders.length)
+          console.log('配送中订单数量:', this.deliveringOrders.length)
+          console.log('已完成订单数量:', this.completedOrders.length)
           this.updateOrderCount()
           uni.showToast({
             title: '获取订单成功',

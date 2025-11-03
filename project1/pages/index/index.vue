@@ -74,7 +74,7 @@
       <!-- 活动通知 -->
       <view class="notice-banner" @click="goToActivity">
         <text class="notice-text">新客立减活动进行中，点击查看</text>
-        <view class="notice-btn">查看</view>
+        <view class="notice-btn" @click.stop="goToActivities">查看</view>
       </view>
     </view>
     
@@ -141,7 +141,8 @@ export default {
     this.loadAllData();
   },
   onShow() {
-    // 每次显示页面时重新加载数据
+    // 每次显示页面时刷新当天日期并重新加载数据
+    this.getTodayDate();
     this.loadAllData();
   },
   methods: {
@@ -161,6 +162,7 @@ export default {
       // 从后端统一接口获取所有数据
       request(merchantAPI.getOrderStatus, {
         method: 'GET',
+        data: { date: this.todayDate },
         success: (res) => {
           if (res.statusCode === 200 && res.data.code === 200) {
             const data = res.data.data;
@@ -227,8 +229,14 @@ export default {
       });
     },
     goToOrders(status) {
-      uni.navigateTo({
-        url: `/pages/orders/orders?status=${status}`
+      // 通过全局变量传递初始标签（switchTab无法直接带参数）
+      const app = getApp();
+      if (app && app.globalData) {
+        // status: 'pending' | 'toDeliver' | 'delivering'
+        app.globalData.orderListInitStatus = status;
+      }
+      uni.switchTab({
+        url: '/pages/list/list'
       });
     },
     goToFunction(path) {
@@ -281,6 +289,11 @@ export default {
       uni.showToast({
         title: '查看活动详情',
         icon: 'none'
+      });
+    },
+    goToActivities() {
+      uni.navigateTo({
+        url: '/pages/activities/activities'
       });
     },
     switchTab(tab) {

@@ -54,7 +54,7 @@
           <svg class="date-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/>
           </svg>
-          <text>{{ currentDateRange }}</text>
+          <text class="date-range-text">{{ currentDateRange }}</text>
         </view>
       </view>
       
@@ -334,6 +334,7 @@ export default {
     return {
       currentDateTab: 'today',
       currentDateRange: '2023-11-15',
+      todayDate: '',
       rankingType: 'hot',
       currentTab: '', // 当前不在底部导航栏中，所以为空
       isLoading: false, // 加载状态
@@ -390,11 +391,13 @@ export default {
   },
   onLoad() {
     // 页面加载时获取数据
+    this.updateDateRange();
     this.loadAllData();
   },
   onShow() {
     // 每次显示页面时刷新数据
     this.updateDateRange();
+    this.loadAllData();
   },
   methods: {
     // ==================== 数据加载方法 ====================
@@ -408,9 +411,10 @@ export default {
       this.isLoading = true;
       
       try {
+        const range = this.getSelectedDateRange();
         // 并行请求所有数据
         const [salesRes, ratingsRes, topGoodsRes] = await Promise.all([
-          getSalesData().catch(() => ({ data: { code: 500, data: null } })),
+          getSalesData(range).catch(() => ({ data: { code: 500, data: null } })),
           getRatingsData().catch(() => ({ data: { code: 500, data: null } })),
           getTopGoods(10, this.rankingType).catch(() => ({ data: { code: 500, data: null } }))
         ]);
@@ -564,10 +568,66 @@ export default {
      */
     updateDateRange() {
       const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      this.currentDateRange = `${year}-${month}-${day}`;
+      this.todayDate = this.formatDate(today);
+      // 根据当前tab决定展示的范围文本
+      if (this.currentDateTab === 'today') {
+        this.currentDateRange = this.todayDate;
+      } else if (this.currentDateTab === 'yesterday') {
+        const y = new Date(today);
+        y.setDate(y.getDate() - 1);
+        const yd = this.formatDate(y);
+        this.currentDateRange = yd;
+      } else if (this.currentDateTab === 'week') {
+        const { startDate, endDate } = this.getSelectedDateRange();
+        this.currentDateRange = `${startDate} 至 ${endDate}`;
+      } else if (this.currentDateTab === 'month') {
+        const { startDate, endDate } = this.getSelectedDateRange();
+        this.currentDateRange = `${startDate} 至 ${endDate}`;
+      }
+    },
+
+    // 根据当前日期tab返回查询范围
+    getSelectedDateRange() {
+      const today = new Date();
+      if (this.currentDateTab === 'today') {
+        return { startDate: this.todayDate, endDate: this.todayDate };
+      }
+      if (this.currentDateTab === 'yesterday') {
+        const y = new Date(today);
+        y.setDate(y.getDate() - 1);
+        const yd = this.formatDate(y);
+        return { startDate: yd, endDate: yd };
+      }
+      if (this.currentDateTab === 'week') {
+        // 以周一为一周开始
+        const d = new Date(today);
+        const day = d.getDay(); // 周日=0, 周一=1
+        const diffToMonday = (day + 6) % 7; // 距离周一的天数
+        const start = new Date(d);
+        start.setDate(d.getDate() - diffToMonday);
+        const end = new Date(d);
+        // 本周截至今日
+        const startDate = this.formatDate(start);
+        const endDate = this.formatDate(end);
+        return { startDate, endDate };
+      }
+      if (this.currentDateTab === 'month') {
+        const d = new Date(today);
+        const start = new Date(d.getFullYear(), d.getMonth(), 1);
+        const end = new Date(d);
+        const startDate = this.formatDate(start);
+        const endDate = this.formatDate(end);
+        return { startDate, endDate };
+      }
+      return {};
+    },
+
+    // 工具：日期格式化 YYYY-MM-DD
+    formatDate(dateObj) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
     },
     
     // ==================== 原有方法 ====================
@@ -783,8 +843,9 @@ export default {
 }
 
 .date-icon {
-  width: 40rpx;
-  height: 40rpx;
+  width: 32rpx;
+  height: 32rpx;
+  color: #2a8cc4;
 }
 
 .chart-main-icon {
@@ -853,6 +914,9 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20rpx;
+  flex-wrap: nowrap;
+  overflow: hidden;
   box-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.05);
   margin-bottom: 24rpx;
   border-radius: 16rpx;
@@ -860,23 +924,32 @@ export default {
 
 .date-tabs {
   display: flex;
-  gap: 10rpx;
+  gap: 8rpx;
   overflow-x: auto;
   padding-bottom: 5rpx;
+  flex: 1;
+  min-width: 0;
 }
 
 .date-tab {
-  padding: 15rpx 30rpx;
+  min-width: 100rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 24rpx;
   border-radius: 40rpx;
   font-size: 26rpx;
+  text-align: center;
   white-space: nowrap;
-  background: #f0f0f0;
+  background: #f7f9fb;
+  border: 1rpx solid #e6f0f6;
+  color: #666;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
 }
 
 .date-tab.active {
-  background: rgba(147, 210, 243, 0.3);
+  background: #E6F4FF;
+  border-color: #91caff;
   color: #2a8cc4;
   font-weight: 500;
 }
@@ -884,9 +957,24 @@ export default {
 .date-range {
   display: flex;
   align-items: center;
-  gap: 15rpx;
-  font-size: 26rpx;
-  color: #666;
+  gap: 10rpx;
+  padding: 8rpx 14rpx;
+  background: #f7f9fb;
+  border: 1rpx solid #e6f0f6;
+  border-radius: 40rpx;
+  font-size: 24rpx;
+  color: #333;
+  white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 340rpx;
+}
+
+.date-range-text {
+  display: block;
+  max-width: 280rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 核心数据 */

@@ -33,6 +33,18 @@ export const updateMerchantBase = (data) => {
   });
 };
 
+/**
+ * 校验商家名称是否重复
+ * @param {String} merchantName - 待校验的商家名称
+ * @returns {Promise}
+ */
+export const checkMerchantName = (merchantName) => {
+  return request(`${baseUrl}/merchant/info/checkName`, {
+    method: 'GET',
+    data: { merchantName }
+  });
+};
+
 // ==================== 商家地址信息 ====================
 
 /**
@@ -151,6 +163,7 @@ export const deleteCertificate = (type) => {
 export default {
   getMerchantBaseInfo,
   updateMerchantBase,
+  checkMerchantName,
   getMerchantAddress,
   updateMerchantAddress,
   getDeliverySettings,
