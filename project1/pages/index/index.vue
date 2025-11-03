@@ -101,7 +101,7 @@
 </template>
 
 <script>
-import { merchantAPI, 请求 } from '@/utils/api.js';
+import { merchantAPI, request } from '@/utils/api.js';
 
 export default {
   name: 'RestaurantHome',
@@ -159,7 +159,7 @@ export default {
       }
       
       // 从后端统一接口获取所有数据
-      请求(merchantAPI.getOrderStatus, {
+      request(merchantAPI.getOrderStatus, {
         method: 'GET',
         success: (res) => {
           if (res.statusCode === 200 && res.data.code === 200) {
