@@ -1,5 +1,5 @@
 // API接口配置文件
-const baseUrl = 'http://localhost:8080/';
+const baseUrl = 'http://localhost:8080';
 
 // 获取token的函数
 const getToken = () => {
@@ -8,47 +8,47 @@ const getToken = () => {
 
 // 登录相关接口
 export const loginAPI = {
-  student: `${baseUrl}user/login`,      // 学生登录接口
-  rider: `${baseUrl}rider/login`,       // 骑手登录接口
-  merchant: `${baseUrl}merchant/login`  // 商家登录接口
+  student: `${baseUrl}/user/login`,      // 学生登录接口
+  rider: `${baseUrl}/rider/login`,       // 骑手登录接口
+  merchant: `${baseUrl}/merchant/login`  // 商家登录接口
 };
 
 // 注册相关接口
 export const registerAPI = {
-  student: `${baseUrl}user/register`,      // 学生注册接口
-  rider: `${baseUrl}rider/register`,       // 骑手注册接口
-  merchant: `${baseUrl}merchant/register`  // 商家注册接口
+  student: `${baseUrl}/user/register`,      // 学生注册接口
+  rider: `${baseUrl}/rider/register`,       // 骑手注册接口
+  merchant: `${baseUrl}/merchant/register`  // 商家注册接口
 };
 
 // 商家相关接口
 export const merchantAPI = {
   // 首页核心接口 - 订单状态统计
-  getOrderStatus: `${baseUrl}merchant/orders/status`,       // 获取订单状态统计（待处理、待配送、配送中）
+  getOrderStatus: `${baseUrl}/merchant/orders/status`,       // 获取订单状态统计（待处理、待配送、配送中）
   
   // 店铺信息（暂时使用订单状态接口，后续可替换）
-  getShopInfo: `${baseUrl}merchant/orders/status`,          // 获取店铺信息
+  getShopInfo: `${baseUrl}/merchant/orders/status`,          // 获取店铺信息
   
   // 今日数据统计（暂时使用订单状态接口，后续可替换）
-  getTodayData: `${baseUrl}merchant/orders/status`,         // 获取今日数据统计
+  getTodayData: `${baseUrl}/merchant/orders/status`,         // 获取今日数据统计
   
   // 以下接口待后端实现后再配置
-  // updateShopInfo: `${baseUrl}merchant/shop/update`,      // 更新店铺信息
-  getOrders: `${baseUrl}merchant/orders/status`,           // 获取订单列表
-  getOrderDetail: `${baseUrl}merchant/orders/status`,    // 获取订单详情
-  updateOrderStatus: `${baseUrl}merchant/orders/status`, // 更新订单状态
-  // getProducts: `${baseUrl}merchant/products/list`,       // 获取商品列表
-  // getActivities: `${baseUrl}merchant/activities/list`,   // 获取活动列表
-  // getFinanceData: `${baseUrl}merchant/finance/summary`,  // 获取财务汇总
-  // getReviews: `${baseUrl}merchant/reviews/list`          // 获取评价列表
+  // updateShopInfo: `${baseUrl}/merchant/shop/update`,      // 更新店铺信息
+  getOrders: `${baseUrl}/merchant/orders/status`,           // 获取订单列表
+  getOrderDetail: `${baseUrl}/merchant/orders/status`,    // 获取订单详情
+  updateOrderStatus: `${baseUrl}/merchant/orders/status`, // 更新订单状态
+  // getProducts: `${baseUrl}/merchant/products/list`,       // 获取商品列表
+  // getActivities: `${baseUrl}/merchant/activities/list`,   // 获取活动列表
+  // getFinanceData: `${baseUrl}/merchant/finance/summary`,  // 获取财务汇总
+  // getReviews: `${baseUrl}/merchant/reviews/list`          // 获取评价列表
 };
 
 // 商家订单相关接口
 export const merchantOrderAPI = {
-  list: `${baseUrl}merchant/takeoutorder/list`,                    // 获取订单列表
-  accept: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`, // 接受订单
-  reject: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`, // 拒绝订单
-  notifyRider: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`, // 通知骑手
-  detail: (orderId) => `${baseUrl}merchant/takeoutorder/${orderId}`  // 订单详情
+  list: `${baseUrl}/merchant/takeoutorder/list`,                    // 获取订单列表
+  accept: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`, // 接受订单
+  reject: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`, // 拒绝订单
+  notifyRider: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`, // 通知骑手
+  detail: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`  // 订单详情
 };
 
 // 通用请求方法（Promise 封装）

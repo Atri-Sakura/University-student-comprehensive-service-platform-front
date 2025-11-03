@@ -102,6 +102,7 @@
 
 <script>
 import { merchantAPI, request } from '@/utils/api.js';
+import { getSalesData } from '@/utils/merchantAnalytics.js';
 
 export default {
   name: 'RestaurantHome',
@@ -146,8 +147,8 @@ export default {
     this.loadAllData();
   },
   methods: {
-    // 统一加载所有数据（从后端的 /merchant/orders/status 接口获取）
-    loadAllData() {
+    // 统一加载所有数据
+    async loadAllData() {
       // 先从本地缓存加载店铺信息（快速显示）
       const savedInfo = uni.getStorageSync('shopInfo');
       if (savedInfo) {
@@ -159,60 +160,113 @@ export default {
         };
       }
       
-      // 从后端统一接口获取所有数据
-      request(merchantAPI.getOrderStatus, {
-        method: 'GET',
-        data: { date: this.todayDate },
-        success: (res) => {
-          if (res.statusCode === 200 && res.data.code === 200) {
-            const data = res.data.data;
-            
-            // 1. 更新店铺信息
-            if (data.shopName || data.name || data.merchantName || data.shopInfo) {
-              const shopInfo = data.shopInfo || data;
-              this.shopData = {
-                name: shopInfo.shopName || shopInfo.name || shopInfo.merchantName || this.shopData.name,
-                businessStatus: shopInfo.businessStatus || shopInfo.status || this.shopData.businessStatus,
-                businessHours: shopInfo.businessHours || shopInfo.hours || this.shopData.businessHours
-              };
-              // 保存到本地缓存
-              uni.setStorageSync('shopInfo', {
-                name: this.shopData.name,
-                openStatus: this.shopData.businessStatus,
-                hours: this.shopData.businessHours
-              });
-            }
-            
-            // 2. 更新今日数据统计
+      // 1. 优先从订单状态接口获取所有数据（包括订单状态、今日数据、店铺信息）
+      try {
+        const statusRes = await request(merchantAPI.getOrderStatus, {
+          method: 'GET',
+          data: {}
+        });
+        
+        console.log('[首页] 订单状态接口响应:', statusRes);
+        
+        if (statusRes.statusCode === 200 && statusRes.data.code === 200) {
+          const data = statusRes.data.data;
+          
+          // 打印原始数据，便于调试
+          console.log('[首页] 接口返回的完整数据:', data);
+          
+          // 1. 更新订单状态统计（根据后端MerchantOrderStatusVO字段名）
+          // 先打印原始值，确保数据正确
+          console.log('[首页] 原始字段值:');
+          console.log('  pendingCount:', data.pendingCount, '(类型:', typeof data.pendingCount + ')');
+          console.log('  waitingDeliveryCount:', data.waitingDeliveryCount, '(类型:', typeof data.waitingDeliveryCount + ')');
+          console.log('  deliveringCount:', data.deliveringCount, '(类型:', typeof data.deliveringCount + ')');
+          
+          // 确保值是数字类型
+          const pending = Number(data.pendingCount) || 0;
+          const toDeliver = Number(data.waitingDeliveryCount) || 0;
+          const delivering = Number(data.deliveringCount) || 0;
+          
+          // 使用直接赋值确保响应式更新（Vue会检测到对象属性的变化）
+          this.orderStatus.pending = pending;
+          this.orderStatus.toDeliver = toDeliver;
+          this.orderStatus.delivering = delivering;
+          
+          console.log('[首页] 订单状态已更新:', JSON.stringify(this.orderStatus));
+          console.log('[首页] 订单状态值验证:', {
+            'pending': this.orderStatus.pending,
+            'toDeliver': this.orderStatus.toDeliver,
+            'delivering': this.orderStatus.delivering
+          });
+          
+          // 强制更新视图（如果响应式更新有问题）
+          this.$nextTick(() => {
+            console.log('[首页] 视图更新后的订单状态:', JSON.stringify(this.orderStatus));
+          });
+          
+          // 2. 更新今日数据（如果接口返回了今日数据）
+          if (data.todayOrderCount !== undefined || data.todayRevenue !== undefined) {
             this.todayData = {
-              orderCount: data.orderCount || data.ordersCount || 0,
-              orderTrend: data.orderTrend || 0,
-              revenue: data.revenue || '0',
-              revenueTrend: data.revenueTrend || 0
+              orderCount: data.todayOrderCount || 0,
+              orderTrend: data.orderCountChangePercent ? Number(data.orderCountChangePercent) : 0,
+              revenue: this.formatNumber(data.todayRevenue || 0),
+              revenueTrend: data.revenueChangePercent ? Number(data.revenueChangePercent) : 0
             };
-            
-            // 3. 更新订单状态统计
-            this.orderStatus = {
-              pending: data.pending || data.pendingCount || 0,
-              toDeliver: data.toDeliver || data.toDeliverCount || data.waitingDeliveryCount || 0,
-              delivering: data.delivering || data.deliveringCount || 0
+            console.log('[首页] 今日数据已更新（从订单状态接口）:', JSON.stringify(this.todayData));
+          }
+          
+          // 3. 更新店铺信息（如果接口返回了）
+          if (data.merchantName) {
+            this.shopData = {
+              ...this.shopData,
+              name: data.merchantName
             };
-          } else {
-            uni.showToast({
-              title: res.data.message || '获取数据失败',
-              icon: 'none'
+            // 保存到本地缓存
+            uni.setStorageSync('shopInfo', {
+              name: data.merchantName,
+              openStatus: this.shopData.businessStatus,
+              hours: this.shopData.businessHours
             });
           }
-        },
-        fail: (err) => {
-          console.error('请求失败:', err);
-          uni.showToast({
-            title: '网络请求失败',
-            icon: 'none',
-            duration: 2000
-          });
+        } else {
+          console.warn('[首页] 订单状态接口返回失败:', statusRes?.data);
         }
-      });
+      } catch (error) {
+        console.error('[首页] 获取订单状态失败:', error);
+      }
+      
+      // 2. 如果订单状态接口没有返回今日数据，则使用专门的销售数据接口
+      if (this.todayData.orderCount === 0 && this.todayData.revenue === '0') {
+        try {
+          console.log('[首页] 订单状态接口未返回今日数据，使用销售数据接口，参数:', {
+            startDate: this.todayDate,
+            endDate: this.todayDate
+          });
+          
+          const salesRes = await getSalesData({
+            startDate: this.todayDate,
+            endDate: this.todayDate
+          });
+          
+          console.log('[首页] 今日数据接口响应:', salesRes);
+          
+          if (salesRes.data && salesRes.data.code === 200 && salesRes.data.data) {
+            const salesData = salesRes.data.data;
+            
+            // 更新今日数据统计（使用和数据分析页面相同的字段名）
+            this.todayData = {
+              orderCount: salesData.orderCount || 0,
+              orderTrend: salesData.orderCountChangePercent || 0,
+              revenue: this.formatNumber(salesData.totalRevenue || 0),
+              revenueTrend: salesData.totalRevenueChangePercent || 0
+            };
+            
+            console.log('[首页] 今日数据已更新（从销售数据接口）:', JSON.stringify(this.todayData));
+          }
+        } catch (error) {
+          console.error('[首页] 获取今日数据失败:', error);
+        }
+      }
     },
     
     getTodayDate() {
@@ -221,6 +275,49 @@ export default {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       this.todayDate = `${year}-${month}-${day}`;
+    },
+    // 格式化数字（添加千分位）
+    formatNumber(num) {
+      if (!num && num !== 0) return '0';
+      const number = parseFloat(num);
+      if (isNaN(number)) return '0';
+      return number.toLocaleString('zh-CN', { 
+        minimumFractionDigits: 0, 
+        maximumFractionDigits: 2 
+      });
+    },
+    // 将各种格式的日期/时间（时间戳、ISO、YYYY-MM-DD HH:mm:ss）标准化为 YYYY-MM-DD
+    normalizeToYMD(input) {
+      try {
+        if (!input) return '';
+        // 纯数字时间戳
+        if (/^\d{10,13}$/.test(String(input))) {
+          const ts = String(input).length === 13 ? Number(input) : Number(input) * 1000;
+          const d = new Date(ts);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const da = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${da}`;
+        }
+        // 含有 T 或空格的日期时间字符串
+        if (typeof input === 'string') {
+          // 提取前 10 位日期部分
+          const m = input.match(/(\d{4}-\d{2}-\d{2})/);
+          if (m && m[1]) return m[1];
+          // 尝试直接 new Date 解析
+          const d = new Date(input);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const da2 = String(d.getDate()).padStart(2, '0');
+            return `${y}-${mo}-${da2}`;
+          }
+        }
+        // 兜底失败返回空字符串
+        return '';
+      } catch (e) {
+        return '';
+      }
     },
     goToAnalytics() {
       // 跳转到数据分析页面
