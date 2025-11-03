@@ -160,12 +160,40 @@ export default {
       }
       
       // 从后端统一接口获取所有数据
+      // 打印请求的查询参数，便于确认“今日”入参
+      console.log('[首页] 准备请求今日数据，参数:', {
+        date: this.todayDate,
+        day: this.todayDate,
+        bizDate: this.todayDate,
+        targetDate: this.todayDate,
+        startDate: this.todayDate,
+        endDate: this.todayDate
+      });
+
       request(merchantAPI.getOrderStatus, {
         method: 'GET',
-        data: { date: this.todayDate },
+        // 兼容后端多种参数命名，确保按当日查询
+        data: {
+          date: this.todayDate,
+          day: this.todayDate,
+          bizDate: this.todayDate,
+          targetDate: this.todayDate,
+          startDate: this.todayDate,
+          endDate: this.todayDate
+        },
         success: (res) => {
+          // 原始响应打印
+          console.log('[首页] 今日数据接口响应原始值:', res);
           if (res.statusCode === 200 && res.data.code === 200) {
             const data = res.data.data;
+            // 打印后端返回的数据主体
+            console.log('[首页] 今日数据 data 字段:', data);
+            // 如果后端返回了与统计对应的日期，以数据库 create_time/统计日期为准显示
+            const serverDateCandidate = data.date || data.statDate || data.currentDate || data.createDate || data.create_time || data.createTime || data.now;
+            if (serverDateCandidate) {
+              const normalized = this.normalizeToYMD(serverDateCandidate);
+              if (normalized) this.todayDate = normalized;
+            }
             
             // 1. 更新店铺信息
             if (data.shopName || data.name || data.merchantName || data.shopInfo) {
@@ -183,21 +211,22 @@ export default {
               });
             }
             
-            // 2. 更新今日数据统计
+            // 2. 更新今日数据统计（使用后端专门的今日字段）
             this.todayData = {
-              orderCount: data.orderCount || data.ordersCount || 0,
-              orderTrend: data.orderTrend || 0,
-              revenue: data.revenue || '0',
-              revenueTrend: data.revenueTrend || 0
+              orderCount: data.todayOrderCount || data.orderCount || data.ordersCount || 0,
+              orderTrend: data.orderCountChangePercent ? Number(data.orderCountChangePercent) : (data.orderTrend || 0),
+              revenue: data.todayRevenue ? String(data.todayRevenue) : (data.revenue || '0'),
+              revenueTrend: data.revenueChangePercent ? Number(data.revenueChangePercent) : (data.revenueTrend || 0)
             };
             
-            // 3. 更新订单状态统计
+            // 3. 更新订单状态统计（使用后端VO标准字段名）
             this.orderStatus = {
-              pending: data.pending || data.pendingCount || 0,
-              toDeliver: data.toDeliver || data.toDeliverCount || data.waitingDeliveryCount || 0,
-              delivering: data.delivering || data.deliveringCount || 0
+              pending: data.pendingCount || data.pending || 0,
+              toDeliver: data.waitingDeliveryCount || data.toDeliver || data.toDeliverCount || 0,
+              delivering: data.deliveringCount || data.delivering || 0
             };
           } else {
+            console.warn('[首页] 今日数据接口非200/业务失败:', res?.data);
             uni.showToast({
               title: res.data.message || '获取数据失败',
               icon: 'none'
@@ -205,7 +234,7 @@ export default {
           }
         },
         fail: (err) => {
-          console.error('请求失败:', err);
+          console.error('[首页] 今日数据接口请求失败:', err);
           uni.showToast({
             title: '网络请求失败',
             icon: 'none',
@@ -221,6 +250,39 @@ export default {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
       this.todayDate = `${year}-${month}-${day}`;
+    },
+    // 将各种格式的日期/时间（时间戳、ISO、YYYY-MM-DD HH:mm:ss）标准化为 YYYY-MM-DD
+    normalizeToYMD(input) {
+      try {
+        if (!input) return '';
+        // 纯数字时间戳
+        if (/^\d{10,13}$/.test(String(input))) {
+          const ts = String(input).length === 13 ? Number(input) : Number(input) * 1000;
+          const d = new Date(ts);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const da = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${da}`;
+        }
+        // 含有 T 或空格的日期时间字符串
+        if (typeof input === 'string') {
+          // 提取前 10 位日期部分
+          const m = input.match(/(\d{4}-\d{2}-\d{2})/);
+          if (m && m[1]) return m[1];
+          // 尝试直接 new Date 解析
+          const d = new Date(input);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const mo = String(d.getMonth() + 1).padStart(2, '0');
+            const da2 = String(d.getDate()).padStart(2, '0');
+            return `${y}-${mo}-${da2}`;
+          }
+        }
+        // 兜底失败返回空字符串
+        return '';
+      } catch (e) {
+        return '';
+      }
     },
     goToAnalytics() {
       // 跳转到数据分析页面

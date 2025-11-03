@@ -1,5 +1,5 @@
 // API接口配置文件
-const baseUrl = 'http://localhost:8080/';
+const baseUrl = 'http://localhost:8080';
 
 // 获取token的函数
 const getToken = () => {
