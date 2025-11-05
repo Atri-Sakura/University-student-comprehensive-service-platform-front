@@ -212,7 +212,6 @@
       <view class="sales-ranking">
         <view class="section-header">
           <view class="section-title">{{ rankingType === 'hot' ? '热销商品' : '滞销商品' }}排行</view>
-          <view class="section-actions" @click="viewAllRanking">查看更多</view>
         </view>
         <view class="ranking-tabs">
           <view 
@@ -238,7 +237,7 @@
               <view class="product-name">{{ item.name }}</view>
               <view class="product-sales">销量: {{ item.sales }}份</view>
             </view>
-            <view class="product-amount">¥{{ item.amount }}</view>
+            <view class="product-amount" v-if="rankingType === 'hot'">¥{{ item.amount }}</view>
           </view>
           <!-- 空数据提示 -->
           <view class="empty-data" v-if="productRanking.length === 0">
@@ -253,41 +252,52 @@
       <view class="rating-analysis">
         <view class="section-header">
           <view class="section-title">评价分析</view>
-          <view class="section-actions">近30天</view>
         </view>
         
-        <!-- 有评价数据时显示 -->
-        <view v-if="ratingData.totalRatings > 0">
-          <view class="rating-overview">
+        <!-- 有评价数据时显示（包括评分、关键词等） -->
+        <view v-if="ratingData.totalRatings > 0 || ratingData.positiveKeywords.length > 0 || ratingData.negativeKeywords.length > 0">
+          <!-- 评分概览（只在有评分数据时显示） -->
+          <view v-if="ratingData.totalRatings > 0" class="rating-overview">
             <view class="rating-score">
-              <view class="score-value">{{ ratingData.overallScore }}</view>
+              <view class="score-value">{{ ratingData.overallScore || 0 }}</view>
               <view class="score-label">综合评分</view>
             </view>
             <view class="rating-detail">
               <view class="rating-bar" v-for="(item, idx) in ratingData.starDistribution" :key="idx">
-                <view class="bar-label">{{ 5-idx }}星</view>
+                <view class="bar-label">{{ item.star || (5-idx) }}星</view>
                 <view class="bar-container">
                   <view class="bar-fill" :style="{ width: item.percentage + '%' }"></view>
                 </view>
-                <view class="bar-count">{{ item.percentage }}%</view>
+                <view class="bar-count">
+                  <text v-if="item.count !== undefined && item.count > 0">{{ item.count }}条</text>
+                  <text>{{ item.percentage }}%</text>
+                </view>
               </view>
             </view>
           </view>
-          <view class="keywords-section">
+          
+          <!-- 关键词部分（只要有关键词就显示） -->
+          <view v-if="ratingData.positiveKeywords.length > 0" class="keywords-section">
             <view class="keywords-title">好评关键词</view>
             <view class="keywords-list">
               <view class="keyword-item" v-for="(keyword, index) in ratingData.positiveKeywords" :key="index">{{ keyword }}</view>
             </view>
           </view>
-          <view class="keywords-section">
+          
+          <view v-if="ratingData.negativeKeywords.length > 0" class="keywords-section">
             <view class="keywords-title">差评关键词</view>
             <view class="keywords-list">
               <view class="keyword-item keyword-bad" v-for="(keyword, index) in ratingData.negativeKeywords" :key="index">{{ keyword }}</view>
             </view>
           </view>
+          
+          <!-- 如果只有关键词但没有评分数据，显示提示 -->
+          <view v-if="ratingData.totalRatings === 0 && (ratingData.positiveKeywords.length > 0 || ratingData.negativeKeywords.length > 0)" class="no-rating-hint">
+            <text class="hint-text">暂无评分数据，仅显示关键词分析</text>
+          </view>
         </view>
         
-        <!-- 无评价数据时显示 -->
+        <!-- 完全无评价数据时显示 -->
         <view class="empty-data" v-else>
           <view class="empty-icon">⭐</view>
           <view class="empty-text">暂无评价数据</view>
@@ -415,7 +425,10 @@ export default {
         // 并行请求所有数据
         const [salesRes, ratingsRes, topGoodsRes] = await Promise.all([
           getSalesData(range).catch(() => ({ data: { code: 500, data: null } })),
-          getRatingsData().catch(() => ({ data: { code: 500, data: null } })),
+          getRatingsData().catch((error) => {
+            console.error('[数据分析] 获取评价数据失败:', error);
+            return { data: { code: 500, data: null } };
+          }),
           getTopGoods(10, this.rankingType).catch(() => ({ data: { code: 500, data: null } }))
         ]);
         
@@ -444,33 +457,92 @@ export default {
         }
         
         // 处理评价数据
+        console.log('[数据分析] 评价数据接口响应:', ratingsRes);
         if (ratingsRes.data && ratingsRes.data.code === 200 && ratingsRes.data.data) {
           const ratingsData = ratingsRes.data.data;
+          console.log('[数据分析] 评价数据详情:', ratingsData);
           
           // 使用后端实际返回的字段名
-          this.ratingData.overallScore = ratingsData.avgRating || 0;
-          this.ratingData.totalRatings = ratingsData.totalReviews || 0;
+          this.ratingData.overallScore = ratingsData.avgRating || ratingsData.averageRating || 0;
+          this.ratingData.totalRatings = ratingsData.totalReviews || ratingsData.totalCount || ratingsData.count || 0;
+          
+          console.log('[数据分析] 解析后的评价数据:', {
+            overallScore: this.ratingData.overallScore,
+            totalRatings: this.ratingData.totalRatings
+          });
           
           // 评分分布（使用 ratingDistributions）
+          console.log('[数据分析] 评分分布原始数据:', ratingsData.ratingDistributions);
+          
           if (ratingsData.ratingDistributions && ratingsData.ratingDistributions.length > 0) {
-            this.ratingData.starDistribution = ratingsData.ratingDistributions.map(item => ({
-              star: item.star || item.rating || 5,
-              percentage: item.percentage || item.percent || 0
-            }));
+            // 如果后端返回了评分分布数据
+            const total = this.ratingData.totalRatings || 0;
+            
+            this.ratingData.starDistribution = ratingsData.ratingDistributions.map(item => {
+              const star = item.star || item.rating || item.level || 5;
+              let percentage = 0;
+              
+              // 如果后端返回的是百分比
+              if (item.percentage !== undefined || item.percent !== undefined) {
+                percentage = item.percentage || item.percent || 0;
+              } 
+              // 如果后端返回的是数量，需要计算百分比
+              else if (item.count !== undefined || item.quantity !== undefined) {
+                const count = item.count || item.quantity || 0;
+                percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+              }
+              
+              return {
+                star: star,
+                percentage: percentage,
+                count: item.count || item.quantity || 0  // 保存原始数量（如果有）
+              };
+            });
+            
+            // 确保按星级排序（5星到1星）
+            this.ratingData.starDistribution.sort((a, b) => b.star - a.star);
+            
+            console.log('[数据分析] 处理后的评分分布:', this.ratingData.starDistribution);
+          } else if (ratingsData.starCounts || ratingsData.ratingCounts) {
+            // 如果后端返回的是各星级数量对象（如 {5: 10, 4: 5, 3: 2, 2: 1, 1: 0}）
+            const starCounts = ratingsData.starCounts || ratingsData.ratingCounts || {};
+            const total = this.ratingData.totalRatings || Object.values(starCounts).reduce((sum, count) => sum + (count || 0), 0);
+            
+            this.ratingData.starDistribution = [5, 4, 3, 2, 1].map(star => {
+              const count = starCounts[star] || starCounts[`star${star}`] || starCounts[`rating${star}`] || 0;
+              const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+              return {
+                star: star,
+                percentage: percentage,
+                count: count
+              };
+            });
+            
+            console.log('[数据分析] 从starCounts处理后的评分分布:', this.ratingData.starDistribution);
           } else {
-            // 默认数据
+            // 默认数据（所有星级都是0%）
             this.ratingData.starDistribution = [
-              { star: 5, percentage: 0 },
-              { star: 4, percentage: 0 },
-              { star: 3, percentage: 0 },
-              { star: 2, percentage: 0 },
-              { star: 1, percentage: 0 }
+              { star: 5, percentage: 0, count: 0 },
+              { star: 4, percentage: 0, count: 0 },
+              { star: 3, percentage: 0, count: 0 },
+              { star: 2, percentage: 0, count: 0 },
+              { star: 1, percentage: 0, count: 0 }
             ];
+            console.log('[数据分析] 使用默认评分分布（后端未返回数据）');
           }
           
           // 关键词
           this.ratingData.positiveKeywords = ratingsData.positiveKeywords || [];
           this.ratingData.negativeKeywords = ratingsData.negativeKeywords || [];
+          
+          console.log('[数据分析] 评价数据更新完成:', this.ratingData);
+        } else {
+          console.warn('[数据分析] 评价数据接口返回异常:', {
+            statusCode: ratingsRes?.statusCode,
+            code: ratingsRes?.data?.code,
+            msg: ratingsRes?.data?.msg || ratingsRes?.data?.message,
+            data: ratingsRes?.data?.data
+          });
         }
         
         // 处理商品排行数据
@@ -482,11 +554,67 @@ export default {
             ? (rankingData.hotSellingProducts || [])
             : (rankingData.slowMovingProducts || []);
           
-          this.productRanking = topGoodsData.map(item => ({
-            name: item.productName || item.goodsName || item.name || '未知商品',
-            sales: item.salesVolume || item.salesCount || item.sales || 0,
-            amount: this.formatNumber(item.totalSales || item.salesAmount || item.amount || 0)
-          }));
+          console.log('[数据分析] 商品排行原始数据:', topGoodsData);
+          
+          this.productRanking = topGoodsData.map(item => {
+            // 尝试获取商品单价，优先使用price字段（支持多种可能的字段名）
+            // 注意：需要检查字段是否存在，而不是仅仅检查值是否为0
+            let price = null;
+            
+            if (item.price !== undefined && item.price !== null) {
+              price = parseFloat(item.price);
+            } else if (item.unitPrice !== undefined && item.unitPrice !== null) {
+              price = parseFloat(item.unitPrice);
+            } else if (item.goodsPrice !== undefined && item.goodsPrice !== null) {
+              price = parseFloat(item.goodsPrice);
+            } else if (item.productPrice !== undefined && item.productPrice !== null) {
+              price = parseFloat(item.productPrice);
+            }
+            
+            // 如果price字段不存在或无效，尝试通过总销售额和销量计算单价
+            if (price === null || isNaN(price) || price < 0) {
+              const totalSales = parseFloat(item.totalSales) || 
+                                parseFloat(item.salesAmount) || 
+                                parseFloat(item.amount) || 
+                                parseFloat(item.totalRevenue) || 0;
+              const sales = parseFloat(item.salesVolume) || 
+                           parseFloat(item.salesCount) || 
+                           parseFloat(item.sales) || 
+                           parseFloat(item.quantity) || 0;
+              
+              if (totalSales > 0 && sales > 0 && !isNaN(totalSales) && !isNaN(sales)) {
+                price = parseFloat((totalSales / sales).toFixed(2));
+              } else {
+                price = 0;
+              }
+            }
+            
+            // 确保price是有效数字
+            if (isNaN(price) || price < 0) {
+              price = 0;
+            }
+            
+            console.log('[数据分析] 商品价格解析:', {
+              name: item.productName || item.goodsName || item.name,
+              原始price字段: item.price,
+              原始unitPrice字段: item.unitPrice,
+              原始goodsPrice字段: item.goodsPrice,
+              原始totalSales字段: item.totalSales,
+              原始salesAmount字段: item.salesAmount,
+              原始amount字段: item.amount,
+              原始salesVolume字段: item.salesVolume,
+              原始salesCount字段: item.salesCount,
+              原始sales字段: item.sales,
+              最终价格: price,
+              完整数据: item
+            });
+            
+            return {
+              name: item.productName || item.goodsName || item.name || '未知商品',
+              sales: item.salesVolume || item.salesCount || item.sales || 0,
+              amount: price > 0 ? this.formatNumber(price) : '0.00'
+            };
+          });
         }
         
       } catch (error) {
@@ -659,11 +787,52 @@ export default {
             ? (rankingData.hotSellingProducts || [])
             : (rankingData.slowMovingProducts || []);
           
-          this.productRanking = topGoodsData.map(item => ({
-            name: item.productName || item.goodsName || item.name || '未知商品',
-            sales: item.salesVolume || item.salesCount || item.sales || 0,
-            amount: this.formatNumber(item.totalSales || item.salesAmount || item.amount || 0)
-          }));
+          console.log('[数据分析] 切换排行榜 - 商品原始数据:', topGoodsData);
+          
+          this.productRanking = topGoodsData.map(item => {
+            // 尝试获取商品单价，优先使用price字段（支持多种可能的字段名）
+            // 注意：需要检查字段是否存在，而不是仅仅检查值是否为0
+            let price = null;
+            
+            if (item.price !== undefined && item.price !== null) {
+              price = parseFloat(item.price);
+            } else if (item.unitPrice !== undefined && item.unitPrice !== null) {
+              price = parseFloat(item.unitPrice);
+            } else if (item.goodsPrice !== undefined && item.goodsPrice !== null) {
+              price = parseFloat(item.goodsPrice);
+            } else if (item.productPrice !== undefined && item.productPrice !== null) {
+              price = parseFloat(item.productPrice);
+            }
+            
+            // 如果price字段不存在或无效，尝试通过总销售额和销量计算单价
+            if (price === null || isNaN(price) || price < 0) {
+              const totalSales = parseFloat(item.totalSales) || 
+                                parseFloat(item.salesAmount) || 
+                                parseFloat(item.amount) || 
+                                parseFloat(item.totalRevenue) || 0;
+              const sales = parseFloat(item.salesVolume) || 
+                           parseFloat(item.salesCount) || 
+                           parseFloat(item.sales) || 
+                           parseFloat(item.quantity) || 0;
+              
+              if (totalSales > 0 && sales > 0 && !isNaN(totalSales) && !isNaN(sales)) {
+                price = parseFloat((totalSales / sales).toFixed(2));
+              } else {
+                price = 0;
+              }
+            }
+            
+            // 确保price是有效数字
+            if (isNaN(price) || price < 0) {
+              price = 0;
+            }
+            
+            return {
+              name: item.productName || item.goodsName || item.name || '未知商品',
+              sales: item.salesVolume || item.salesCount || item.sales || 0,
+              amount: price > 0 ? this.formatNumber(price) : '0.00'
+            };
+          });
         }
       } catch (error) {
         console.error('切换排行榜失败:', error);
@@ -702,10 +871,6 @@ export default {
       // TODO: 实现趋势周期切换逻辑
       // 暂时重新生成模拟数据
       this.generateMockTrendData();
-    },
-    
-    viewAllRanking() {
-      // TODO: 跳转到商品排行详情页
     },
     
     /**
@@ -1057,6 +1222,9 @@ export default {
   font-size: 26rpx;
   color: #2a8cc4;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
 }
 
 .chart-container {
@@ -1460,6 +1628,19 @@ export default {
 .keyword-bad {
   background: rgba(255, 77, 79, 0.1);
   color: #ff4d4f;
+}
+
+.no-rating-hint {
+  margin-top: 30rpx;
+  padding: 20rpx;
+  background: rgba(255, 169, 64, 0.05);
+  border-radius: 8rpx;
+  text-align: center;
+}
+
+.hint-text {
+  font-size: 24rpx;
+  color: #999;
 }
 
 /* 空数据提示 */
