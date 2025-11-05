@@ -320,10 +320,28 @@ export default {
       return `${year}-${month}-${day}`;
     },
     viewActivity(activity) {
-      // 跳转到活动效果页面（暂未实现）
-      uni.showToast({
-        title: '查看活动效果: ' + activity.name,
-        icon: 'none'
+      // 跳转到活动详情页面
+      const activityId = activity.merchantActivityId || activity.id || activity.merchant_activity_id;
+      if (!activityId) {
+        uni.showToast({
+          title: '活动ID缺失',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      uni.navigateTo({
+        url: `/pages/activities/activity-detail?activityId=${activityId}`,
+        success: () => {
+          console.log('成功跳转到活动详情页面');
+        },
+        fail: (err) => {
+          console.error('跳转到活动详情页面失败:', err);
+          uni.showToast({
+            title: '跳转失败',
+            icon: 'none'
+          });
+        }
       });
     },
     editActivity(activity) {

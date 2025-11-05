@@ -114,6 +114,12 @@
 	  "style": {
 	    "navigationBarTitleText": "编辑活动"
 	  }
+	},
+	{
+	  "path": "pages/activities/activity-detail",
+	  "style": {
+	    "navigationBarTitleText": "活动详情"
+	  }
 	}
   ],
   "globalStyle": {
