@@ -92,157 +92,6 @@ export default {
         { name: '系统通知' }
       ],
       messages: [],
-      mockMessages: [
-        {
-          id: 0,
-          name: '在线客服',
-          type: 'system',
-          avatarIcon: '🎧',
-          avatarBg: 'linear-gradient(135deg, #FFB300, #FFA000)',
-          lastMessage: '您好，有什么可以帮您的吗？',
-          time: '11:00',
-          unread: 0,
-          emoji: ''
-        },
-        {
-          id: 1,
-          name: '订单#20231115089',
-          type: 'group',
-          avatarIcon: '👥',
-          avatarBg: 'linear-gradient(135deg, #64B5F6, #42A5F5)',
-          lastMessage: '张先生：骑手还有多久到？',
-          time: '10:30',
-          unread: 2,
-          emoji: '',
-          orderInfo: '张先生 & 骑手李明'
-        },
-        {
-          id: 2,
-          name: '系统消息',
-          type: 'system',
-          avatarIcon: '🔔',
-          avatarBg: 'linear-gradient(135deg, #FFB300, #FFA000)',
-          lastMessage: '您有3个新订单待接单，请及时处理',
-          time: '10:25',
-          unread: 3,
-          emoji: ''
-        },
-        {
-          id: 3,
-          name: '订单#20231115078',
-          type: 'group',
-          avatarIcon: '👥',
-          avatarBg: 'linear-gradient(135deg, #EF5350, #E53935)',
-          lastMessage: '骑手王伟：已取餐，正在路上',
-          time: '10:15',
-          unread: 0,
-          emoji: '',
-          orderInfo: '李女士 & 骑手王伟'
-        },
-        {
-          id: 4,
-          name: '订单通知',
-          type: 'system',
-          avatarIcon: '📦',
-          avatarBg: 'linear-gradient(135deg, #66BB6A, #4CAF50)',
-          lastMessage: '订单 #20231115089 已完成配送',
-          time: '09:45',
-          unread: 0,
-          emoji: ''
-        },
-        {
-          id: 5,
-          name: '订单#20231115056',
-          type: 'group',
-          avatarIcon: '👥',
-          avatarBg: 'linear-gradient(135deg, #AB47BC, #9C27B0)',
-          lastMessage: '王女士：能帮忙带双筷子吗？',
-          time: '09:30',
-          unread: 0,
-          emoji: '🙏',
-          orderInfo: '王女士 & 骑手刘强'
-        },
-        {
-          id: 6,
-          name: '评价提醒',
-          type: 'system',
-          avatarIcon: '⭐',
-          avatarBg: 'linear-gradient(135deg, #E53935, #D32F2F)',
-          lastMessage: '您收到一条新的5星好评',
-          time: '昨天',
-          unread: 1,
-          emoji: ''
-        },
-        {
-          id: 7,
-          name: '订单#20231114123',
-          type: 'group',
-          avatarIcon: '👥',
-          avatarBg: 'linear-gradient(135deg, #5C6BC0, #3F51B5)',
-          lastMessage: '骑手陈浩：已到楼下，请下来取餐',
-          time: '昨天',
-          unread: 0,
-          emoji: '',
-          orderInfo: '赵先生 & 骑手陈浩'
-        },
-        {
-          id: 8,
-          name: '财务通知',
-          type: 'system',
-          avatarIcon: '💰',
-          avatarBg: 'linear-gradient(135deg, #00ACC1, #00838F)',
-          lastMessage: '本周收入已结算，共计 ¥2,580.00',
-          time: '周一',
-          unread: 0,
-          emoji: ''
-        },
-        {
-          id: 9,
-          name: '订单#20231113098',
-          type: 'group',
-          avatarIcon: '👥',
-          avatarBg: 'linear-gradient(135deg, #8E24AA, #6A1B9A)',
-          lastMessage: '孙女士：餐品收到了，谢谢！',
-          time: '周一',
-          unread: 0,
-          emoji: '😊',
-          orderInfo: '孙女士 & 骑手张勇'
-        },
-        {
-          id: 10,
-          name: '活动通知',
-          type: 'system',
-          avatarIcon: '🎉',
-          avatarBg: 'linear-gradient(135deg, #F57C00, #EF6C00)',
-          lastMessage: '本周冲单活动：完成50单奖励200元',
-          time: '周二',
-          unread: 0,
-          emoji: ''
-        },
-        {
-          id: 11,
-          name: '订单#20231112067',
-          type: 'group',
-          avatarIcon: '👥',
-          avatarBg: 'linear-gradient(135deg, #43A047, #388E3C)',
-          lastMessage: '周先生：配送很快，服务态度好',
-          time: '周二',
-          unread: 0,
-          emoji: '👍',
-          orderInfo: '周先生 & 骑手杨磊'
-        },
-        {
-          id: 12,
-          name: '系统更新',
-          type: 'system',
-          avatarIcon: '🔧',
-          avatarBg: 'linear-gradient(135deg, #1E88E5, #1565C0)',
-          lastMessage: 'APP将于今晚23:00进行系统维护',
-          time: '周三',
-          unread: 0,
-          emoji: ''
-        }
-      ],
       loading: false,
       unreadTotal: 0
     }
@@ -285,36 +134,68 @@ export default {
           pageSize: 50
         });
         
-        if (res.data.code === 200) {
-          const chatList = res.data.data.list || [];
+        // 后端返回的数据格式可能是 AjaxResult 或 R 类
+        const success = res.data.code === 200 || res.data.code === 0;
+        
+        if (success) {
+          // 根据后端ChatSession实体映射字段
+          const chatList = res.data.data || res.data.rows || [];
           
-          // 转换数据格式
-          this.messages = chatList.map(chat => ({
-            id: chat.chatId,
-            chatId: chat.chatId,
-            name: chat.chatName || chat.userName,
-            type: chat.chatType || 'group', // group:群聊, system:系统
-            avatarIcon: chat.avatarIcon || '👥',
-            avatarBg: chat.avatarBg || 'linear-gradient(135deg, #64B5F6, #42A5F5)',
-            lastMessage: chat.lastMessage || '',
-            time: this.formatChatTime(chat.lastMessageTime),
-            unread: chat.unreadCount || 0,
-            emoji: chat.emoji || ''
-          }));
-          
-          // 如果没有真实数据，使用模拟数据
-          if (this.messages.length === 0) {
-            this.messages = this.mockMessages;
-          }
+          // 转换数据格式，映射后端ChatSession字段
+          this.messages = chatList.map(session => {
+            // 确定会话名称（根据对方类型和ID获取）
+            let chatName = '未知用户';
+            let chatType = 'group';
+            
+            // 判断对方类型
+            if (session.toType === 1) {
+              chatName = '用户' + session.toId;
+              chatType = 'group';
+            } else if (session.toType === 2) {
+              chatName = '骑手' + session.toId;
+              chatType = 'group';
+            } else if (session.toType === 4) {
+              chatName = '系统消息';
+              chatType = 'system';
+            }
+            
+            return {
+              id: session.sessionId,
+              sessionId: session.sessionId,
+              chatId: session.sessionId, // 兼容旧字段
+              name: chatName,
+              type: chatType,
+              avatarIcon: chatType === 'system' ? '🔔' : '👥',
+              avatarBg: chatType === 'system' ? 
+                'linear-gradient(135deg, #FFB300, #FFA000)' : 
+                'linear-gradient(135deg, #64B5F6, #42A5F5)',
+              lastMessage: session.lastMsgContent || '',
+              time: this.formatChatTime(session.lastMsgTime),
+              unread: session.unreadCount || 0,
+              emoji: '',
+              // 保存原始数据，用于后续操作
+              fromType: session.fromType,
+              fromId: session.fromId,
+              toType: session.toType,
+              toId: session.toId
+            };
+          });
         } else {
-          // 加载失败，使用模拟数据
-          console.warn('加载会话列表失败，使用模拟数据');
-          this.messages = this.mockMessages;
+          // 加载失败
+          console.warn('加载会话列表失败:', res.data.msg || '未知错误');
+          this.messages = [];
+          uni.showToast({
+            title: res.data.msg || '加载失败',
+            icon: 'none'
+          });
         }
       } catch (error) {
         console.error('加载会话列表失败:', error);
-        // 加载失败，使用模拟数据
-        this.messages = this.mockMessages;
+        this.messages = [];
+        uni.showToast({
+          title: '网络错误，请稍后重试',
+          icon: 'none'
+        });
       } finally {
         this.loading = false;
       }
@@ -325,8 +206,22 @@ export default {
       try {
         const res = await getUnreadCount();
         
-        if (res.data.code === 200) {
-          this.unreadTotal = res.data.data.unreadCount || 0;
+        const success = res.data.code === 200 || res.data.code === 0;
+        
+        if (success) {
+          // 后端返回的未读会话列表，计算总未读数
+          const unreadList = res.data.data || [];
+          this.unreadTotal = 0;
+          
+          if (Array.isArray(unreadList)) {
+            // 累加所有会话的未读数
+            unreadList.forEach(session => {
+              this.unreadTotal += (session.unreadCount || 0);
+            });
+          } else if (typeof unreadList === 'number') {
+            // 如果直接返回数字
+            this.unreadTotal = unreadList;
+          }
           
           // 更新底部导航栏的角标（如果需要）
           if (this.unreadTotal > 0) {
@@ -389,9 +284,26 @@ export default {
         this.unreadTotal = Math.max(0, this.unreadTotal - originalUnread);
       }
       
-      // 跳转到聊天界面（需要传递chatId）
+      // 跳转到聊天界面，传递会话ID和会话信息
+      const params = {
+        sessionId: item.sessionId || item.chatId || item.id,
+        title: encodeURIComponent(item.name),
+        icon: encodeURIComponent(item.avatarIcon),
+        iconColor: encodeURIComponent(item.avatarBg)
+      };
+      
+      // 传递会话参与方信息（用于发送消息）
+      if (item.fromType && item.fromId && item.toType && item.toId) {
+        params.fromType = item.fromType;
+        params.fromId = item.fromId;
+        params.toType = item.toType;
+        params.toId = item.toId;
+      }
+      
+      const queryString = Object.keys(params).map(key => `${key}=${params[key]}`).join('&');
+      
       uni.navigateTo({
-        url: `/pages/message/chat?chatId=${item.chatId || item.id}&title=${encodeURIComponent(item.name)}&icon=${encodeURIComponent(item.avatarIcon)}&iconColor=${encodeURIComponent(item.avatarBg)}`
+        url: `/pages/message/chat?${queryString}`
       });
     },
     

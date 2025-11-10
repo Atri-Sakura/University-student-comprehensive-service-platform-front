@@ -103,11 +103,19 @@ export default {
   name: 'ChatPage',
   data() {
     return {
-      chatId: null, // 会话ID
+      sessionId: null, // 会话ID
+      chatId: null, // 兼容旧字段
       chatInfo: {
         title: '',
         icon: '',
         iconColor: ''
+      },
+      // 会话参与方信息
+      sessionInfo: {
+        fromType: null,
+        fromId: null,
+        toType: null,
+        toId: null
       },
       messageList: [],
       inputMessage: '',
@@ -121,8 +129,9 @@ export default {
   },
   onLoad(options) {
     // 接收从消息列表传来的参数
-    if (options.chatId) {
-      this.chatId = parseInt(options.chatId);
+    if (options.sessionId || options.chatId) {
+      this.sessionId = parseInt(options.sessionId || options.chatId);
+      this.chatId = this.sessionId; // 兼容
     }
     if (options.title) {
       this.chatInfo.title = decodeURIComponent(options.title);
@@ -134,11 +143,25 @@ export default {
       this.chatInfo.iconColor = decodeURIComponent(options.iconColor);
     }
     
+    // 接收会话参与方信息
+    if (options.fromType) {
+      this.sessionInfo.fromType = parseInt(options.fromType);
+    }
+    if (options.fromId) {
+      this.sessionInfo.fromId = parseInt(options.fromId);
+    }
+    if (options.toType) {
+      this.sessionInfo.toType = parseInt(options.toType);
+    }
+    if (options.toId) {
+      this.sessionInfo.toId = parseInt(options.toId);
+    }
+    
     // 加载历史消息
     this.loadMessages();
     
     // 标记会话为已读
-    if (this.chatId) {
+    if (this.sessionId) {
       this.markAsRead();
     }
     
@@ -152,7 +175,7 @@ export default {
   methods: {
     // 加载历史消息
     async loadMessages() {
-      if (this.loading || !this.hasMore || !this.chatId) {
+      if (this.loading || !this.hasMore || !this.sessionId) {
         return;
       }
       
@@ -160,15 +183,18 @@ export default {
       
       try {
         const res = await getMessageList({
-          chatId: this.chatId,
+          sessionId: this.sessionId,
+          chatId: this.sessionId, // 兼容
           pageNum: this.pageNum,
           pageSize: this.pageSize
         });
         
-        if (res.data.code === 200) {
-          const messages = res.data.data.list || [];
+        const success = res.data.code === 200 || res.data.code === 0;
+        
+        if (success) {
+          const messages = res.data.data || res.data.rows || [];
           
-          // 转换消息格式
+          // 转换消息格式，适配后端ChatMessage实体
           const formattedMessages = messages.map(msg => this.formatMessage(msg));
           
           // 插入到消息列表前面（历史消息）
@@ -201,17 +227,41 @@ export default {
       }
     },
     
-    // 格式化消息数据
+    // 格式化消息数据，适配后端ChatMessage实体
     formatMessage(msg) {
+      // 获取商户信息，判断是否是自己发送的
+      const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+      const merchantId = merchantInfo.merchantBaseId || merchantInfo.id;
+      const isSelf = msg.fromType === 3 && msg.fromId === merchantId;
+      
+      // 消息类型转换：1-文本 2-图片 3-语音 4-系统通知
+      let messageType = 'text';
+      let displayType = 'normal';
+      if (msg.msgType === 2) {
+        messageType = 'image';
+      } else if (msg.msgType === 3) {
+        messageType = 'voice';
+      } else if (msg.msgType === 4) {
+        messageType = 'system';
+        displayType = 'system';
+      }
+      
       return {
         id: msg.messageId,
-        type: msg.messageType === 'system' ? 'system' : 'normal',
-        isSelf: msg.isSelf,
-        avatar: msg.isSelf ? '🙂' : (this.chatInfo.icon || '👤'),
-        content: msg.content,
-        time: this.formatTime(new Date(msg.createTime)),
+        type: displayType,
+        isSelf: isSelf,
+        avatar: isSelf ? '🙂' : (this.chatInfo.icon || '👤'),
+        content: msg.msgContent || '',
+        time: this.formatTime(new Date(msg.sendTime || msg.createTime)),
         showTime: msg.showTime || false,
-        messageType: msg.messageType
+        messageType: messageType,
+        msgStatus: msg.msgStatus, // 0-发送中 1-已送达 2-已读 3-已撤回 4-发送失败
+        // 保存原始数据
+        sessionId: msg.sessionId,
+        fromType: msg.fromType,
+        fromId: msg.fromId,
+        toType: msg.toType,
+        toId: msg.toId
       };
     },
     
@@ -221,9 +271,18 @@ export default {
         return;
       }
       
-      if (!this.chatId) {
+      if (!this.sessionId) {
         uni.showToast({
           title: '会话ID不存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 检查会话参与方信息
+      if (!this.sessionInfo.toType || !this.sessionInfo.toId) {
+        uni.showToast({
+          title: '会话信息不完整',
           icon: 'none'
         });
         return;
@@ -251,24 +310,34 @@ export default {
       });
       
       try {
+        // 发送消息到后端
         const res = await sendMessageAPI({
-          chatId: this.chatId,
-          content: content,
-          messageType: 'text'
+          sessionId: this.sessionId,
+          chatId: this.sessionId, // 兼容
+          toType: this.sessionInfo.toType,
+          toId: this.sessionInfo.toId,
+          msgContent: content,
+          content: content, // 兼容
+          msgType: 1, // 1-文本
+          messageType: 'text' // 兼容
         });
         
-        if (res.data.code === 200) {
+        const success = res.data.code === 200 || res.data.code === 0;
+        
+        if (success) {
           // 发送成功，更新消息状态
           tempMessage.sending = false;
-          tempMessage.id = res.data.data.messageId;
+          tempMessage.id = res.data.data?.messageId || res.data.data;
           
-          // 通过WebSocket发送
-          chatWebSocket.send({
-            type: 'message',
-            chatId: this.chatId,
-            messageId: res.data.data.messageId,
-            content: content
-          });
+          // 通过WebSocket通知对方（如果WebSocket已连接）
+          if (chatWebSocket.isConnected) {
+            chatWebSocket.send({
+              type: 'message',
+              sessionId: this.sessionId,
+              messageId: tempMessage.id,
+              content: content
+            });
+          }
         } else {
           // 发送失败，标记失败
           tempMessage.sendFailed = true;
@@ -289,9 +358,12 @@ export default {
     
     // 接收WebSocket消息
     handleWebSocketMessage(data) {
-      if (data.type === 'message' && data.chatId === this.chatId) {
+      console.log('收到WebSocket消息:', data);
+      
+      // 处理不同类型的消息
+      if (data.type === 'message' && data.sessionId === this.sessionId) {
         // 收到新消息
-        const newMessage = this.formatMessage(data.message);
+        const newMessage = this.formatMessage(data.message || data);
         this.messageList.push(newMessage);
         
         // 滚动到底部
@@ -301,6 +373,12 @@ export default {
         
         // 标记为已读
         this.markAsRead();
+      } else if (data.type === 'auth' && data.success) {
+        // 认证成功
+        console.log('WebSocket认证成功');
+      } else if (data.type === 'heartbeat') {
+        // 心跳响应
+        console.log('收到心跳响应');
       }
     },
     
@@ -324,10 +402,10 @@ export default {
     
     // 标记为已读
     async markAsRead() {
-      if (!this.chatId) return;
+      if (!this.sessionId) return;
       
       try {
-        await markChatRead(this.chatId);
+        await markChatRead(this.sessionId);
       } catch (error) {
         console.error('标记已读失败:', error);
       }
@@ -374,7 +452,7 @@ export default {
     
     // 选择图片
     selectImage() {
-      if (!this.chatId) {
+      if (!this.sessionId) {
         uni.showToast({
           title: '会话ID不存在',
           icon: 'none'
@@ -395,9 +473,11 @@ export default {
           });
           
           try {
-            const uploadRes = await uploadChatImage(filePath, this.chatId);
+            const uploadRes = await uploadChatImage(filePath, this.sessionId);
             
-            if (uploadRes.code === 200) {
+            const success = uploadRes.code === 200 || uploadRes.code === 0;
+            
+            if (success) {
               // 添加图片消息
               const newMessage = {
                 type: 'normal',
@@ -406,7 +486,7 @@ export default {
                 content: '[图片]',
                 time: this.formatTime(new Date()),
                 showTime: false,
-                imageUrl: uploadRes.data.imageUrl
+                imageUrl: uploadRes.data?.imageUrl || uploadRes.data
               };
               this.messageList.push(newMessage);
               
@@ -452,9 +532,18 @@ export default {
     
     // 发送位置
     sendLocation() {
-      if (!this.chatId) {
+      if (!this.sessionId) {
         uni.showToast({
           title: '会话ID不存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 检查会话参与方信息
+      if (!this.sessionInfo.toType || !this.sessionInfo.toId) {
+        uni.showToast({
+          title: '会话信息不完整',
           icon: 'none'
         });
         return;
@@ -468,14 +557,20 @@ export default {
           
           try {
             const locationRes = await sendLocationAPI({
-              chatId: this.chatId,
+              sessionId: this.sessionId,
+              fromType: this.sessionInfo.fromType,
+              fromId: this.sessionInfo.fromId,
+              toType: this.sessionInfo.toType,
+              toId: this.sessionInfo.toId,
               latitude: res.latitude.toString(),
               longitude: res.longitude.toString(),
               address: res.address,
               name: res.name
             });
             
-            if (locationRes.data.code === 200) {
+            const success = locationRes.data?.code === 200 || locationRes.data?.code === 0;
+            
+            if (success) {
               // 添加位置消息
               const newMessage = {
                 type: 'normal',
@@ -503,7 +598,7 @@ export default {
               });
             } else {
               uni.showToast({
-                title: locationRes.data.msg || '发送失败',
+                title: locationRes.data?.msg || '发送失败',
                 icon: 'none'
               });
             }

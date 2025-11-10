@@ -52,12 +52,18 @@
           </view>
           
           <view class="order-actions">
-            <!-- 待接单状态 -->
-            <view v-if="item.status === '待接单'" class="action-group">
-              <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
-              <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
-              <button class="action-btn reject" @click="rejectOrder(item)">拒单</button>
-              <button class="action-btn accept" @click="acceptOrder(item)">接单</button>
+            <!-- 待接单状态 - 优化布局 -->
+            <view v-if="item.status === '待接单'">
+              <!-- 第一行：主要操作按钮 -->
+              <view class="action-group primary-actions">
+                <button class="action-btn reject" @click="rejectOrder(item)">拒单</button>
+                <button class="action-btn accept" @click="acceptOrder(item)">接单</button>
+              </view>
+              <!-- 第二行：次要操作按钮 -->
+              <view class="action-group secondary-actions">
+                <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
+                <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              </view>
             </view>
             
             <!-- 待取货状态 -->
@@ -95,8 +101,13 @@
         </view>
       </view>
       
+      <!-- 加载状态 -->
+      <view v-if="isLoading" class="loading">
+        <text class="loading-icon">⏳</text>
+        <text class="loading-text">加载中...</text>
+      </view>
       <!-- 空状态 -->
-      <view v-if="currentOrders.length === 0" class="empty">
+      <view v-else-if="currentOrders.length === 0" class="empty">
         <text class="empty-icon">📦</text>
         <text class="empty-text">暂无订单</text>
       </view>
@@ -130,43 +141,31 @@ import { merchantOrderAPI, request } from '../../utils/order.js'
 export default {
   name: 'OrderPage',
   data() {
-    return {
-      currentTab: 0,
-      tabs: [
-      { name: '待处理', count: 0 },
-      { name: '配送中', count: 0 },
-      { name: '已完成', count: 0 }
-    ],
-      allOrders: []
-    }
-  },
-  onShow() {
-    // 从全局变量读取首页点击传来的初始状态并切换标签
-    const app = getApp();
-    const initStatus = app?.globalData?.orderListInitStatus;
-    if (initStatus) {
-      // 将状态映射到当前标签索引：
-      // 'pending' 和 'toDeliver' -> 待处理(索引0)，'delivering' -> 配送中(索引1)
-      if (initStatus === 'delivering') {
-        this.currentTab = 1;
-      } else {
-        this.currentTab = 0;
+      return {
+        currentTab: 0,
+        tabs: [
+        { name: '待处理', count: 0 },
+        { name: '配送中', count: 0 },
+        { name: '已完成', count: 0 }
+      ],
+        allOrders: [],
+        isLoading: false // 加载状态
       }
-      // 使用后清理，避免下次误用
-      app.globalData.orderListInitStatus = null;
-    }
-  },
+    },
   created() {
-    // 页面加载时获取订单列表
-    this.getOrderList()
-  },
+      // 页面加载时获取订单列表
+      this.getOrderList()
+    },
+    onShow() {
+      // 页面显示时立即刷新一次订单数据
+      if (!this.isLoading) {
+        this.getOrderList()
+      }
+    },
   computed: {
     // 待处理订单：待接单、待取货
     pendingOrders() {
-      return this.allOrders.filter(order => 
-        order.status === '待接单' || 
-        order.status === '待取货'
-      )
+      return this.allOrders.filter(order => ['待接单', '待取货'].includes(order.status))
     },
     deliveringOrders() {
       return this.allOrders.filter(order => order.status === '配送中')
@@ -182,20 +181,28 @@ export default {
         case 0: return this.pendingOrders
         case 1: return this.deliveringOrders
         case 2: return this.completedOrders
-        default: return []
+        default: return this.pendingOrders
       }
     }
   },
   methods: {
-    // 页面内标签切换方法，避免与底部导航栏方法冲突
-    switchTabIndex(index) {
-      this.currentTab = index
-    },
+
+      
+      // 页面内标签切换方法，避免与底部导航栏方法冲突
+      switchTabIndex(index) {
+        this.currentTab = index
+        // 调用getOrderList方法刷新订单数据
+        this.getOrderList()
+      },
+    
+
     
     // 获取订单列表
     async getOrderList() {
+      // 设置加载状态为true
+      this.isLoading = true
       try {
-        console.log('开始获取订单列表...')
+        console.log('开始获取订单列表...', new Date().toLocaleTimeString(), '调用堆栈:', new Error().stack)
         const res = await request(merchantOrderAPI.list, {
           method: 'GET'
         })
@@ -240,6 +247,7 @@ export default {
           console.log('配送中订单数量:', this.deliveringOrders.length)
           console.log('已完成订单数量:', this.completedOrders.length)
           this.updateOrderCount()
+
           uni.showToast({
             title: '获取订单成功',
             icon: 'success'
@@ -255,6 +263,9 @@ export default {
           title: error.message || '获取订单失败',
           icon: 'none'
         })
+      } finally {
+        // 请求完成后无论成功失败，都将加载状态设置为false
+        this.isLoading = false
       }
     },
     
@@ -267,8 +278,8 @@ export default {
           2: '待取货',
           3: '配送中',
           4: '已送达',
-          5: '已完成',
-          6: '已取消'
+          5: '已取消',
+          6: '已取消' // 保持与状态码5一致，都映射为已取消
         }
         
         // 使用后端返回的状态，如果找不到对应映射则默认为'待接单'
@@ -329,7 +340,9 @@ export default {
         '待接单': '#ff9800',
         '待取货': '#ff6b00',
         '配送中': '#2196f3',
-        '已完成': '#52c41a'
+        '已送达': '#52c41a',
+        '已完成': '#52c41a',
+        '已取消': '#999999'
       }
       return colors[status] || '#666'
     },
@@ -572,27 +585,16 @@ export default {
     
     // 底部导航栏切换
     switchTab(tab) {
-      switch (tab) {
-        case 'index':
-          uni.switchTab({
-            url: '/pages/index/index'
-          });
-          break;
-        case 'list':
-          uni.switchTab({
-            url: '/pages/list/list'
-          });
-          break;
-        case 'message':
-          uni.switchTab({
-            url: '/pages/message/message'
-          });
-          break;
-        case 'mine':
-          uni.switchTab({
-            url: '/pages/mine/mine'
-          });
-          break;
+      const urlMap = {
+        index: '/pages/index/index',
+        message: '/pages/message/message',
+        mine: '/pages/mine/mine'
+      };
+      
+      if (urlMap[tab]) {
+        uni.switchTab({
+          url: urlMap[tab]
+        });
       }
     }
   }
@@ -777,6 +779,28 @@ export default {
   margin-bottom: 8rpx;
 }
 
+/* 主要操作按钮组 - 待接单状态 */
+.action-group.primary-actions {
+  gap: 20rpx;
+  margin-bottom: 12rpx;
+}
+
+.action-group.primary-actions .action-btn {
+  min-width: 130rpx;
+  font-size: 28rpx;
+  padding: 12rpx 30rpx;
+  font-weight: 500;
+}
+
+/* 次要操作按钮组 - 待接单状态 */
+.action-group.secondary-actions {
+  gap: 16rpx;
+}
+
+.action-group.secondary-actions .action-btn {
+  min-width: 140rpx;
+}
+
 .action-btn {
   font-size: 26rpx;
   padding: 10rpx 24rpx;
@@ -887,6 +911,24 @@ export default {
   padding: 100rpx 0;
 }
 
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 0;
+}
+
+.loading-icon {
+  font-size: 100rpx;
+  margin-bottom: 20rpx;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #666;
+}
+
 .empty-icon {
   font-size: 100rpx;
   margin-bottom: 20rpx;
@@ -897,18 +939,21 @@ export default {
   color: #999;
 }
 
-/* 自定义底部导航栏 - 优化样式确保图标正确显示 */
+/* 自定义底部导航栏 - 与主页保持一致 */
 .custom-tab-bar {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 120rpx;
-  background-color: white;
+  background: #ffffff;
   display: flex;
-  border-top: 1rpx solid #f0f0f0;
+  padding: 10rpx 0;
+  box-shadow: 0 -2rpx 8rpx rgba(0, 0, 0, 0.06);
   z-index: 999;
-  transition: all 0.3s ease;
+  border-top: 1rpx solid #e0e0e0;
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
 }
 
 .tab-item {
@@ -917,9 +962,9 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 10rpx 0;
+  color: #999999;
   position: relative;
-  color: #666;
-  transition: all 0.3s ease;
 }
 
 .tab-item.active {
@@ -927,8 +972,8 @@ export default {
 }
 
 .tab-icon {
-  font-size: 50rpx;
-  margin-bottom: 8rpx;
+  font-size: 44rpx;
+  margin-bottom: 4rpx;
   display: block;
   width: auto;
   height: auto;

@@ -198,11 +198,74 @@ export default {
 				uni.hideLoading();
 
 				if (result.code === 200) {
-					// 保存token
+					// 保存token（必须先保存token，后续请求需要）
 					uni.setStorageSync('token', result.token);
 					uni.setStorageSync('userType', identityKey);
 					uni.setStorageSync('identity', identityName);
 					uni.setStorageSync('identityKey', identityKey);
+					
+					// 🔥 重要：获取并保存商户信息（用于聊天功能）
+					if (identityKey === 'merchant') {
+						// 登录响应中没有返回user信息，需要额外获取
+						console.log('登录成功，开始获取商户信息...');
+						
+						try {
+							// 调用获取当前用户信息的接口
+							const userInfoResponse = await fetch(`${API_BASE_URL}/getInfo`, {
+								method: 'GET',
+								headers: {
+									'Content-Type': 'application/json',
+									'Authorization': `Bearer ${result.token}`
+								}
+							});
+							
+							const userInfoResult = await userInfoResponse.json();
+							console.log('商户信息响应:', userInfoResult);
+							
+							if (userInfoResult.code === 200 && userInfoResult.user) {
+								// 保存完整的商户信息
+								const merchantInfo = {
+									// 优先级顺序：尝试多个可能的ID字段名
+									merchantBaseId: userInfoResult.user.merchantBaseId 
+										|| userInfoResult.user.merchantId 
+										|| userInfoResult.user.userId
+										|| userInfoResult.user.id 
+										|| userInfoResult.user.merchant_base_id
+										|| userInfoResult.user.merchant_id,
+									id: userInfoResult.user.id || userInfoResult.user.merchantId || userInfoResult.user.merchantBaseId,
+									merchantId: userInfoResult.user.merchantId || userInfoResult.user.id,
+									
+									// 其他商户信息
+									merchantName: userInfoResult.user.merchantName || userInfoResult.user.userName || userInfoResult.user.nickName,
+									phonenumber: userInfoResult.user.phonenumber || userInfoResult.user.phone,
+									email: userInfoResult.user.email,
+									avatar: userInfoResult.user.avatar,
+									
+									// 保存原始数据以备不时之需
+									...userInfoResult.user
+								};
+								
+								uni.setStorageSync('merchantInfo', merchantInfo);
+								
+								console.log('✅ 商户信息已保存:', merchantInfo);
+								console.log('商户ID:', merchantInfo.merchantBaseId || merchantInfo.id);
+							} else {
+								console.warn('⚠️ 获取商户信息失败，使用手机号作为临时ID');
+								// 如果获取失败，使用手机号作为临时标识
+								uni.setStorageSync('merchantInfo', {
+									phonenumber: this.phoneNumber,
+									tempId: true
+								});
+							}
+						} catch (error) {
+							console.error('❌ 获取商户信息出错:', error);
+							// 即使出错也保存基本信息
+							uni.setStorageSync('merchantInfo', {
+								phonenumber: this.phoneNumber,
+								tempId: true
+							});
+						}
+					}
 					
 					this.showMessage('登录成功！', 'success');
 					

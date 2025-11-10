@@ -47,13 +47,7 @@
           >
             本月
           </view>
-          <view 
-            class="filter-tab" 
-            :class="{ active: selectedDateRange === 'custom' }"
-            @click="showCustomDatePicker"
-          >
-            自定义
-          </view>
+          
         </view>
         <text class="current-date">{{ displayDate }}</text>
       </view>
@@ -355,15 +349,28 @@ export default {
           // 转换提现记录格式为页面需要的格式
           const formattedRecords = records.map(record => {
             console.log('处理单条记录:', record);
-            // 使用当前日期作为备用，确保始终有日期显示
-            const fallbackDate = new Date().toISOString().split('T')[0];
-            const dateValue = record.createTime ? this.formatDate(record.createTime) : (record.date || fallbackDate);
+            // 获取并显示正确的原始日期
+            let dateValue = '';
+            if (record.arriveTime) {
+              // 优先使用到账时间
+              dateValue = this.formatDate(record.arriveTime);
+            } else if (record.createTime) {
+              // 其次使用创建时间
+              dateValue = this.formatDate(record.createTime);
+            } else if (record.date) {
+              // 最后使用日期字段
+              dateValue = record.date;
+            } else {
+              // 仅在所有日期字段都缺失时使用当前日期作为备用
+              dateValue = new Date().toISOString().split('T')[0];
+              console.log('使用当前日期作为备用');
+            }
             console.log('计算的日期值:', dateValue);
             return {
               date: dateValue,
               amount: '-¥' + this.formatNumber(record.amount || 0),
-              // 确保状态显示为'已到账'以匹配图片效果
-              status: '已到账'
+              // 使用实际状态值并格式化显示
+              status: this.formatWithdrawStatus(record.status)
             };
           });
           

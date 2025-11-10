@@ -54,11 +54,29 @@ export const merchantOrderAPI = {
 // 通用请求方法（Promise 封装）
 export const request = (url, options = {}) => {
   return new Promise((resolve, reject) => {
+    const method = options.method || 'GET';
+    let requestUrl = url;
+    let requestData = options.data || {};
+    
+    // 对于GET请求，将data转换为URL参数
+    if (method === 'GET' && requestData && Object.keys(requestData).length > 0) {
+      const params = [];
+      for (const key in requestData) {
+        if (requestData[key] !== null && requestData[key] !== undefined) {
+          params.push(`${encodeURIComponent(key)}=${encodeURIComponent(requestData[key])}`);
+        }
+      }
+      if (params.length > 0) {
+        requestUrl += (url.indexOf('?') === -1 ? '?' : '&') + params.join('&');
+      }
+      requestData = {}; // GET请求不需要body
+    }
+    
     // 构建请求参数
     const requestOptions = {
-      url,
-      method: options.method || 'GET',
-      data: options.data || {},
+      url: requestUrl,
+      method: method,
+      data: requestData,
       header: {
         'Content-Type': 'application/json',
         ...options.header
@@ -74,7 +92,12 @@ export const request = (url, options = {}) => {
             let processedData = res.data
               .replace(/"merchantActivityId":\s*(\d{18,})/g, '"merchantActivityId":"$1"')
               .replace(/"merchant_activity_id":\s*(\d{18,})/g, '"merchant_activity_id":"$1"')
-              .replace(/"id":\s*(\d{18,})/g, '"id":"$1"');
+              .replace(/"id":\s*(\d{18,})/g, '"id":"$1"')
+              // 聊天相关的ID字段
+              .replace(/"sessionId":\s*(\d{18,})/g, '"sessionId":"$1"')
+              .replace(/"messageId":\s*(\d{18,})/g, '"messageId":"$1"')
+              .replace(/"fromId":\s*(\d{18,})/g, '"fromId":"$1"')
+              .replace(/"toId":\s*(\d{18,})/g, '"toId":"$1"');
             res.data = JSON.parse(processedData);
           }
           
