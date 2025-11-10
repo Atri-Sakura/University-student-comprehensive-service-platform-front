@@ -369,8 +369,8 @@ export default {
             return {
               date: dateValue,
               amount: '-¥' + this.formatNumber(record.amount || 0),
-              // 确保状态显示为'已到账'以匹配图片效果
-              status: '已到账'
+              // 使用实际状态值并格式化显示
+              status: this.formatWithdrawStatus(record.status)
             };
           });
           
