@@ -48,9 +48,7 @@
           
           <!-- 操作按钮 -->
           <view class="activity-actions">
-            <view class="action-btn view" @click="viewActivity(activity)">
-              <text class="btn-text">查看详情</text>
-            </view>
+            
             <view class="action-btn edit" @click="editActivity(activity)">
               <text class="btn-text">编辑</text>
             </view>
@@ -72,6 +70,11 @@
 
 <script>
 import { getActivityList, deleteActivity, addMerchantActivity } from '../../utils/merchantActivityApi.js';
+import { merchantAPI, request } from '../../utils/api.js';
+// 获取token的函数
+const getToken = () => {
+  return uni.getStorageSync('token');
+};
 
 export default {
   name: 'ActivityManagement',
@@ -94,34 +97,74 @@ export default {
     }
   },
   onLoad() {
-    // 页面加载时获取活动列表
+    // 页面加载时获取活动列表和店铺信息
+    this.loadShopInfo();
     this.fetchActivities();
   },
+  onShow() {
+    // 每次显示页面时重新加载店铺信息
+    this.loadShopInfo();
+  },
   created() {
-    // 获取店铺信息（这里可以后续接入真实接口）
+    // 组件创建时的初始化操作
   },
   computed: {
     filteredActivities() {
       // 根据不同状态进行筛选
-      let statusMap = {
-        1: '进行中',
-        2: '未开始',
-        3: '已结束'
-      };
       
       if (this.currentTab === 0) {
         return this.activities;
       } else if (this.currentTab === 1) {
+        // 进行中
         return this.activities.filter(activity => activity.status === 1 || activity.status === '进行中');
       } else if (this.currentTab === 2) {
-        return this.activities.filter(activity => activity.status === 2 || activity.status === '未开始');
+        // 未开始
+        return this.activities.filter(activity => activity.status === 0 || activity.status === '未开始');
       } else if (this.currentTab === 3) {
-        return this.activities.filter(activity => activity.status === 3 || activity.status === '已结束');
+        // 已结束
+        return this.activities.filter(activity => activity.status === 2 || activity.status === '已结束');
       }
       return [];
     }
   },
   methods: {
+      /**
+       * 加载店铺信息 - 简化版本，专注于从缓存获取数据
+       */
+    loadShopInfo() {
+      console.log('开始加载店铺信息...');
+      
+      // 直接从本地缓存获取店铺信息
+      const savedInfo = uni.getStorageSync('shopInfo');
+      console.log('从缓存读取到的数据:', savedInfo);
+      
+      if (savedInfo && (savedInfo.name || savedInfo.openStatus || savedInfo.hours)) {
+        this.shopData = {
+          name: savedInfo.name || "默认餐厅",
+          businessStatus: savedInfo.openStatus || "营业中",
+          businessHours: savedInfo.hours || "00:00-24:00"
+        };
+        console.log('已成功从缓存更新店铺信息:', this.shopData);
+      } else {
+        console.log('缓存中没有有效数据，使用默认值:', this.shopData);
+        // 手动设置一个测试数据
+        const testShopData = {
+          name: "test11",
+          openStatus: "营业中",
+          hours: "9:00-21:00"
+        };
+        // 保存测试数据到缓存
+        uni.setStorageSync('shopInfo', testShopData);
+        console.log('已保存测试数据到缓存:', testShopData);
+        // 更新页面数据
+        this.shopData = {
+          name: testShopData.name,
+          businessStatus: testShopData.openStatus,
+          businessHours: testShopData.hours
+        };
+      }
+    },
+    
     /**
      * 获取活动列表
      */
@@ -131,8 +174,17 @@ export default {
       // 根据当前选中的标签获取对应状态的活动
       let params = {};
       if (this.currentTab > 0) {
-        // 1:进行中, 2:未开始, 3:已结束
-        params.status = this.currentTab;
+        // 标签页对应的状态码映射：
+        // 标签1 -> 状态1:进行中
+        // 标签2 -> 状态0:未开始
+        // 标签3 -> 状态2:已结束
+        if (this.currentTab === 1) {
+          params.status = 1; // 进行中
+        } else if (this.currentTab === 2) {
+          params.status = 0; // 未开始
+        } else if (this.currentTab === 3) {
+          params.status = 2; // 已结束
+        }
       }
       
       getActivityList(params)
@@ -237,9 +289,9 @@ export default {
       // 确保 status 是数字类型
       const statusNum = typeof status === 'string' ? parseInt(status) : status;
       const statusMap = {
+        0: '未开始',
         1: '进行中',
-        2: '未开始',
-        3: '已结束'
+        2: '已结束'
       };
       return statusMap[statusNum] || status;
     },
@@ -251,9 +303,9 @@ export default {
       // 确保 status 是数字类型
       const statusNum = typeof status === 'string' ? parseInt(status) : status;
       const classMap = {
+        0: 'status-upcoming',
         1: 'status-ongoing',
-        2: 'status-upcoming',
-        3: 'status-ended'
+        2: 'status-ended'
       };
       return classMap[statusNum] || '';
     },
@@ -320,28 +372,10 @@ export default {
       return `${year}-${month}-${day}`;
     },
     viewActivity(activity) {
-      // 跳转到活动详情页面
-      const activityId = activity.merchantActivityId || activity.id || activity.merchant_activity_id;
-      if (!activityId) {
-        uni.showToast({
-          title: '活动ID缺失',
-          icon: 'none'
-        });
-        return;
-      }
-      
-      uni.navigateTo({
-        url: `/pages/activities/activity-detail?activityId=${activityId}`,
-        success: () => {
-          console.log('成功跳转到活动详情页面');
-        },
-        fail: (err) => {
-          console.error('跳转到活动详情页面失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
+      // 跳转到活动效果页面（暂未实现）
+      uni.showToast({
+        title: '查看活动效果: ' + activity.name,
+        icon: 'none'
       });
     },
     editActivity(activity) {
@@ -496,7 +530,10 @@ export default {
   padding: 40rpx 30rpx;
   display: flex;
   align-items: center;
+  position: relative;
 }
+
+
 
 .shop-icon {
   font-size: 80rpx;

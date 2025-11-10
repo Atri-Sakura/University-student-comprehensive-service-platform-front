@@ -57,13 +57,7 @@
           ></textarea>
         </view>
         
-        <view class="form-item">
-          <view class="form-label">活动状态</view>
-          <view class="status-container">
-            <switch class="form-switch" :checked="activity.enabled" @change="activity.enabled = $event.detail.value" />
-            <text class="status-text">{{ activity.enabled ? '启用' : '禁用' }}</text>
-          </view>
-        </view>
+        
       </view>
     </scroll-view>
     

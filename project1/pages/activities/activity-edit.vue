@@ -57,13 +57,7 @@
           ></textarea>
         </view>
         
-        <view class="form-item">
-          <view class="form-label">活动状态</view>
-          <view class="status-container">
-            <switch class="form-switch" :checked="activity.enabled" @change="activity.enabled = $event.detail.value" />
-            <text class="status-text">{{ activity.enabled ? '启用' : '禁用' }}</text>
-          </view>
-        </view>
+
       </view>
     </scroll-view>
     
@@ -85,13 +79,12 @@ export default {
       isEdit: false,
       activityId: '',
       activity: {
-        name: '',
-        type: '满减',
-        startDate: '',
-        endDate: '',
-        description: '',
-        enabled: true
-      },
+          name: '',
+          type: '满减',
+          startDate: '',
+          endDate: '',
+          description: ''
+        },
       activityTypes: ['满减', '折扣', '赠品', '积分'],
       typeIndex: 0,
       merchantBaseId: '',
@@ -143,8 +136,7 @@ export default {
               type: detail.activityType || '满减',
               startDate: this.formatDate(detail.startTime),
               endDate: this.formatDate(detail.endTime),
-              description: detail.content || '',
-              enabled: detail.status === 1
+              description: detail.content || ''
             };
             // 设置活动类型索引
             this.typeIndex = this.activityTypes.indexOf(this.activity.type);
@@ -216,7 +208,7 @@ export default {
         content: this.activity.description,
         startTime: new Date(this.activity.startDate).getTime(),
         endTime: new Date(this.activity.endDate).getTime(),
-        status: this.activity.enabled ? 1 : 0
+        status: 1 // 活动始终启用，不再提供禁用选项
       };
       
       // 显示加载提示
@@ -442,21 +434,7 @@ export default {
   padding: 0 16rpx;
 }
 
-/* 状态开关样式 */
-.status-container {
-  display: flex;
-  align-items: center;
-}
-
-.form-switch {
-  transform: scale(0.9);
-}
-
-.status-text {
-  margin-left: 20rpx;
-  font-size: 28rpx;
-  color: #666;
-}
+/* 活动状态默认启用，无需状态开关样式 */
 
 /* 底部按钮样式 */
 .footer {
