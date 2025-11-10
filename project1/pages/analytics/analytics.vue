@@ -425,8 +425,7 @@ export default {
         // 并行请求所有数据
         const [salesRes, ratingsRes, topGoodsRes] = await Promise.all([
           getSalesData(range).catch(() => ({ data: { code: 500, data: null } })),
-          getRatingsData().catch((error) => {
-            console.error('[数据分析] 获取评价数据失败:', error);
+          getRatingsData().catch(() => {
             return { data: { code: 500, data: null } };
           }),
           getTopGoods(10, this.rankingType).catch(() => ({ data: { code: 500, data: null } }))
@@ -448,32 +447,28 @@ export default {
           this.coreData.actualRevenueTrend = salesData.actualIncomeChangePercent || salesData.totalRevenueChangePercent || 0;
           this.coreData.avgPriceTrend = salesData.avgOrderAmountChangePercent || 0;
           
-          // 处理趋势数据
+          // 处理趋势数据（仅使用后端数据）
           if (salesData.trendData || salesData.dailyData) {
             this.processTrendData(salesData.trendData || salesData.dailyData);
           } else {
-            this.generateMockTrendData();
+            // 如果没有后端数据，清空趋势数据，显示空状态
+            this.trendData = {
+              dates: [],
+              revenue: [],
+              orders: []
+            };
           }
         }
         
         // 处理评价数据
-        console.log('[数据分析] 评价数据接口响应:', ratingsRes);
         if (ratingsRes.data && ratingsRes.data.code === 200 && ratingsRes.data.data) {
           const ratingsData = ratingsRes.data.data;
-          console.log('[数据分析] 评价数据详情:', ratingsData);
           
           // 使用后端实际返回的字段名
           this.ratingData.overallScore = ratingsData.avgRating || ratingsData.averageRating || 0;
           this.ratingData.totalRatings = ratingsData.totalReviews || ratingsData.totalCount || ratingsData.count || 0;
           
-          console.log('[数据分析] 解析后的评价数据:', {
-            overallScore: this.ratingData.overallScore,
-            totalRatings: this.ratingData.totalRatings
-          });
-          
           // 评分分布（使用 ratingDistributions）
-          console.log('[数据分析] 评分分布原始数据:', ratingsData.ratingDistributions);
-          
           if (ratingsData.ratingDistributions && ratingsData.ratingDistributions.length > 0) {
             // 如果后端返回了评分分布数据
             const total = this.ratingData.totalRatings || 0;
@@ -501,8 +496,6 @@ export default {
             
             // 确保按星级排序（5星到1星）
             this.ratingData.starDistribution.sort((a, b) => b.star - a.star);
-            
-            console.log('[数据分析] 处理后的评分分布:', this.ratingData.starDistribution);
           } else if (ratingsData.starCounts || ratingsData.ratingCounts) {
             // 如果后端返回的是各星级数量对象（如 {5: 10, 4: 5, 3: 2, 2: 1, 1: 0}）
             const starCounts = ratingsData.starCounts || ratingsData.ratingCounts || {};
@@ -517,8 +510,6 @@ export default {
                 count: count
               };
             });
-            
-            console.log('[数据分析] 从starCounts处理后的评分分布:', this.ratingData.starDistribution);
           } else {
             // 默认数据（所有星级都是0%）
             this.ratingData.starDistribution = [
@@ -528,21 +519,11 @@ export default {
               { star: 2, percentage: 0, count: 0 },
               { star: 1, percentage: 0, count: 0 }
             ];
-            console.log('[数据分析] 使用默认评分分布（后端未返回数据）');
           }
           
           // 关键词
           this.ratingData.positiveKeywords = ratingsData.positiveKeywords || [];
           this.ratingData.negativeKeywords = ratingsData.negativeKeywords || [];
-          
-          console.log('[数据分析] 评价数据更新完成:', this.ratingData);
-        } else {
-          console.warn('[数据分析] 评价数据接口返回异常:', {
-            statusCode: ratingsRes?.statusCode,
-            code: ratingsRes?.data?.code,
-            msg: ratingsRes?.data?.msg || ratingsRes?.data?.message,
-            data: ratingsRes?.data?.data
-          });
         }
         
         // 处理商品排行数据
@@ -553,8 +534,6 @@ export default {
           const topGoodsData = this.rankingType === 'hot' 
             ? (rankingData.hotSellingProducts || [])
             : (rankingData.slowMovingProducts || []);
-          
-          console.log('[数据分析] 商品排行原始数据:', topGoodsData);
           
           this.productRanking = topGoodsData.map(item => {
             // 尝试获取商品单价，优先使用price字段（支持多种可能的字段名）
@@ -594,21 +573,6 @@ export default {
               price = 0;
             }
             
-            console.log('[数据分析] 商品价格解析:', {
-              name: item.productName || item.goodsName || item.name,
-              原始price字段: item.price,
-              原始unitPrice字段: item.unitPrice,
-              原始goodsPrice字段: item.goodsPrice,
-              原始totalSales字段: item.totalSales,
-              原始salesAmount字段: item.salesAmount,
-              原始amount字段: item.amount,
-              原始salesVolume字段: item.salesVolume,
-              原始salesCount字段: item.salesCount,
-              原始sales字段: item.sales,
-              最终价格: price,
-              完整数据: item
-            });
-            
             return {
               name: item.productName || item.goodsName || item.name || '未知商品',
               sales: item.salesVolume || item.salesCount || item.sales || 0,
@@ -618,8 +582,6 @@ export default {
         }
         
       } catch (error) {
-        console.error('加载数据失败:', error);
-        
         // 使用默认数据
         this.loadDefaultData();
         
@@ -787,8 +749,6 @@ export default {
             ? (rankingData.hotSellingProducts || [])
             : (rankingData.slowMovingProducts || []);
           
-          console.log('[数据分析] 切换排行榜 - 商品原始数据:', topGoodsData);
-          
           this.productRanking = topGoodsData.map(item => {
             // 尝试获取商品单价，优先使用price字段（支持多种可能的字段名）
             // 注意：需要检查字段是否存在，而不是仅仅检查值是否为0
@@ -835,7 +795,7 @@ export default {
           });
         }
       } catch (error) {
-        console.error('切换排行榜失败:', error);
+        // 静默处理错误
       }
     },
     
@@ -868,9 +828,9 @@ export default {
     },
     
     changeTrendPeriod() {
-      // TODO: 实现趋势周期切换逻辑
-      // 暂时重新生成模拟数据
-      this.generateMockTrendData();
+      // 趋势周期切换：重新加载数据
+      // 注意：这里可以根据选择的周期重新请求后端数据
+      this.loadAllData();
     },
     
     /**
@@ -878,14 +838,23 @@ export default {
      */
     processTrendData(trendData) {
       if (!trendData || trendData.length === 0) {
-        this.generateMockTrendData();
+        // 如果没有后端数据，清空趋势数据，显示空状态
+        this.trendData = {
+          dates: [],
+          revenue: [],
+          orders: []
+        };
         return;
       }
       
       // 提取日期
       this.trendData.dates = trendData.map(item => {
         const date = item.date || item.day || '';
-        return date.substring(5); // '2025-10-28' -> '10-28'
+        if (!date || date.length < 5) {
+          return date; // 如果日期格式不正确，直接返回原值
+        }
+        // '2025-10-28' -> '10-28'
+        return date.length > 5 ? date.substring(5) : date;
       });
       
       // 提取营业额数据
@@ -907,50 +876,6 @@ export default {
         rawValue: value,
         value: value,
         percentage: (value / maxOrders) * 75 // 最高75%高度，留出空间显示标签
-      }));
-    },
-    
-    /**
-     * 生成模拟趋势数据（7天）
-     */
-    generateMockTrendData() {
-      const today = new Date();
-      const dates = [];
-      const revenueValues = [];
-      const orderValues = [];
-      
-      // 生成7天的数据
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        dates.push(`${month}-${day}`);
-        
-        // 模拟营业额（20-100之间的随机数）
-        const revenue = Math.floor(Math.random() * 80) + 20;
-        revenueValues.push(revenue);
-        
-        // 模拟订单量（1-10之间的随机数）
-        const orders = Math.floor(Math.random() * 9) + 1;
-        orderValues.push(orders);
-      }
-      
-      this.trendData.dates = dates;
-      
-      const maxRevenue = Math.max(...revenueValues, 1);
-      this.trendData.revenue = revenueValues.map(value => ({
-        rawValue: value,
-        value: this.formatNumber(value),
-        displayValue: this.formatShortNumber(value),
-        percentage: (value / maxRevenue) * 75
-      }));
-      
-      const maxOrders = Math.max(...orderValues, 1);
-      this.trendData.orders = orderValues.map(value => ({
-        rawValue: value,
-        value: value,
-        percentage: (value / maxOrders) * 75
       }));
     },
     
