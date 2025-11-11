@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="Update list.vue" />
+    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="Update list.vue">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -85,6 +87,9 @@
       <workItem from="1762334442960" duration="163000" />
       <workItem from="1762334630527" duration="384000" />
       <workItem from="1762741090705" duration="718000" />
+      <workItem from="1762746448424" duration="1681000" />
+      <workItem from="1762828621484" duration="38000" />
+      <workItem from="1762829916600" duration="990000" />
     </task>
     <task id="LOCAL-00001" summary="Update list.vue">
       <option name="closed" value="true" />
@@ -126,7 +131,31 @@
       <option name="project" value="LOCAL" />
       <updated>1762741117056</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762746470730</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1762746470730</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762829929387</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1762829929388</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762830024396</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1762830024396</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
