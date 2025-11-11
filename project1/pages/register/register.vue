@@ -248,10 +248,14 @@ export default {
 				if (result.code === 200 || result.success) {
 					// 注册成功
 					this.showMessage('注册成功', 'success');
-					
 					// 跳转到登录页面
 					setTimeout(() => {
-						uni.navigateBack();
+						const pages = getCurrentPages();
+						if (pages.length <= 1) {
+							uni.reLaunch({ url: '/pages/login/login' });
+						} else {
+							uni.navigateBack();
+						}
 					}, 1500);
 				} else {
 					// 注册失败
@@ -267,14 +271,24 @@ export default {
 					// 模拟注册成功，用于测试
 					this.showMessage('注册成功（模拟）', 'success');
 					setTimeout(() => {
-						uni.navigateBack();
+						const pages = getCurrentPages();
+						if (pages.length <= 1) {
+							uni.reLaunch({ url: '/pages/login/login' });
+						} else {
+							uni.navigateBack();
+						}
 					}, 1500);
 			}
 		},
 		
 		// 处理返回登录
 		handleLogin() {
-			uni.navigateBack()
+			const pages = getCurrentPages();
+			if (pages.length <= 1) {
+				uni.reLaunch({ url: '/pages/login/login' });
+			} else {
+				uni.navigateBack();
+			}
 		},
 		
 		// 表单验证
