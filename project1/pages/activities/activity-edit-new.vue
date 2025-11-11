@@ -484,7 +484,12 @@ export default {
             });
             // 保存成功后返回上一页
             setTimeout(() => {
-              uni.navigateBack();
+              const pages = getCurrentPages();
+              if (pages.length <= 1) {
+                uni.reLaunch({ url: '/pages/index/index' });
+              } else {
+                uni.navigateBack();
+              }
             }, 1000);
           } else {
             console.error('保存活动失败:', errorMsg);
