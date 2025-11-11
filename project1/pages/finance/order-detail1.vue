@@ -141,7 +141,14 @@ export default {
   },
   methods: {
     goBack() {
-      uni.navigateBack();
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        uni.navigateBack();
+      }
     },
     viewMeal() {
       uni.showToast({
