@@ -148,7 +148,14 @@ export default {
   },
   methods: {
     goBack() {
-      uni.navigateBack();
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        uni.navigateBack();
+      }
     },
     // 重新加载订单详情
     retryLoad() {
