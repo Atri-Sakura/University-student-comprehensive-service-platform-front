@@ -409,6 +409,14 @@ export default {
     this.updateDateRange();
     this.loadAllData();
   },
+  // 拦截返回键
+  onBackPress(options) {
+    // 调用goBack方法
+    this.goBack();
+    
+    // 返回true表示拦截返回键，阻止默认行为
+    return true;
+  },
   methods: {
     // ==================== 数据加载方法 ====================
     
@@ -725,10 +733,26 @@ export default {
     goBack() {
       // 返回上一页
       const pages = getCurrentPages();
+      
       if (pages.length <= 1) {
-        uni.reLaunch({
-          url: '/pages/index/index'
-        });
+        // 没有页面栈，检查是否有token
+        const token = uni.getStorageSync('token');
+        if (token) {
+          // 有token，跳转到首页
+          uni.switchTab({
+            url: '/pages/index/index'
+          });
+        } else {
+          // 没有token，跳转到登录页
+          uni.redirectTo({
+            url: '/pages/login/login',
+            fail: () => {
+              uni.reLaunch({
+                url: '/pages/login/login'
+              });
+            }
+          });
+        }
       } else {
         uni.navigateBack();
       }

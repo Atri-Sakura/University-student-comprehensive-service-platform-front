@@ -633,11 +633,26 @@ export default {
       // 获取当前页面栈
       const pages = getCurrentPages();
       
-      // 如果页面栈只有一个页面（说明是刷新后直接进入的），则跳转到首页
+      // 如果页面栈只有一个页面（说明是刷新后直接进入的）
       if (pages.length <= 1) {
-        uni.reLaunch({
-          url: '/pages/index/index'
-        });
+        // 检查是否有token
+        const token = uni.getStorageSync('token');
+        if (token) {
+          // 有token，跳转到首页
+          uni.switchTab({
+            url: '/pages/index/index'
+          });
+        } else {
+          // 没有token，跳转到登录页
+          uni.redirectTo({
+            url: '/pages/login/login',
+            fail: () => {
+              uni.reLaunch({
+                url: '/pages/login/login'
+              });
+            }
+          });
+        }
       } else {
         // 否则正常返回上一页
         uni.navigateBack();

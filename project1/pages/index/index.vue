@@ -138,11 +138,17 @@ export default {
     }
   },
   onLoad() {
-    // 检查登录状态
+    // 检查登录状态（只在首次加载时检查）
     const token = uni.getStorageSync('token');
     if (!token) {
-      uni.reLaunch({
-        url: '/pages/login/login'
+      // 使用redirectTo而不是reLaunch，保留页面栈
+      uni.redirectTo({
+        url: '/pages/login/login',
+        fail: () => {
+          uni.reLaunch({
+            url: '/pages/login/login'
+          });
+        }
       });
       return;
     }
@@ -152,8 +158,19 @@ export default {
   },
   onShow() {
     // 每次显示页面时刷新当天日期并重新加载数据
+    // 注意：不在onShow中检查登录状态，避免从其他页面返回时误跳转
     this.getTodayDate();
     this.loadAllData();
+  },
+  // 拦截返回键
+  onBackPress(options) {
+    // 首页不应该有返回键，但为了安全，我们处理一下
+    const pages = getCurrentPages();
+    if (pages.length > 1) {
+      return false; // 返回false允许默认返回行为
+    } else {
+      return true; // 返回true阻止返回
+    }
   },
   methods: {
     // 统一加载所有数据

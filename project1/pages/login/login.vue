@@ -269,11 +269,33 @@ export default {
 					
 					this.showMessage('登录成功！', 'success');
 					
-					// 跳转到首页
+					// 跳转到目标页面或首页
 					setTimeout(() => {
-						uni.switchTab({
-							url: '/pages/index/index'
-						})
+						const targetPage = uni.getStorageSync('targetPage');
+						if (targetPage) {
+							uni.removeStorageSync('targetPage');
+							// 检查是否是tabBar页面
+							const tabBarPages = ['pages/index/index', 'pages/list/list', 'pages/message/message', 'pages/mine/mine'];
+							const isTabBar = tabBarPages.some(page => targetPage.includes(page));
+							if (isTabBar) {
+								uni.switchTab({
+									url: targetPage.split('?')[0]
+								});
+							} else {
+								uni.redirectTo({
+									url: targetPage,
+									fail: () => {
+										uni.switchTab({
+											url: '/pages/index/index'
+										});
+									}
+								});
+							}
+						} else {
+							uni.switchTab({
+								url: '/pages/index/index'
+							});
+						}
 					}, 1000);
 				} else {
 					this.showMessage(result.msg || '登录失败', 'error');

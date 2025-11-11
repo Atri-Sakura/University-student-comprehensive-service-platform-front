@@ -250,12 +250,19 @@ export default {
 					this.showMessage('注册成功', 'success');
 					// 跳转到登录页面
 					setTimeout(() => {
-						const pages = getCurrentPages();
-						if (pages.length <= 1) {
-							uni.reLaunch({ url: '/pages/login/login' });
-						} else {
-							uni.navigateBack();
-						}
+						// 注册成功后返回登录页
+						uni.navigateBack({
+							delta: 1,
+							fail: () => {
+								// 如果无法返回，则跳转到登录页
+								uni.redirectTo({
+									url: '/pages/login/login',
+									fail: () => {
+										uni.reLaunch({ url: '/pages/login/login' });
+									}
+								});
+							}
+						});
 					}, 1500);
 				} else {
 					// 注册失败
@@ -271,24 +278,37 @@ export default {
 					// 模拟注册成功，用于测试
 					this.showMessage('注册成功（模拟）', 'success');
 					setTimeout(() => {
-						const pages = getCurrentPages();
-						if (pages.length <= 1) {
-							uni.reLaunch({ url: '/pages/login/login' });
-						} else {
-							uni.navigateBack();
-						}
+						// 注册成功后返回登录页
+						uni.navigateBack({
+							delta: 1,
+							fail: () => {
+								// 如果无法返回，则跳转到登录页
+								uni.redirectTo({
+									url: '/pages/login/login',
+									fail: () => {
+										uni.reLaunch({ url: '/pages/login/login' });
+									}
+								});
+							}
+						});
 					}, 1500);
 			}
 		},
 		
 		// 处理返回登录
 		handleLogin() {
-			const pages = getCurrentPages();
-			if (pages.length <= 1) {
-				uni.reLaunch({ url: '/pages/login/login' });
-			} else {
-				uni.navigateBack();
-			}
+			uni.navigateBack({
+				delta: 1,
+				fail: () => {
+					// 如果无法返回，则跳转到登录页
+					uni.redirectTo({
+						url: '/pages/login/login',
+						fail: () => {
+							uni.reLaunch({ url: '/pages/login/login' });
+						}
+					});
+				}
+			});
 		},
 		
 		// 表单验证

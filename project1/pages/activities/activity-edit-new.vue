@@ -486,7 +486,22 @@ export default {
             setTimeout(() => {
               const pages = getCurrentPages();
               if (pages.length <= 1) {
-                uni.reLaunch({ url: '/pages/index/index' });
+                // 没有页面栈，检查是否有token
+                const token = uni.getStorageSync('token');
+                if (token) {
+                  // 有token，跳转到首页
+                  uni.switchTab({ url: '/pages/index/index' });
+                } else {
+                  // 没有token，跳转到登录页
+                  uni.redirectTo({
+                    url: '/pages/login/login',
+                    fail: () => {
+                      uni.reLaunch({
+                        url: '/pages/login/login'
+                      });
+                    }
+                  });
+                }
               } else {
                 uni.navigateBack();
               }
