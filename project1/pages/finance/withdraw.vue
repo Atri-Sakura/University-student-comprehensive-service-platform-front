@@ -189,7 +189,14 @@ export default {
   methods: {
     // 返回上一页
     goBack() {
-      uni.navigateBack();
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        uni.navigateBack();
+      }
     },
     
     // 显示帮助信息
