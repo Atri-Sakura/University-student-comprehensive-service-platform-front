@@ -724,7 +724,14 @@ export default {
     
     goBack() {
       // 返回上一页
-      uni.navigateBack();
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        uni.navigateBack();
+      }
     },
     
     switchDateTab(tab) {
