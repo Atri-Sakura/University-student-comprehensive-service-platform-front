@@ -4,9 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="Update list.vue">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="Merge remote-tracking branch 'origin/merchant' into merchant" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -154,7 +152,15 @@
       <option name="project" value="LOCAL" />
       <updated>1762831302629</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1762833701684</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1762833701684</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -162,8 +168,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
-    <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant" />
     <MESSAGE value="Update list.vue" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update list.vue" />
+    <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant" />
+    <option name="LAST_COMMIT_MESSAGE" value="Merge remote-tracking branch 'origin/merchant' into merchant" />
   </component>
 </project>
