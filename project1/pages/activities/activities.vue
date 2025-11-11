@@ -341,17 +341,17 @@ export default {
       this.fetchActivities();
     },
     /**
-     * 创建新活动 - 跳转到活动编辑页面
+     * 创建新活动 - 跳转到活动创建页面
      */
     createNewActivity() {
-      // 使用最简单直接的路径格式（相对路径，不包含.vue扩展名）
+      // 跳转到创建活动页面
       uni.navigateTo({
-        url: 'activity-edit',
+        url: '/pages/activities/activity-edit',
         success: () => {
-          console.log('成功跳转到活动编辑页面');
+          console.log('成功跳转到创建活动页面');
         },
         fail: (err) => {
-          console.error('跳转到活动编辑页面失败:', err);
+          console.error('跳转到创建活动页面失败:', err);
           uni.showToast({
             title: '跳转失败: ' + (err.errMsg || '未知错误'),
             icon: 'none'
