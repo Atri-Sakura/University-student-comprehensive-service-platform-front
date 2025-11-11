@@ -630,7 +630,18 @@ export default {
     
     // 返回
     goBack() {
-      uni.navigateBack();
+      // 获取当前页面栈
+      const pages = getCurrentPages();
+      
+      // 如果页面栈只有一个页面（说明是刷新后直接进入的），则跳转到首页
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        // 否则正常返回上一页
+        uni.navigateBack();
+      }
     }
   }
 }
