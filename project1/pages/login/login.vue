@@ -123,6 +123,15 @@ export default {
 		
 		// 页面加载时获取验证码（增加兼容性）
 		onLoad() {
+			// 检查是否已登录，如果已登录则跳转到首页
+			const token = uni.getStorageSync('token');
+			if (token) {
+				uni.switchTab({
+					url: '/pages/index/index'
+				});
+				return;
+			}
+			
 			// 如果created中没有成功执行或captchaImage仍然为空，则再次尝试
 			if (!this.captchaImage) {
 				this.refreshCaptcha();

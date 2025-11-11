@@ -138,6 +138,15 @@ export default {
     }
   },
   onLoad() {
+    // 检查登录状态
+    const token = uni.getStorageSync('token');
+    if (!token) {
+      uni.reLaunch({
+        url: '/pages/login/login'
+      });
+      return;
+    }
+    
     this.getTodayDate();
     this.loadAllData();
   },
