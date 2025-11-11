@@ -1,5 +1,11 @@
 {
   "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "首页"
+      }
+    },
 	{
       "path": "pages/login/login",
       "style": {
@@ -12,12 +18,6 @@
       "style": {
         "navigationBarTitleText": "注册",
         "navigationBarBackgroundColor": "#f0f8ff"
-      }
-    },
-    {
-      "path": "pages/index/index",
-      "style": {
-        "navigationBarTitleText": "首页"
       }
     },
     {
