@@ -193,20 +193,17 @@ export default {
           data: {}
         });
         
-        console.log('[首页] 订单状态接口响应:', statusRes);
+        
         
         if (statusRes.statusCode === 200 && statusRes.data.code === 200) {
           const data = statusRes.data.data;
           
           // 打印原始数据，便于调试
-          console.log('[首页] 接口返回的完整数据:', data);
+          
           
           // 1. 更新订单状态统计（根据后端MerchantOrderStatusVO字段名）
           // 先打印原始值，确保数据正确
-          console.log('[首页] 原始字段值:');
-          console.log('  pendingCount:', data.pendingCount, '(类型:', typeof data.pendingCount + ')');
-          console.log('  waitingDeliveryCount:', data.waitingDeliveryCount, '(类型:', typeof data.waitingDeliveryCount + ')');
-          console.log('  deliveringCount:', data.deliveringCount, '(类型:', typeof data.deliveringCount + ')');
+          
           
           // 确保值是数字类型
           const pending = Number(data.pendingCount) || 0;
@@ -218,30 +215,12 @@ export default {
           this.orderStatus.toDeliver = toDeliver;
           this.orderStatus.delivering = delivering;
           
-          console.log('[首页] 订单状态已更新:', JSON.stringify(this.orderStatus));
-          console.log('[首页] 订单状态值验证:', {
-            'pending': this.orderStatus.pending,
-            'toDeliver': this.orderStatus.toDeliver,
-            'delivering': this.orderStatus.delivering
-          });
+          
           
           // 强制更新视图（如果响应式更新有问题）
-          this.$nextTick(() => {
-            console.log('[首页] 视图更新后的订单状态:', JSON.stringify(this.orderStatus));
-          });
+          this.$nextTick(() => {});
           
-          // 2. 更新今日数据（如果接口返回了今日数据）
-          if (data.todayOrderCount !== undefined || data.todayRevenue !== undefined) {
-            this.todayData = {
-              orderCount: data.todayOrderCount || 0,
-              orderTrend: data.orderCountChangePercent ? Number(data.orderCountChangePercent) : 0,
-              revenue: this.formatNumber(data.todayRevenue || 0),
-              revenueTrend: data.revenueChangePercent ? Number(data.revenueChangePercent) : 0
-            };
-            console.log('[首页] 今日数据已更新（从订单状态接口）:', JSON.stringify(this.todayData));
-          }
-          
-          // 3. 更新店铺信息（如果接口返回了）
+          // 2. 更新店铺信息（如果接口返回了）
           if (data.merchantName) {
             this.shopData = {
               ...this.shopData,
@@ -255,43 +234,32 @@ export default {
             });
           }
         } else {
-          console.warn('[首页] 订单状态接口返回失败:', statusRes?.data);
+          
         }
       } catch (error) {
-        console.error('[首页] 获取订单状态失败:', error);
+        
       }
       
-      // 2. 如果订单状态接口没有返回今日数据，则使用专门的销售数据接口
-      if (this.todayData.orderCount === 0 && this.todayData.revenue === '0') {
-        try {
-          console.log('[首页] 订单状态接口未返回今日数据，使用销售数据接口，参数:', {
-            startDate: this.todayDate,
-            endDate: this.todayDate
-          });
+      // 2. 统一使用销售数据接口获取今日数据（与数据分析页面保持一致）
+      try {
+        const salesRes = await getSalesData({
+          startDate: this.todayDate,
+          endDate: this.todayDate
+        });
+        
+        if (salesRes.data && salesRes.data.code === 200 && salesRes.data.data) {
+          const salesData = salesRes.data.data;
           
-          const salesRes = await getSalesData({
-            startDate: this.todayDate,
-            endDate: this.todayDate
-          });
-          
-          console.log('[首页] 今日数据接口响应:', salesRes);
-          
-          if (salesRes.data && salesRes.data.code === 200 && salesRes.data.data) {
-            const salesData = salesRes.data.data;
-            
-            // 更新今日数据统计（使用和数据分析页面相同的字段名）
-            this.todayData = {
-              orderCount: salesData.orderCount || 0,
-              orderTrend: salesData.orderCountChangePercent || 0,
-              revenue: this.formatNumber(salesData.totalRevenue || 0),
-              revenueTrend: salesData.totalRevenueChangePercent || 0
-            };
-            
-            console.log('[首页] 今日数据已更新（从销售数据接口）:', JSON.stringify(this.todayData));
-          }
-        } catch (error) {
-          console.error('[首页] 获取今日数据失败:', error);
+          // 更新今日数据统计（使用和数据分析页面相同的字段名）
+          this.todayData = {
+            orderCount: salesData.orderCount || 0,
+            orderTrend: salesData.orderCountChangePercent || 0,
+            revenue: this.formatNumber(salesData.totalRevenue || 0),
+            revenueTrend: salesData.totalRevenueChangePercent || 0
+          };
         }
+      } catch (error) {
+        // 如果销售数据接口失败，保持默认值
       }
     },
     

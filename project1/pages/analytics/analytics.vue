@@ -335,7 +335,8 @@
 import {
   getSalesData,
   getRatingsData,
-  getTopGoods
+  getTopGoods,
+  getWordCloud
 } from '@/utils/merchantAnalytics.js';
 
 export default {
@@ -409,12 +410,35 @@ export default {
     this.updateDateRange();
     this.loadAllData();
   },
-  // 拦截返回键
+  // 拦截返回键（系统返回键）
   onBackPress(options) {
-    // 调用goBack方法
-    this.goBack();
+    const pages = getCurrentPages();
     
-    // 返回true表示拦截返回键，阻止默认行为
+    // 如果有页面栈，允许默认返回行为
+    if (pages.length > 1) {
+      return false; // 返回false允许默认返回
+    }
+    
+    // 没有页面栈，执行自定义跳转
+    const token = uni.getStorageSync('token');
+    if (token) {
+      // 有token，跳转到首页
+      uni.switchTab({
+        url: '/pages/index/index'
+      });
+    } else {
+      // 没有token，跳转到登录页
+      uni.redirectTo({
+        url: '/pages/login/login',
+        fail: () => {
+          uni.reLaunch({
+            url: '/pages/login/login'
+          });
+        }
+      });
+    }
+    
+    // 返回true阻止默认返回行为
     return true;
   },
   methods: {
@@ -431,12 +455,13 @@ export default {
       try {
         const range = this.getSelectedDateRange();
         // 并行请求所有数据
-        const [salesRes, ratingsRes, topGoodsRes] = await Promise.all([
+        const [salesRes, ratingsRes, topGoodsRes, wordCloudRes] = await Promise.all([
           getSalesData(range).catch(() => ({ data: { code: 500, data: null } })),
           getRatingsData().catch(() => {
             return { data: { code: 500, data: null } };
           }),
-          getTopGoods(10, this.rankingType).catch(() => ({ data: { code: 500, data: null } }))
+          getTopGoods(10, this.rankingType).catch(() => ({ data: { code: 500, data: null } })),
+          getWordCloud(range).catch(() => ({ data: { code: 500, data: null } }))
         ]);
         
         // 处理销售数据
@@ -481,8 +506,9 @@ export default {
             // 如果后端返回了评分分布数据
             const total = this.ratingData.totalRatings || 0;
             
-            this.ratingData.starDistribution = ratingsData.ratingDistributions.map(item => {
-              const star = item.star || item.rating || item.level || 5;
+            this.ratingData.starDistribution = ratingsData.ratingDistributions.map((item, index) => {
+              // 若未提供星级，按索引推导：数组顺序默认 5→1
+              const star = item.star || item.rating || item.level || (5 - index);
               let percentage = 0;
               
               // 如果后端返回的是百分比
@@ -529,9 +555,110 @@ export default {
             ];
           }
           
-          // 关键词
+          // 关键词 - 先用评价接口返回
           this.ratingData.positiveKeywords = ratingsData.positiveKeywords || [];
           this.ratingData.negativeKeywords = ratingsData.negativeKeywords || [];
+
+          // 兼容对象形式的关键词返回：{ "好吃": 12, "配送快": 5 }
+          const normalizeKeywordField = (field) => {
+            if (!field) return [];
+            // 已是数组
+            if (Array.isArray(field)) {
+              // 支持数组元素为字符串或 {keyword,count} 结构
+              const arr = field.map(item => {
+                if (typeof item === 'string') return { text: item, value: 1 };
+                const text = item.keyword || item.word || item.text || item.name || '';
+                const value = Number(item.count || item.value || item.frequency || 0) || 1;
+                return { text, value };
+              }).filter(i => i.text);
+              // 取前10文本
+              return arr.sort((a,b)=>b.value-a.value).slice(0,10).map(i=>i.text);
+            }
+            // 对象映射
+            if (typeof field === 'object') {
+              const arr = Object.keys(field).map(k => ({
+                text: k,
+                value: Number(field[k]) || 1
+              }));
+              return arr.sort((a,b)=>b.value-a.value).slice(0,10).map(i=>i.text);
+            }
+            return [];
+          };
+
+          // 当后端返回对象而非数组时进行规范化
+          if (!Array.isArray(this.ratingData.positiveKeywords) && typeof this.ratingData.positiveKeywords === 'object') {
+            this.ratingData.positiveKeywords = normalizeKeywordField(this.ratingData.positiveKeywords);
+          }
+          if (!Array.isArray(this.ratingData.negativeKeywords) && typeof this.ratingData.negativeKeywords === 'object') {
+            this.ratingData.negativeKeywords = normalizeKeywordField(this.ratingData.negativeKeywords);
+          }
+
+          // 同接口返回的词云字段兼容解析（如果后端把词云一起返回在ratings接口中）
+          if (this.ratingData.positiveKeywords.length === 0 && this.ratingData.negativeKeywords.length === 0) {
+            const wordsRawInRatings = Array.isArray(ratingsData)
+              ? ratingsData
+              : (ratingsData.wordCloud || ratingsData.words || ratingsData.items || []);
+            if (wordsRawInRatings && wordsRawInRatings.length) {
+              const normalizedInRatings = wordsRawInRatings
+                .map(item => {
+                  const text = item.word || item.text || item.name || '';
+                  const value = Number(item.count || item.value || item.frequency || item.freq || 0) || 0;
+                  const sentiment = (item.sentiment || item.type || '').toString().toLowerCase();
+                  return { text, value, sentiment };
+                })
+                .filter(w => w.text);
+              
+              const topInRatings = normalizedInRatings.sort((a, b) => b.value - a.value).slice(0, 10);
+              const posInRatings = [];
+              const negInRatings = [];
+              topInRatings.forEach(w => {
+                if (w.sentiment.includes('neg') || w.sentiment.includes('bad') || w.sentiment.includes('负') || w.sentiment.includes('差')) {
+                  negInRatings.push(w.text);
+                } else if (w.sentiment.includes('pos') || w.sentiment.includes('good') || w.sentiment.includes('正') || w.sentiment.includes('好')) {
+                  posInRatings.push(w.text);
+                } else {
+                  posInRatings.push(w.text);
+                }
+              });
+              this.ratingData.positiveKeywords = posInRatings;
+              this.ratingData.negativeKeywords = negInRatings;
+            }
+          }
+        }
+
+        // 处理词云数据（高频关键词）并覆盖关键词展示
+        if (wordCloudRes.data && (wordCloudRes.data.code === 200 || wordCloudRes.data.code === 0) && wordCloudRes.data.data) {
+          const cloudData = wordCloudRes.data.data;
+          // 兼容不同返回结构：数组或对象包含words字段
+          const wordsRaw = Array.isArray(cloudData) ? cloudData : (cloudData.words || cloudData.items || []);
+          // 规范化为 { text, value, sentiment? }
+          const normalized = wordsRaw
+            .map(item => {
+              const text = item.word || item.text || item.name || '';
+              const value = Number(item.count || item.value || item.frequency || item.freq || 0) || 0;
+              const sentiment = (item.sentiment || item.type || '').toString().toLowerCase();
+              return { text, value, sentiment };
+            })
+            .filter(w => w.text);
+          
+          // 按频次排序，取前10
+          const top = normalized.sort((a, b) => b.value - a.value).slice(0, 10);
+          
+          // 如果返回包含情感类型，分别填充；否则全部作为正向关键词展示
+          const pos = [];
+          const neg = [];
+          top.forEach(w => {
+            if (w.sentiment.includes('neg') || w.sentiment.includes('bad') || w.sentiment.includes('负') || w.sentiment.includes('差')) {
+              neg.push(w.text);
+            } else if (w.sentiment.includes('pos') || w.sentiment.includes('good') || w.sentiment.includes('正') || w.sentiment.includes('好')) {
+              pos.push(w.text);
+            } else {
+              pos.push(w.text);
+            }
+          });
+          
+          this.ratingData.positiveKeywords = pos;
+          this.ratingData.negativeKeywords = neg;
         }
         
         // 处理商品排行数据

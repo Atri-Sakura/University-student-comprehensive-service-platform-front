@@ -253,13 +253,14 @@ export default {
       // ===== 搜索和筛选 =====
       searchText: '',
       currentCategory: 0,
-      categories: ['全部', '主食', '饮料', '小吃', '套餐'],
+      categories: ['全部', '中餐', '快餐', '轻食', '小吃', '主食'],
       // 分类和子分类的映射关系
       categorySubMap: {
-        '主食': ['面食', '米饭', '包子', '饺子', '粥类'],
-        '饮料': ['茶饮', '咖啡', '果汁', '奶茶', '汽水'],
-        '小吃': ['炸物', '凉菜', '甜品', '卤味', '烧烤'],
-        '套餐': ['单人套餐', '双人套餐', '家庭套餐', '聚会套餐']
+        '中餐': ['川菜', '粤菜', '湘菜', '鲁菜', '苏菜', '浙菜', '徽菜', '闽菜'],
+        '快餐': ['汉堡', '炸鸡', '披萨', '意面', '三明治', '热狗'],
+        '轻食': ['沙拉', '三明治', '果汁', '酸奶', '水果', '蔬菜'],
+        '小吃': ['炸物', '凉菜', '甜品', '卤味', '烧烤', '串串'],
+        '主食': ['面食', '米饭', '包子', '饺子', '粥类', '汤类']
       },
       subCategories: [], // 当前主分类下的子分类列表
       
@@ -299,7 +300,7 @@ export default {
         price: '',
         originalPrice: '',
         stock: '',
-        category: '主食',
+        category: '中餐',
         subCategory: '',
         image: '',
         emoji: '🍔',
@@ -786,7 +787,7 @@ export default {
         price: '',
         originalPrice: '',
         stock: '',
-        category: '主食',
+        category: '中餐',
         subCategory: '',
         image: '',
         emoji: '🍔',
@@ -881,10 +882,11 @@ export default {
      */
     getCategoryEmoji(category) {
       const emojiMap = {
-        '主食': '🍔',
-        '饮料': '🥤',
+        '中餐': '🥢',
+        '快餐': '🍔',
+        '轻食': '🥗',
         '小吃': '🍟',
-        '套餐': '🍱'
+        '主食': '🍚'
       };
       return emojiMap[category] || '🍔';
     },

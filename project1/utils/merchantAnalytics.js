@@ -64,3 +64,17 @@ export const getDashboardData = () => {
   });
 };
 
+/**
+ * 获取评价词云数据（高频关键词）
+ * @param {Object} params - 可选的时间范围等参数
+ * @param {String} params.startDate - 开始日期（可选）
+ * @param {String} params.endDate - 结束日期（可选）
+ * @returns {Promise}
+ */
+export const getWordCloud = (params = {}) => {
+  return request(`${baseUrl}/merchant/analytics/wordCloud`, {
+    method: 'GET',
+    data: params
+  });
+};
+
