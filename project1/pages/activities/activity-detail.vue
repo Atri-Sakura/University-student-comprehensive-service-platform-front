@@ -75,28 +75,25 @@ export default {
   },
   computed: {
     statusText() {
-      if (this.activity.enabled) {
-        // 根据时间判断状态
-        const now = new Date();
-        const startDate = new Date(this.activity.startDate);
-        const endDate = new Date(this.activity.endDate);
-        
-        if (now < startDate) {
-          return '未开始';
-        } else if (now > endDate) {
-          return '已结束';
-        } else {
-          return '进行中';
-        }
+      // 直接根据时间判断状态，不考虑enabled字段
+      const now = new Date();
+      const startDate = new Date(this.activity.startDate);
+      const endDate = new Date(this.activity.endDate);
+      
+      if (now < startDate) {
+        return '未开始';
+      } else if (now > endDate) {
+        return '已结束';
+      } else {
+        return '进行中';
       }
-      return '已禁用';
     },
     statusClass() {
       const status = this.statusText;
       if (status === '进行中') return 'status-ongoing';
       if (status === '未开始') return 'status-upcoming';
       if (status === '已结束') return 'status-ended';
-      return 'status-disabled';
+      return ''; // 默认空字符串
     }
   },
   onLoad(options) {
