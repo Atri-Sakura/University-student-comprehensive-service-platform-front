@@ -192,6 +192,94 @@ export default {
     } catch (error) {
       throw error
     }
+  },
+
+  /**
+   * 获取所有商品分类（主分类）
+   * @returns {Promise}
+   */
+  async getCategories() {
+    // 尝试多种可能的API路径
+    const possibleUrls = [
+      `${BASE_URL}/categories`,
+      `${BASE_URL}/category/list`,
+      `${BASE_URL}/category`,
+      `http://localhost:8080/category/list`,
+      `http://localhost:8080/category/categories`
+    ]
+    
+    // 先尝试第一个路径
+    let url = possibleUrls[0]
+    
+    try {
+      const response = await request(url, {
+        method: 'GET'
+      })
+      
+      return response.data
+    } catch (error) {
+      // 如果第一个路径失败，尝试其他路径
+      for (let i = 1; i < possibleUrls.length; i++) {
+        try {
+          const response = await request(possibleUrls[i], {
+            method: 'GET'
+          })
+          if (response && response.data) {
+            return response.data
+          }
+        } catch (retryError) {
+          if (i === possibleUrls.length - 1) {
+            throw error // 如果所有路径都失败，抛出原始错误
+          }
+        }
+      }
+      throw error
+    }
+  },
+
+  /**
+   * 根据主分类获取子分类列表
+   * @param {String} category - 主分类名称
+   * @returns {Promise}
+   */
+  async getSubCategories(category) {
+    // 尝试多种可能的API路径
+    const possibleUrls = [
+      `${BASE_URL}/subCategories`,
+      `${BASE_URL}/subCategory/list`,
+      `${BASE_URL}/subCategory`,
+      `http://localhost:8080/subCategory/list`,
+      `http://localhost:8080/subCategory/subCategories`
+    ]
+    
+    let url = possibleUrls[0]
+    
+    try {
+      const response = await request(url, {
+        method: 'GET',
+        data: { category: category }
+      })
+      
+      return response.data
+    } catch (error) {
+      // 如果第一个路径失败，尝试其他路径
+      for (let i = 1; i < possibleUrls.length; i++) {
+        try {
+          const response = await request(possibleUrls[i], {
+            method: 'GET',
+            data: { category: category }
+          })
+          if (response && response.data) {
+            return response.data
+          }
+        } catch (retryError) {
+          if (i === possibleUrls.length - 1) {
+            throw error // 如果所有路径都失败，抛出原始错误
+          }
+        }
+      }
+      throw error
+    }
   }
 }
 

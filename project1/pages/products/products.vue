@@ -253,15 +253,7 @@ export default {
       // ===== 搜索和筛选 =====
       searchText: '',
       currentCategory: 0,
-      categories: ['全部', '中餐', '快餐', '轻食', '小吃', '主食'],
-      // 分类和子分类的映射关系
-      categorySubMap: {
-        '中餐': ['川菜', '粤菜', '湘菜', '鲁菜', '苏菜', '浙菜', '徽菜', '闽菜'],
-        '快餐': ['汉堡', '炸鸡', '披萨', '意面', '三明治', '热狗'],
-        '轻食': ['沙拉', '三明治', '果汁', '酸奶', '水果', '蔬菜'],
-        '小吃': ['炸物', '凉菜', '甜品', '卤味', '烧烤', '串串'],
-        '主食': ['面食', '米饭', '包子', '饺子', '粥类', '汤类']
-      },
+      categories: ['全部'], // 初始只有"全部"，其他分类从数据库动态加载
       subCategories: [], // 当前主分类下的子分类列表
       
       // 商品标签列表（中文名 → 英文编码）
@@ -348,8 +340,15 @@ export default {
   },
   
   // 页面生命周期
-  onLoad() {
-    this.loadGoodsList(true);
+  async onLoad() {
+    // 先尝试加载分类，如果失败则从商品列表中提取
+    await this.loadCategories();
+    // 加载商品列表（如果分类加载失败，会从商品列表中提取分类）
+    await this.loadGoodsList(true);
+    // 如果分类列表还是只有"全部"，尝试从商品列表中提取
+    if (this.categories.length === 1) {
+      this.extractCategoriesFromProducts();
+    }
   },
   
   // 下拉刷新
@@ -402,6 +401,11 @@ export default {
           // 更新分页信息
           this.total = res.total || 0;
           this.hasMore = this.products.length < this.total;
+          
+          // 如果分类列表只有"全部"，从商品列表中提取分类
+          if (this.categories.length === 1 && this.products.length > 0) {
+            this.extractCategoriesFromProducts();
+          }
         } else {
           this.handleError(res, '加载商品列表失败');
         }
@@ -461,22 +465,287 @@ export default {
       // 清空之前选择的子分类
       this.editingProduct.subCategory = '';
       
+      // 先清空子分类列表
+      this.subCategories = [];
+      
       // 加载该分类下的子分类
       await this.loadSubCategories(category);
     },
     
     /**
-     * 加载子分类列表（从本地映射表）
+     * 加载所有分类（从数据库）
+     */
+    async loadCategories() {
+      try {
+        const res = await goodsApi.getCategories();
+        
+        // 检查返回结果
+        if (!res) {
+          return false;
+        }
+        
+        // 如果返回的code不是200，说明接口不存在或失败
+        if (res.code !== 200) {
+          return false;
+        }
+        
+        // 处理返回的分类数据
+        let categoryList = [];
+        
+        if (res.data) {
+          // 如果返回的是数组
+          if (Array.isArray(res.data)) {
+            // 检查数组元素是字符串还是对象
+            categoryList = res.data.map(item => {
+              if (typeof item === 'string') {
+                return item;
+              } else if (typeof item === 'object' && item !== null) {
+                // 尝试多种可能的字段名
+                return item.name || item.categoryName || item.category || item.categoryName || item.value || '';
+              }
+              return String(item || '');
+            }).filter(cat => cat && cat !== '全部');
+          } 
+          // 如果返回的是对象，尝试提取分类列表
+          else if (res.data.categories || res.data.list) {
+            const dataList = res.data.categories || res.data.list || [];
+            categoryList = dataList.map(item => {
+              if (typeof item === 'string') {
+                return item;
+              } else if (typeof item === 'object' && item !== null) {
+                return item.name || item.categoryName || item.category || item.value || '';
+              }
+              return String(item || '');
+            }).filter(cat => cat && cat !== '全部');
+          }
+          // 如果返回的是对象，尝试从对象中提取分类名称
+          else if (typeof res.data === 'object') {
+            categoryList = Object.keys(res.data).map(key => {
+              const item = res.data[key];
+              if (typeof item === 'object' && item !== null) {
+                return item.name || item.categoryName || item.category || key;
+              } else if (typeof item === 'string') {
+                return item;
+              }
+              return key;
+            }).filter(cat => cat && cat !== '全部');
+          }
+        }
+        
+        // 确保分类列表不为空，且去重
+        categoryList = [...new Set(categoryList.filter(cat => cat && cat.trim() !== ''))];
+        
+        if (categoryList.length > 0) {
+          // 更新分类列表，保留"全部"在第一位
+          this.categories = ['全部', ...categoryList];
+          return true;
+        } else {
+          return false;
+        }
+      } catch (error) {
+        return false;
+      }
+    },
+    
+    /**
+     * 从商品列表中提取分类（备用方案）
+     */
+    extractCategoriesFromProducts() {
+      if (!this.products || this.products.length === 0) {
+        return;
+      }
+      
+      // 从商品列表中提取所有唯一的分类
+      const categorySet = new Set();
+      
+      this.products.forEach(product => {
+        if (product.category && product.category.trim() !== '' && product.category !== '全部') {
+          categorySet.add(product.category);
+        }
+      });
+      
+      // 转换为数组并排序
+      const categoryList = Array.from(categorySet).sort();
+      
+      if (categoryList.length > 0) {
+        this.categories = ['全部', ...categoryList];
+      }
+    },
+    
+    /**
+     * 加载子分类列表（从数据库或商品列表）
      * @param {String} category - 主分类名称
      */
-    loadSubCategories(category) {
+    async loadSubCategories(category) {
       if (!category || category === '全部') {
         this.subCategories = [];
         return;
       }
       
-      // 从本地映射表获取子分类
-      this.subCategories = this.categorySubMap[category] || [];
+      try {
+        const res = await goodsApi.getSubCategories(category);
+        
+        // 如果接口返回成功
+        if (res && res.code === 200 && res.data) {
+          // 处理返回的子分类数据
+          let subCategoryList = [];
+          
+          // 如果返回的是数组
+          if (Array.isArray(res.data)) {
+            subCategoryList = res.data.map(item => {
+              if (typeof item === 'string') {
+                return item;
+              } else if (typeof item === 'object' && item !== null) {
+                return item.name || item.subCategoryName || item.subCategory || item.value || '';
+              }
+              return String(item || '');
+            }).filter(subCat => subCat && subCat.trim() !== '');
+          } 
+          // 如果返回的是对象，尝试提取子分类列表
+          else if (res.data.subCategories || res.data.list) {
+            const dataList = res.data.subCategories || res.data.list || [];
+            subCategoryList = dataList.map(item => {
+              if (typeof item === 'string') {
+                return item;
+              } else if (typeof item === 'object' && item !== null) {
+                return item.name || item.subCategoryName || item.subCategory || item.value || '';
+              }
+              return String(item || '');
+            }).filter(subCat => subCat && subCat.trim() !== '');
+          }
+          // 如果返回的是对象，尝试从对象中提取子分类名称
+          else if (typeof res.data === 'object') {
+            subCategoryList = Object.keys(res.data).map(key => {
+              const item = res.data[key];
+              if (typeof item === 'object' && item !== null) {
+                return item.name || item.subCategoryName || item.subCategory || key;
+              } else if (typeof item === 'string') {
+                return item;
+              }
+              return key;
+            }).filter(subCat => subCat && subCat.trim() !== '');
+          }
+          
+          // 确保子分类列表不为空，且去重
+          this.subCategories = [...new Set(subCategoryList)];
+          return;
+        }
+        
+        // 如果接口失败，从所有商品中提取该分类的子分类
+        await this.extractSubCategoriesFromAllProducts(category);
+        
+      } catch (error) {
+        // 从所有商品中提取子分类
+        await this.extractSubCategoriesFromAllProducts(category);
+      }
+    },
+    
+    /**
+     * 从所有商品中提取指定分类的子分类（加载该分类下的所有商品）
+     * @param {String} category - 主分类名称
+     */
+    async extractSubCategoriesFromAllProducts(category) {
+      try {
+        // 先尝试加载该分类下的所有商品（如果接口支持按分类筛选）
+        let allProducts = [];
+        let hasMore = true;
+        let pageNum = 1;
+        const pageSize = 100; // 每页100条
+        
+        // 尝试加载多页数据，直到获取完所有该分类的商品
+        while (hasMore && pageNum <= 10) { // 最多加载10页，避免无限循环
+          const res = await goodsApi.getGoodsList({
+            pageNum: pageNum,
+            pageSize: pageSize,
+            category: category // 如果接口支持按分类筛选
+          });
+          
+          if (res.code === 200 && res.rows && res.rows.length > 0) {
+            const products = res.rows.map(item => this.mapBackendToFrontend(item));
+            
+            // 如果接口不支持按分类筛选，需要手动过滤
+            if (category && category !== '全部') {
+              const filteredProducts = products.filter(p => p.category === category);
+              allProducts.push(...filteredProducts);
+            } else {
+              allProducts.push(...products);
+            }
+            
+            // 检查是否还有更多数据
+            hasMore = products.length === pageSize && allProducts.length < (res.total || 0);
+            pageNum++;
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        // 如果还是没有获取到商品，使用当前已加载的商品列表
+        if (allProducts.length === 0) {
+          allProducts = this.products || [];
+        }
+        
+        // 从商品列表中提取该分类下的所有唯一子分类
+        const subCategorySet = new Set();
+        
+        allProducts.forEach(product => {
+          // 检查主分类是否匹配
+          if (product.category === category) {
+            // 检查子分类是否存在且不为空
+            if (product.subCategory) {
+              const subCat = String(product.subCategory).trim();
+              if (subCat !== '' && subCat !== 'null' && subCat !== 'undefined') {
+                subCategorySet.add(subCat);
+              }
+            }
+          }
+        });
+        
+        // 转换为数组并排序
+        const subCategoryList = Array.from(subCategorySet).sort();
+        
+        this.subCategories = subCategoryList;
+        
+        if (subCategoryList.length === 0) {
+          // 如果还是没有，尝试从当前商品列表中提取
+          this.extractSubCategoriesFromProducts(category);
+        }
+        
+      } catch (error) {
+        // 失败时，使用当前商品列表
+        this.extractSubCategoriesFromProducts(category);
+      }
+    },
+    
+    /**
+     * 从商品列表中提取子分类（备用方案）
+     * @param {String} category - 主分类名称
+     */
+    extractSubCategoriesFromProducts(category) {
+      if (!this.products || this.products.length === 0) {
+        this.subCategories = [];
+        return;
+      }
+      
+      // 从商品列表中提取该分类下的所有唯一子分类
+      const subCategorySet = new Set();
+      
+      this.products.forEach(product => {
+        // 检查主分类是否匹配
+        if (product.category === category) {
+          // 检查子分类是否存在且不为空
+          if (product.subCategory) {
+            const subCat = String(product.subCategory).trim();
+            if (subCat !== '' && subCat !== 'null' && subCat !== 'undefined') {
+              subCategorySet.add(subCat);
+            }
+          }
+        }
+      });
+      
+      // 转换为数组并排序
+      const subCategoryList = Array.from(subCategorySet).sort();
+      
+      this.subCategories = subCategoryList;
     },
     
     // ===== 添加商品 =====
@@ -829,11 +1098,19 @@ export default {
      * @param {Object} data - 后端数据
      */
     mapBackendToFrontend(data) {
+      // 处理子分类字段，支持多种可能的字段名
+      const subCategory = data.subCategory || 
+                         data.subcategory || 
+                         data.sub_category || 
+                         data.subCategoryName ||
+                         data.subcategoryName ||
+                         '';
+      
       return {
         id: data.merchantGoodsId,
         name: data.goodsName,
         category: data.category,
-        subCategory: data.subCategory,
+        subCategory: subCategory, // 使用处理后的子分类
         price: data.price,
         originalPrice: data.originalPrice,
         stock: data.stock,
@@ -903,10 +1180,8 @@ export default {
       * @param {Object} error - 错误对象
       * @param {String} defaultMsg - 默认错误信息
       */
-     handleError(error, defaultMsg = '操作失败') {
-       console.error(error);
-       
-       // 从响应对象中提取错误信息
+    handleError(error, defaultMsg = '操作失败') {
+      // 从响应对象中提取错误信息
        const errorData = error.data || error;
        const code = errorData.code || error.statusCode;
        

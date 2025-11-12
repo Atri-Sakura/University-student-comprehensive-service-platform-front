@@ -230,6 +230,11 @@
           </view>
         </view>
         <view class="product-list">
+          <!-- 加载中提示 -->
+          <view class="loading-container" v-if="isRankingLoading && productRanking.length === 0">
+            <view class="loading-text">加载中...</view>
+          </view>
+          
           <!-- 商品列表 -->
           <view class="product-item" v-for="(item, index) in productRanking" :key="index">
             <view class="product-rank" :class="index < 3 ? 'rank-' + (index+1) : ''">{{ index+1 }}</view>
@@ -239,8 +244,9 @@
             </view>
             <view class="product-amount" v-if="rankingType === 'hot'">¥{{ item.amount }}</view>
           </view>
+          
           <!-- 空数据提示 -->
-          <view class="empty-data" v-if="productRanking.length === 0">
+          <view class="empty-data" v-if="!isRankingLoading && productRanking.length === 0">
             <view class="empty-icon">📦</view>
             <view class="empty-text">暂无{{ rankingType === 'hot' ? '热销' : '滞销' }}商品数据</view>
             <view class="empty-hint" v-if="rankingType === 'hot'">试试切换到"滞销商品"查看</view>
@@ -349,6 +355,11 @@ export default {
       rankingType: 'hot',
       currentTab: '', // 当前不在底部导航栏中，所以为空
       isLoading: false, // 加载状态
+      isRankingLoading: false, // 商品排行加载状态
+      rankingCache: {
+        hot: null, // 缓存热销商品数据
+        slow: null // 缓存滞销商品数据
+      },
       
       coreData: {
         orderCount: 0,
@@ -670,7 +681,7 @@ export default {
             ? (rankingData.hotSellingProducts || [])
             : (rankingData.slowMovingProducts || []);
           
-          this.productRanking = topGoodsData.map(item => {
+          const newRanking = topGoodsData.map(item => {
             // 尝试获取商品单价，优先使用price字段（支持多种可能的字段名）
             // 注意：需要检查字段是否存在，而不是仅仅检查值是否为0
             let price = null;
@@ -708,12 +719,24 @@ export default {
               price = 0;
             }
             
+            // 获取销量
+            const sales = parseFloat(item.salesVolume || item.salesCount || item.sales || 0);
+            
+            // 计算总价：销量 × 单价
+            const totalAmount = sales * price;
+            
             return {
               name: item.productName || item.goodsName || item.name || '未知商品',
-              sales: item.salesVolume || item.salesCount || item.sales || 0,
-              amount: price > 0 ? this.formatNumber(price) : '0.00'
+              sales: sales,
+              amount: totalAmount > 0 ? this.formatNumber(totalAmount) : '0.00'
             };
           });
+          
+          this.productRanking = newRanking;
+          
+          // 缓存数据
+          const cacheKey = this.rankingType === 'hot' ? 'hot' : 'slow';
+          this.rankingCache[cacheKey] = newRanking;
         }
         
       } catch (error) {
@@ -893,7 +916,17 @@ export default {
     },
     
     async switchRankingType(type) {
+      // 更新类型
       this.rankingType = type;
+      
+      // 如果有缓存数据，先显示缓存
+      const cacheKey = type === 'hot' ? 'hot' : 'slow';
+      if (this.rankingCache[cacheKey]) {
+        this.productRanking = this.rankingCache[cacheKey];
+      } else {
+        // 没有缓存时显示加载状态
+        this.isRankingLoading = true;
+      }
       
       // 重新加载商品排行数据
       try {
@@ -907,7 +940,7 @@ export default {
             ? (rankingData.hotSellingProducts || [])
             : (rankingData.slowMovingProducts || []);
           
-          this.productRanking = topGoodsData.map(item => {
+          const newRanking = topGoodsData.map(item => {
             // 尝试获取商品单价，优先使用price字段（支持多种可能的字段名）
             // 注意：需要检查字段是否存在，而不是仅仅检查值是否为0
             let price = null;
@@ -945,15 +978,30 @@ export default {
               price = 0;
             }
             
+            // 获取销量
+            const sales = parseFloat(item.salesVolume || item.salesCount || item.sales || 0);
+            
+            // 计算总价：销量 × 单价
+            const totalAmount = sales * price;
+            
             return {
               name: item.productName || item.goodsName || item.name || '未知商品',
-              sales: item.salesVolume || item.salesCount || item.sales || 0,
-              amount: price > 0 ? this.formatNumber(price) : '0.00'
+              sales: sales,
+              amount: totalAmount > 0 ? this.formatNumber(totalAmount) : '0.00'
             };
           });
+          
+          // 更新商品列表
+          this.productRanking = newRanking;
+          
+          // 缓存数据
+          this.rankingCache[cacheKey] = newRanking;
         }
       } catch (error) {
         // 静默处理错误
+      } finally {
+        // 关闭加载状态
+        this.isRankingLoading = false;
       }
     },
     
@@ -1551,6 +1599,21 @@ export default {
 .product-list {
   max-height: 400rpx;
   overflow-y: auto;
+}
+
+.loading-container {
+  padding: 80rpx 40rpx;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200rpx;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999;
 }
 
 .product-item {

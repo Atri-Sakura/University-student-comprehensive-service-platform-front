@@ -48,7 +48,9 @@
           
           <!-- 操作按钮 -->
           <view class="activity-actions">
-            
+            <view class="action-btn view" @click="viewActivity(activity)">
+              <text class="btn-text">查看详情</text>
+            </view>
             <view class="action-btn edit" @click="editActivity(activity)">
               <text class="btn-text">编辑</text>
             </view>
@@ -109,24 +111,24 @@ export default {
     // 组件创建时的初始化操作
   },
   computed: {
-    filteredActivities() {
-      // 根据不同状态进行筛选
-      
-      if (this.currentTab === 0) {
-        return this.activities;
-      } else if (this.currentTab === 1) {
-        // 进行中
-        return this.activities.filter(activity => activity.status === 1 || activity.status === '进行中');
-      } else if (this.currentTab === 2) {
-        // 未开始
-        return this.activities.filter(activity => activity.status === 0 || activity.status === '未开始');
-      } else if (this.currentTab === 3) {
-        // 已结束
-        return this.activities.filter(activity => activity.status === 2 || activity.status === '已结束');
+      filteredActivities() {
+        // 根据不同状态进行筛选
+        
+        if (this.currentTab === 0) {
+          return this.activities;
+        } else if (this.currentTab === 1) {
+          // 进行中
+          return this.activities.filter(activity => activity.status === '进行中');
+        } else if (this.currentTab === 2) {
+          // 未开始
+          return this.activities.filter(activity => activity.status === '未开始');
+        } else if (this.currentTab === 3) {
+          // 已结束
+          return this.activities.filter(activity => activity.status === '已结束');
+        }
+        return [];
       }
-      return [];
-    }
-  },
+    },
   methods: {
       /**
        * 加载店铺信息 - 简化版本，专注于从缓存获取数据
@@ -171,39 +173,14 @@ export default {
     fetchActivities() {
       this.loading = true;
       
-      // 根据当前选中的标签获取对应状态的活动
+      // 总是获取所有活动，不按状态筛选
       let params = {};
-      if (this.currentTab > 0) {
-        // 标签页对应的状态码映射：
-        // 标签1 -> 状态1:进行中
-        // 标签2 -> 状态0:未开始
-        // 标签3 -> 状态2:已结束
-        if (this.currentTab === 1) {
-          params.status = 1; // 进行中
-        } else if (this.currentTab === 2) {
-          params.status = 0; // 未开始
-        } else if (this.currentTab === 3) {
-          params.status = 2; // 已结束
-        }
-      }
       
       getActivityList(params)
         .then(res => {
           this.loading = false;
           // 打印完整原始响应数据，方便调试
           console.log('完整后端响应:', JSON.stringify(res));
-          console.log('后端返回的活动数据:', res.data);
-          
-          // 专门打印活动ID信息，确认后端返回的原始数据
-          if (res.data && res.data.rows && Array.isArray(res.data.rows)) {
-            console.log('=== 后端返回的原始活动ID信息 ===');
-            res.data.rows.forEach((activity, index) => {
-              console.log(`活动[${index}]的merchantActivityId:`, activity.merchantActivityId, 
-                         '类型:', typeof activity.merchantActivityId);
-              console.log(`活动[${index}]的merchant_activity_id:`, activity.merchant_activity_id, 
-                         '类型:', typeof activity.merchant_activity_id);
-            });
-          }
           
           // 处理后端返回的数据
           // 根据截图，后端返回的成功状态码是0而非200
@@ -211,63 +188,172 @@ export default {
             // 根据后端实际返回的数据格式，数据直接在 res.data.rows 中
             let activitiesData = res.data.rows || [];
             console.log('处理前的活动数据数组长度:', activitiesData.length);
-            // 打印每个活动的详细数据
-            activitiesData.forEach((activity, index) => {
-              console.log(`活动[${index}]完整数据:`, JSON.stringify(activity));
-            });
             
             // 转换数据格式，使其符合前端显示要求
             this.activities = activitiesData.map((activity, index) => {
-              // 重要：将大整数ID转换为字符串以避免JavaScript精度问题
-              // JavaScript的Number类型最大安全整数是2^53-1 (9007199254740991)
-              // 后端返回的ID长度为18位，超过了安全范围，需要作为字符串处理
+              // 创建活动副本，避免修改原始数据
+              const activityCopy = { ...activity };
               
               // 转换ID字段为字符串
               const merchantActivityIdStr = String(activity.merchantActivityId || '');
               const merchant_activity_idStr = String(activity.merchant_activity_id || '');
               const idStr = String(activity.id || '');
               
-              // 记录ID处理前后的对比
-              console.log('处理活动数据，ID信息对比:', {
-                original_merchantActivityId: activity.merchantActivityId,
-                original_merchant_activity_id: activity.merchant_activity_id,
-                original_id: activity.id,
-                string_merchantActivityId: merchantActivityIdStr,
-                string_merchant_activity_id: merchant_activity_idStr,
-                string_id: idStr,
-                index: index
-              });
+              // 全面查找日期信息，检查所有可能的字段名
+              const startDateSources = [
+                activity.start_time, activity.startDate, activity.beginTime, 
+                activity.start, activity.begin_time, activity.begin_date,
+                activity.starting_time, activity.starting_date, activity.startingDate,
+                activity.startTime // 添加与后端匹配的startTime字段名
+              ];
               
-              // 保留原始ID字段，同时添加临时唯一标识符（使用索引+时间戳的组合）
-              // 原始ID用于与后端交互，临时ID用于前端识别不同活动
-              return {
-                ...activity,
+              const endDateSources = [
+                activity.end_time, activity.endDate, activity.endTime, 
+                activity.end, activity.finish_time, activity.finish_date,
+                activity.ending_time, activity.ending_date, activity.endingDate,
+                activity.endTime // 添加与后端匹配的endTime字段名
+              ];
+              
+              // 找到第一个非空的日期字段
+              const startDate = startDateSources.find(date => date !== null && date !== undefined && date !== '');
+              const endDate = endDateSources.find(date => date !== null && date !== undefined && date !== '');
+              
+              const activityName = activity.activity_name || activity.activityName || activity.name || '未命名活动';
+              console.log(`=== 处理活动[${index}]: ${activityName} ===`);
+              console.log(`日期来源 - 开始: ${startDateSources.filter(d => d).join(', ') || '无'}`);
+              console.log(`日期来源 - 结束: ${endDateSources.filter(d => d).join(', ') || '无'}`);
+              console.log(`选定的日期: ${startDate} 至 ${endDate}`);
+              console.log(`后端状态值: ${activity.status}, enabled: ${activity.enabled}`);
+              
+              // 计算状态 - 优先基于日期计算，确保日期比较正确
+              let statusText = '状态未知';
+              
+              // 先尝试基于日期计算状态
+              try {
+                // 解析日期
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+                
+                let parsedStart = null;
+                let parsedEnd = null;
+                
+                // 标准化解析结束日期的函数
+                const parseDateString = (dateStr) => {
+                  if (!dateStr) return null;
+                  
+                  let date = new Date(dateStr);
+                  
+                  // 如果直接解析失败，尝试提取日期部分
+                  if (isNaN(date.getTime()) && typeof dateStr === 'string') {
+                    const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);
+                    if (dateMatch) {
+                      date = new Date(dateMatch[1]);
+                      console.log(`提取日期部分: ${dateMatch[1]} 转换为: ${date.toISOString()}`);
+                    }
+                  }
+                  
+                  // 确保日期有效
+                  if (!isNaN(date.getTime())) {
+                    date.setHours(0, 0, 0, 0);
+                    return date;
+                  }
+                  return null;
+                };
+                
+                // 尝试解析开始和结束日期
+                if (startDate) {
+                  parsedStart = parseDateString(startDate);
+                  console.log(`解析开始日期: ${startDate} 结果: ${parsedStart ? parsedStart.toISOString() : '无效'}`);
+                }
+                
+                if (endDate) {
+                  parsedEnd = parseDateString(endDate);
+                  console.log(`解析结束日期: ${endDate} 结果: ${parsedEnd ? parsedEnd.toISOString() : '无效'}`);
+                }
+                
+                // 根据可用的日期信息计算状态
+                if (parsedEnd) {
+                  // 有结束日期，优先判断是否已结束
+                  console.log(`比较当前日期 ${now.toISOString()} 和结束日期 ${parsedEnd.toISOString()}`);
+                  if (now > parsedEnd) {
+                    console.log(`活动已结束: ${parsedEnd.toISOString()} 早于当前日期`);
+                    statusText = '已结束';
+                  } else {
+                    // 未结束，判断是否有开始日期
+                    if (parsedStart) {
+                      console.log(`比较当前日期 ${now.toISOString()} 和开始日期 ${parsedStart.toISOString()}`);
+                      if (now < parsedStart) {
+                        console.log(`活动未开始: ${now.toISOString()} 早于开始日期`);
+                        statusText = '未开始';
+                      } else {
+                        console.log(`活动进行中: 在开始日期之后，结束日期之前`);
+                        statusText = '进行中';
+                      }
+                    } else {
+                      console.log(`只有结束日期，且未过期，默认为进行中`);
+                      statusText = '进行中';
+                    }
+                  }
+                } else if (parsedStart) {
+                  // 只有开始日期，判断是否未开始
+                  console.log(`只有开始日期，比较当前日期 ${now.toISOString()} 和开始日期 ${parsedStart.toISOString()}`);
+                  statusText = now < parsedStart ? '未开始' : '进行中';
+                  console.log(`状态: ${statusText}`);
+                } else {
+                  console.log('没有有效的开始日期和结束日期');
+                }
+              } catch (error) {
+                console.error('日期计算出错:', error);
+              }
+              
+              // 如果日期计算失败，尝试使用后端状态作为备选
+              if (statusText === '状态未知' && activity.status !== undefined) {
+                console.log('日期计算失败，使用后端状态');
+                const statusMap = {
+                  0: '未开始',
+                  1: '未开始',
+                  2: '进行中',
+                  3: '已结束'
+                };
+                statusText = statusMap[activity.status] || `状态(${activity.status})`;
+              }
+              
+              // 清理临时保存的活动引用
+              this.activity = null;
+              
+              // 创建处理后的活动对象
+              const processedActivity = {
+                ...activityCopy,
                 // 确保ID字段作为字符串保存
                 merchantActivityId: merchantActivityIdStr,
                 merchant_activity_id: merchant_activity_idStr,
                 id: idStr,
                 // 添加临时唯一标识符
                 tempId: `${merchantActivityIdStr || 'temp'}_${index}_${Date.now()}`,
-                // 保留原始ID字段用于后端交互
-                name: activity.activity_name || activity.activityName || activity.name,
-                // 转换状态为中文显示
-                status: this.getStatusText(activity.status),
-                statusClass: this.getStatusClass(activity.status),
-                startDate: activity.start_time || activity.startDate || activity.beginTime,
-                endDate: activity.end_time || activity.endDate || activity.endTime,
+                // 基本信息
+                name: activityName,
+                // 状态信息
+                status: statusText,
+                statusClass: this.getStatusClass(statusText),
+                // 保存原始状态值用于调试
+                _originalStatus: activity.status,
+                _originalEnabled: activity.enabled,
+                // 日期信息
+                startDate: startDate,
+                endDate: endDate,
+                // 其他信息
                 type: this.getActivityTypeText(activity.activity_type || activity.activityType),
-                description: activity.content || activity.description || activity.remark
+                description: activity.content || activity.description || activity.remark || '暂无描述'
               };
+              
+              console.log(`活动[${index}]处理完成，最终状态: ${statusText}`);
+              return processedActivity;
             });
             
-            console.log('发现问题：所有活动具有相同的ID:', activitiesData[0]?.merchantActivityId);
-            console.log('添加临时唯一标识符后，活动数据:', this.activities);
-            
-            // 打印转换后的活动数据，方便调试
-            console.log('转换后的活动数据:', this.activities);
+            console.log('处理完成的活动列表:', this.activities.map(a => ({ name: a.name, status: a.status })));
           } else {
             uni.showToast({
-              title: res.data.msg || '获取活动列表失败',
+              title: res.data?.msg || '获取活动列表失败',
               icon: 'none'
             });
           }
@@ -283,31 +369,176 @@ export default {
     },
     
     /**
-     * 根据状态码获取状态文本
+     * 标准化日期，将任何日期格式转换为当天0点
      */
-    getStatusText(status) {
-      // 确保 status 是数字类型
-      const statusNum = typeof status === 'string' ? parseInt(status) : status;
-      const statusMap = {
-        0: '未开始',
-        1: '进行中',
-        2: '已结束'
-      };
-      return statusMap[statusNum] || status;
+    normalizeDate(date) {
+      // 防止传入undefined或null
+      if (!date) return new Date('invalid');
+      
+      // 创建日期对象
+      let dateObj;
+      
+      // 尝试多种解析方式
+      if (typeof date === 'string') {
+        // 尝试直接解析
+        dateObj = new Date(date);
+        
+        // 如果直接解析失败，尝试其他格式
+        if (isNaN(dateObj.getTime())) {
+          // 尝试处理ISO格式
+          if (date.includes('T')) {
+            // 处理ISO格式，移除时区信息
+            const cleanDate = date.split('T')[0];
+            dateObj = new Date(cleanDate);
+          } 
+          // 尝试处理中文格式
+          else if (date.includes('年') || date.includes('月') || date.includes('日')) {
+            // 简单的中文日期格式处理
+            const year = date.match(/\d{4}/);
+            const month = date.match(/\d{1,2}月/);
+            const day = date.match(/\d{1,2}日/);
+            
+            if (year && month && day) {
+              const yearNum = parseInt(year[0]);
+              const monthNum = parseInt(month[0]);
+              const dayNum = parseInt(day[0]);
+              
+              dateObj = new Date(yearNum, monthNum - 1, dayNum);
+            }
+          }
+          // 尝试处理纯数字格式（如时间戳）
+          else if (/^\d+$/.test(date)) {
+            dateObj = new Date(parseInt(date));
+          }
+        }
+      } else if (typeof date === 'number') {
+        // 数字格式（时间戳）
+        dateObj = new Date(date);
+      } else if (date instanceof Date) {
+        // 已经是Date对象
+        dateObj = new Date(date);
+      } else {
+        // 其他类型，转换为字符串后尝试
+        dateObj = new Date(String(date));
+      }
+      
+      // 标准化为当天0点
+      if (!isNaN(dateObj.getTime())) {
+        dateObj.setHours(0, 0, 0, 0);
+        return dateObj;
+      } else {
+        // 返回无效日期
+        return new Date('invalid');
+      }
     },
     
     /**
-     * 根据状态获取样式类名
+     * 根据开始和结束日期计算活动状态文本
      */
-    getStatusClass(status) {
-      // 确保 status 是数字类型
-      const statusNum = typeof status === 'string' ? parseInt(status) : status;
+    getStatusText(startDate, endDate) {
+      console.log('计算活动状态:', { 
+        startDate: JSON.stringify(startDate), 
+        endDate: JSON.stringify(endDate),
+        activity: this.activity ? '存在' : '不存在'
+      });
+      
+      try {
+        // 尝试多种方式获取日期，确保不遗漏任何可能的日期字段
+        // 从临时保存的活动引用中获取更多可能的日期字段
+        const extendedStartDate = startDate || (this.activity?.start) || (this.activity?.begin_time);
+        const extendedEndDate = endDate || (this.activity?.end) || (this.activity?.finish_time);
+        
+        console.log('扩展后的日期字段:', { extendedStartDate, extendedEndDate });
+        
+        // 解析并标准化日期
+        const parsedStart = this.normalizeDate(extendedStartDate);
+        const parsedEnd = this.normalizeDate(extendedEndDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // 打印解析结果
+        console.log('日期解析结果:', {
+          originalStart: extendedStartDate,
+          parsedStart,
+          isValidStart: !isNaN(parsedStart.getTime()),
+          originalEnd: extendedEndDate,
+          parsedEnd,
+          isValidEnd: !isNaN(parsedEnd.getTime()),
+          today
+        });
+        
+        // 如果日期有效，进行状态计算
+        if (!isNaN(parsedStart.getTime()) && !isNaN(parsedEnd.getTime())) {
+          if (parsedStart > today) {
+            console.log('状态判断：未开始');
+            return '未开始';
+          } else if (parsedEnd < today) {
+            console.log('状态判断：已结束');
+            return '已结束';
+          } else {
+            console.log('状态判断：进行中');
+            return '进行中';
+          }
+        }
+        
+        // 日期无效，尝试使用后端状态
+        console.warn('日期无效，尝试使用后端状态');
+        return this.getStatusFromBackend();
+      } catch (error) {
+        console.error('计算状态时发生错误:', error);
+        // 出错时使用后端状态
+        return this.getStatusFromBackend();
+      }
+    },
+    
+    /**
+     * 从后端状态获取状态文本
+     */
+    getStatusFromBackend() {
+      if (!this.activity) {
+        console.warn('没有后端活动数据，无法获取状态');
+        return '状态未知';
+      }
+      
+      const originalStatus = this.activity.status;
+      const enabled = this.activity.enabled;
+      
+      console.log('使用后端状态:', { originalStatus, enabled });
+      
+      // 先检查enabled字段，可能代表活动是否启用
+      if (enabled !== undefined) {
+        if (!enabled) {
+          return '已禁用';
+        }
+      }
+      
+      // 根据后端状态值返回状态文本
+      switch(originalStatus) {
+        case 1:
+        case '1':
+          return '未开始';
+        case 2:
+        case '2':
+          return '进行中';
+        case 3:
+        case '3':
+          return '已结束';
+        default:
+          return `状态未知(${originalStatus !== undefined ? originalStatus : '无值'})`;
+      }
+    },
+    
+    /**
+     * 根据状态文本获取样式类名
+     */
+    getStatusClass(statusText) {
       const classMap = {
-        0: 'status-upcoming',
-        1: 'status-ongoing',
-        2: 'status-ended'
+        '未开始': 'status-upcoming',
+        '进行中': 'status-ongoing',
+        '已结束': 'status-ended',
+        '状态未知': 'status-unknown'
       };
-      return classMap[statusNum] || '';
+      return classMap[statusText] || 'status-unknown';
     },
     
     /**
@@ -337,8 +568,7 @@ export default {
     },
     switchTab(index) {
       this.currentTab = index;
-      // 切换标签时重新获取数据
-      this.fetchActivities();
+      // 切换标签时不再重新获取数据，而是让filteredActivities计算属性自动筛选
     },
     /**
      * 创建新活动 - 跳转到活动创建页面
@@ -372,10 +602,20 @@ export default {
       return `${year}-${month}-${day}`;
     },
     viewActivity(activity) {
-      // 跳转到活动效果页面（暂未实现）
-      uni.showToast({
-        title: '查看活动效果: ' + activity.name,
-        icon: 'none'
+      // 跳转到活动详情页面
+      const activityId = activity.merchantActivityId || activity.id;
+      uni.navigateTo({
+        url: `/pages/activities/activity-detail?activityId=${activityId}`,
+        success: () => {
+          console.log('成功跳转到活动详情页面:', activityId);
+        },
+        fail: (err) => {
+          console.error('跳转到活动详情页面失败:', err);
+          uni.showToast({
+            title: '跳转失败: ' + (err.errMsg || '未知错误'),
+            icon: 'none'
+          });
+        }
       });
     },
     editActivity(activity) {
@@ -637,6 +877,11 @@ export default {
   font-weight: 500;
 }
 
+.status-unknown {
+  background: #E0E0E0;
+  color: #666;
+}
+
 .status-ongoing {
   background: #E8F5E9;
   color: #4CAF50;
@@ -683,32 +928,33 @@ export default {
 .activity-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12rpx;
+  gap: 16rpx;
   margin-top: 20rpx;
   width: 100%;
+  flex-wrap: wrap;
 }
 
 .action-btn {
-  padding: 10rpx 24rpx;
-  border-radius: 30rpx;
+  padding: 12rpx 20rpx;
+  border-radius: 8rpx;
   font-size: 24rpx;
   transition: all 0.2s ease;
   flex-shrink: 0;
 }
 
 .action-btn.view {
-  background: #F0F8FF;
-  color: #2196F3;
+  background-color: #F0F9FF;
+  color: #40A9FF;
 }
 
 .action-btn.edit {
-  background: #FFF3E0;
-  color: #FF9800;
+  background-color: #E6F7FF;
+  color: #1890FF;
 }
 
 .action-btn.delete {
-  background: #FEE7E7;
-  color: #F56C6C;
+  background-color: #FFF1F0;
+  color: #FF4D4F;
 }
 
 .action-btn:active {
