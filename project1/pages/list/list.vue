@@ -97,6 +97,14 @@
                 <text>完成时间：{{ item.completeTime }}</text>
               </view>
             </view>
+            
+            <!-- 已取消状态 -->
+            <view v-if="item.status === '已取消'">
+              <view class="action-group tight-group">
+                <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
+                <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
+              </view>
+            </view>
           </view>
         </view>
       </view>
@@ -173,7 +181,8 @@ export default {
     completedOrders() {
       return this.allOrders.filter(order => 
         order.status === '已完成' || 
-        order.status === '已送达'
+        order.status === '已送达' ||
+        order.status === '已取消'
       )
     },
     currentOrders() {
@@ -247,11 +256,6 @@ export default {
           console.log('配送中订单数量:', this.deliveringOrders.length)
           console.log('已完成订单数量:', this.completedOrders.length)
           this.updateOrderCount()
-
-          uni.showToast({
-            title: '获取订单成功',
-            icon: 'success'
-          })
         } else {
           console.log('获取订单成功，但暂无数据')
           this.allOrders = []
@@ -280,21 +284,43 @@ export default {
           4: '已送达',
           5: '已取消',
           6: '已取消' // 保持与状态码5一致，都映射为已取消
-        }
+        };
         
         // 使用后端返回的状态，如果找不到对应映射则默认为'待接单'
-        let orderStatus = statusMap[order.orderStatus] || '待接单'
+        let orderStatus = statusMap[order.orderStatus] || '待接单';
         
-        // 使用后端实际的商品数据，处理orderTakeoutDetailList为null的情况
-        let items = []
+        // 使用后端实际的商品数据，检查多个可能的字段
+        let items = [];
         try {
+          // 详细记录商品数据结构
+          console.log('订单中的商品数据字段情况:');
+          console.log('orderTakeoutDetailList:', order.orderTakeoutDetailList);
+          console.log('orderItems:', order.orderItems);
+          console.log('products:', order.products);
+          
+          // 检查多个可能包含商品数据的字段
+          let productList = null;
+          
+          // 检查常见的商品列表字段
           if (order.orderTakeoutDetailList && Array.isArray(order.orderTakeoutDetailList)) {
-            items = order.orderTakeoutDetailList.map(item => ({
-              name: item.productName || '商品',
-              options: item.productOption || '',
-              quantity: item.productCount || 1,
-              price: item.price || 0
-            }))
+            productList = order.orderTakeoutDetailList;
+          } else if (order.orderItems && Array.isArray(order.orderItems)) {
+            productList = order.orderItems;
+          } else if (order.products && Array.isArray(order.products)) {
+            productList = order.products;
+          } else if (Array.isArray(order)) {
+            // 如果order本身是数组，可能直接包含商品数据
+            productList = order;
+          }
+          
+          // 如果找到商品列表
+          if (productList) {
+            items = productList.map(item => ({
+              name: item.goodsName || item.productName || item.name || '商品',
+              options: item.goodsSpec || item.productOption || item.options || item.spec || '',
+              quantity: item.quantity || item.productCount || 1,
+              price: item.goodsPrice || item.price || 0
+            }));
           } else {
             // 当没有商品详情时，使用订单金额作为商品信息
             items = [{
@@ -302,17 +328,19 @@ export default {
               options: '',
               quantity: 1,
               price: order.payAmount || 0
-            }]
+            }];
           }
+          
+          console.log('商品数据处理结果:', items);
         } catch (error) {
-          console.error('处理商品数据失败:', error)
+          console.error('处理商品数据失败:', error);
           // 错误情况下提供默认商品信息
           items = [{
             name: '商品',
             options: '',
             quantity: 1,
             price: order.payAmount || 0
-          }]
+          }];
         }
         
         return {
