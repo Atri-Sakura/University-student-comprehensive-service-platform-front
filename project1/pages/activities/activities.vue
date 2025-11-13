@@ -104,8 +104,9 @@ export default {
     this.fetchActivities();
   },
   onShow() {
-    // 每次显示页面时重新加载店铺信息
+    // 每次显示页面时重新加载店铺信息和活动数据
     this.loadShopInfo();
+    this.fetchActivities();
   },
   created() {
     // 组件创建时的初始化操作
