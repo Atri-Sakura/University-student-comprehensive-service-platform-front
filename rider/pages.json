@@ -1,0 +1,191 @@
+{
+	"pages": [
+		{
+			"path": "pages/login/login",
+			"style": {
+				"navigationBarTitleText": "登录",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/register/register",
+			"style": {
+				"navigationBarTitleText": "注册",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/order/order",
+			"style": {
+				"navigationBarTitleText": "订单",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/route/route",
+			"style": {
+				"navigationBarTitleText": "路线",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/message/message",
+			"style": {
+				"navigationBarTitleText": "消息",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "个人中心",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/security/security",
+			"style": {
+				"navigationBarTitleText": "账号安全",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/security/password-edit",
+			"style": {
+				"navigationBarTitleText": "修改登录密码",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/security/payment-password",
+			"style": {
+				"navigationBarTitleText": "支付密码",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+	{
+		"path": "pages/profile/profile",
+		"style": {
+			"navigationBarTitleText": "个人信息修改",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+		{
+			"path": "pages/profile/avatar-edit",
+			"style": {
+				"navigationBarTitleText": "修改头像",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/profile/nickname-edit",
+			"style": {
+				"navigationBarTitleText": "修改昵称",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/profile/phone-edit",
+			"style": {
+				"navigationBarTitleText": "修改手机号",
+				"navigationBarBackgroundColor": "#ffffff",
+				"navigationBarTextStyle": "black",
+				"navigationStyle": "custom"
+			}
+		},
+	{
+		"path": "pages/privacy/privacy",
+		"style": {
+			"navigationBarTitleText": "隐私设置",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
+		"path": "pages/wallet/wallet",
+		"style": {
+			"navigationBarTitleText": "我的钱包",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
+		"path": "pages/orders/orders",
+		"style": {
+			"navigationBarTitleText": "历史订单",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
+		"path": "pages/certification/certification",
+		"style": {
+			"navigationBarTitleText": "资质认证",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
+		"path": "pages/faq/faq",
+		"style": {
+			"navigationBarTitleText": "常见问题",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
+		"path": "pages/violation/violation",
+		"style": {
+			"navigationBarTitleText": "违规申诉",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
+		"path": "pages/rating/rating",
+		"style": {
+			"navigationBarTitleText": "服务评价",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "uni-app",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+	"uniIdRouter": {}
+}
