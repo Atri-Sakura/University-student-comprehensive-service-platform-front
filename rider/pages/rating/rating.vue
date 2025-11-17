@@ -108,6 +108,75 @@
 				<view class="order-info">
 					<text class="order-text">订单：{{ review.orderId }}</text>
 				</view>
+				
+				<!-- 回复区域 -->
+				<view class="reply-section">
+					<!-- 已有回复显示 -->
+					<view class="existing-reply" v-if="review.reply">
+						<view class="reply-header">
+							<text class="reply-label">骑手回复：</text>
+							<text class="reply-time">{{ review.replyTime }}</text>
+						</view>
+						<text class="reply-content">{{ review.reply }}</text>
+					</view>
+					
+					<!-- 回复按钮 -->
+					<view class="reply-actions">
+						<view 
+							class="reply-btn" 
+							:class="{ 'replied': review.reply }"
+							@tap="handleReply(index)"
+						>
+							<text class="reply-btn-text">{{ review.reply ? '修改回复' : '回复' }}</text>
+						</view>
+					</view>
+				</view>
+			</view>
+		</view>
+		
+		<!-- 回复弹窗 -->
+		<view class="reply-modal" v-if="showReplyModal" @tap="closeReplyModal">
+			<view class="modal-content" @tap.stop="">
+				<view class="modal-header">
+					<text class="modal-title">回复评价</text>
+					<text class="modal-close" @tap="closeReplyModal">✕</text>
+				</view>
+				
+				<view class="modal-body">
+					<!-- 原评价内容 -->
+					<view class="original-review">
+						<view class="review-info">
+							<text class="customer-name">{{ currentReview.customer }}</text>
+							<view class="review-stars">
+								<text class="star" :class="{ filled: i < currentReview.rating }" v-for="i in 5" :key="i">★</text>
+							</view>
+						</view>
+						<text class="review-text">{{ currentReview.content }}</text>
+					</view>
+					
+					<!-- 回复输入框 -->
+					<view class="reply-input-section">
+						<text class="input-label">您的回复：</text>
+						<textarea 
+							class="reply-textarea"
+							v-model="replyText"
+							placeholder="请输入您的回复内容..."
+							maxlength="200"
+							:show-confirm-bar="false"
+							:auto-focus="true"
+							:cursor-spacing="20"
+							:adjust-position="true"
+						></textarea>
+						<text class="char-count">{{ replyText.length }}/200</text>
+					</view>
+				</view>
+				
+				<view class="modal-footer">
+					<button class="cancel-btn" @tap="closeReplyModal">取消</button>
+					<button class="confirm-btn" @tap="submitReply" :disabled="!replyText.trim()">
+						{{ currentReview.reply ? '修改回复' : '发送回复' }}
+					</button>
+				</view>
 			</view>
 		</view>
 	</view>
@@ -124,6 +193,11 @@
 					{ key: 'medium', name: '中评' },
 					{ key: 'bad', name: '差评' }
 				],
+				// 回复相关数据
+				showReplyModal: false,
+				currentReviewIndex: -1,
+				currentReview: {},
+				replyText: '',
 				reviews: [
 					{
 						customer: '张先生',
@@ -143,7 +217,9 @@
 						content: '准时送达，骑手很有礼貌，下次还会继续使用。',
 						tags: ['准时', '有礼貌'],
 						orderId: 'ORD20240114002',
-						type: 'good'
+						type: 'good',
+						reply: '谢谢您的好评！为您提供优质服务是我们的职责，期待下次为您服务！',
+						replyTime: '2024-01-14 20:30'
 					},
 					{
 						customer: '王先生',
@@ -227,6 +303,73 @@
 			},
 			selectFilter(filterKey) {
 				this.activeFilter = filterKey;
+			},
+			
+			// 处理回复按钮点击
+			handleReply(index) {
+				this.currentReviewIndex = index;
+				this.currentReview = this.filteredReviews[index];
+				this.replyText = this.currentReview.reply || '';
+				this.showReplyModal = true;
+				
+				// 延迟聚焦输入框
+				this.$nextTick(() => {
+					setTimeout(() => {
+						// 尝试聚焦输入框
+						const textarea = uni.createSelectorQuery().select('.reply-textarea');
+						if (textarea) {
+							textarea.focus();
+						}
+					}, 300);
+				});
+			},
+			
+			// 关闭回复弹窗
+			closeReplyModal() {
+				this.showReplyModal = false;
+				this.currentReviewIndex = -1;
+				this.currentReview = {};
+				this.replyText = '';
+			},
+			
+			// 提交回复
+			submitReply() {
+				if (!this.replyText.trim()) {
+					uni.showToast({
+						title: '请输入回复内容',
+						icon: 'none'
+					});
+					return;
+				}
+				
+				// 找到原始评价在reviews数组中的索引
+				const originalIndex = this.reviews.findIndex(review => 
+					review.orderId === this.currentReview.orderId
+				);
+				
+				if (originalIndex !== -1) {
+					// 更新回复内容
+					this.$set(this.reviews[originalIndex], 'reply', this.replyText.trim());
+					this.$set(this.reviews[originalIndex], 'replyTime', this.formatCurrentTime());
+					
+					uni.showToast({
+						title: this.currentReview.reply ? '回复已修改' : '回复成功',
+						icon: 'success'
+					});
+					
+					this.closeReplyModal();
+				}
+			},
+			
+			// 格式化当前时间
+			formatCurrentTime() {
+				const now = new Date();
+				const year = now.getFullYear();
+				const month = String(now.getMonth() + 1).padStart(2, '0');
+				const day = String(now.getDate()).padStart(2, '0');
+				const hours = String(now.getHours()).padStart(2, '0');
+				const minutes = String(now.getMinutes()).padStart(2, '0');
+				return `${year}-${month}-${day} ${hours}:${minutes}`;
 			}
 		}
 	}
@@ -526,6 +669,230 @@
 
 	.order-text {
 		font-size: 24rpx;
-		color: #999;
+		color: #999999;
+	}
+
+	/* 回复区域样式 */
+	.reply-section {
+		margin-top: 20rpx;
+		border-top: 1rpx solid #f0f0f0;
+		padding-top: 20rpx;
+		background-color: #fafafa;
+		border-radius: 8rpx;
+		padding: 20rpx;
+	}
+
+	.existing-reply {
+		background-color: #f8f9fa;
+		border-radius: 12rpx;
+		padding: 20rpx;
+		margin-bottom: 16rpx;
+	}
+
+	.reply-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12rpx;
+	}
+
+	.reply-label {
+		font-size: 26rpx;
+		color: #007aff;
+		font-weight: 500;
+	}
+
+	.reply-time {
+		font-size: 22rpx;
+		color: #999999;
+	}
+
+	.reply-content {
+		font-size: 28rpx;
+		color: #333333;
+		line-height: 1.5;
+	}
+
+	.reply-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 16rpx;
+	}
+
+	.reply-btn {
+		background-color: #007aff;
+		border-radius: 20rpx;
+		padding: 16rpx 32rpx;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		transition: all 0.3s;
+		cursor: pointer;
+		box-shadow: 0 2rpx 8rpx rgba(0, 122, 255, 0.3);
+		min-width: 120rpx;
+		min-height: 60rpx;
+	}
+
+	.reply-btn.replied {
+		background-color: #28a745;
+	}
+
+	.reply-btn:active {
+		opacity: 0.8;
+		transform: scale(0.98);
+	}
+
+	.reply-btn-text {
+		font-size: 28rpx;
+		color: #ffffff;
+		font-weight: 600;
+		text-align: center;
+	}
+
+	/* 回复弹窗样式 */
+	.reply-modal {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background-color: rgba(0, 0, 0, 0.5);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 9999;
+		padding: 40rpx;
+	}
+
+	.modal-content {
+		background-color: #ffffff;
+		border-radius: 20rpx;
+		width: 100%;
+		max-width: 600rpx;
+		max-height: 80vh;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.modal-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 30rpx;
+		border-bottom: 1rpx solid #f0f0f0;
+	}
+
+	.modal-title {
+		font-size: 32rpx;
+		font-weight: 600;
+		color: #333333;
+	}
+
+	.modal-close {
+		font-size: 40rpx;
+		color: #999999;
+		padding: 10rpx;
+	}
+
+	.modal-body {
+		flex: 1;
+		padding: 30rpx;
+		overflow-y: auto;
+	}
+
+	.original-review {
+		background-color: #f8f9fa;
+		border-radius: 12rpx;
+		padding: 20rpx;
+		margin-bottom: 30rpx;
+	}
+
+	.review-info {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 12rpx;
+	}
+
+	.reply-input-section {
+		position: relative;
+	}
+
+	.input-label {
+		font-size: 28rpx;
+		color: #333333;
+		font-weight: 500;
+		display: block;
+		margin-bottom: 16rpx;
+	}
+
+	.reply-textarea {
+		width: 100%;
+		min-height: 200rpx;
+		border: 2rpx solid #e0e0e0;
+		border-radius: 12rpx;
+		padding: 20rpx;
+		font-size: 28rpx;
+		color: #333333;
+		line-height: 1.5;
+		box-sizing: border-box;
+		resize: none;
+		background-color: #ffffff;
+		z-index: 1001;
+		position: relative;
+	}
+
+	.reply-textarea:focus {
+		border-color: #007aff;
+		outline: none;
+		background-color: #ffffff;
+	}
+
+	.char-count {
+		position: absolute;
+		bottom: 16rpx;
+		right: 16rpx;
+		font-size: 22rpx;
+		color: #999999;
+	}
+
+	.modal-footer {
+		display: flex;
+		justify-content: space-between;
+		padding: 30rpx;
+		border-top: 1rpx solid #f0f0f0;
+		gap: 20rpx;
+	}
+
+	.cancel-btn,
+	.confirm-btn {
+		flex: 1;
+		height: 80rpx;
+		border-radius: 12rpx;
+		font-size: 28rpx;
+		border: none;
+		transition: all 0.3s;
+	}
+
+	.cancel-btn {
+		background-color: #f5f5f5;
+		color: #666666;
+	}
+
+	.confirm-btn {
+		background-color: #007aff;
+		color: #ffffff;
+	}
+
+	.confirm-btn:disabled {
+		background-color: #cccccc;
+		color: #999999;
+	}
+
+	.cancel-btn:active,
+	.confirm-btn:active:not(:disabled) {
+		opacity: 0.8;
+		transform: scale(0.98);
 	}
 </style>
