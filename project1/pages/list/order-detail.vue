@@ -49,6 +49,21 @@
         </view>
       </view>
       
+      <!-- 顾客信息 -->
+      <view class="customer-info">
+        <view class="section-header">
+          <text class="section-title">顾客信息</text>
+        </view>
+        <view class="customer-content">
+          <view class="customer-main">
+            <view class="customer-name">{{ orderData.customerInfo.name }}</view>
+            <view class="customer-phone">{{ orderData.customerInfo.phone }}</view>
+          </view>
+          <view class="customer-delivery">{{ orderData.customerInfo.deliveryType }}</view>
+        </view>
+        <view class="customer-address">{{ orderData.customerInfo.address }}</view>
+      </view>
+      
       <!-- 商品明细 -->
       <view class="product-details">
         <view class="section-header">
@@ -137,40 +152,23 @@ export default {
       // 调用加载方法
       this.loadOrderDetail(numOrderId);
     } else {
-      this.error = '未找到订单ID';
-      this.loading = false;
-      // 显示错误提示
-      uni.showToast({
-        title: this.error,
-        icon: 'none'
-      });
-    }
-  },
-  methods: {
-    goBack() {
-      const pages = getCurrentPages();
-      if (pages.length <= 1) {
-        // 没有页面栈，检查是否有token
-        const token = uni.getStorageSync('token');
-        if (token) {
-          // 有token，跳转到首页
-          uni.switchTab({
-            url: '/pages/index/index'
-          });
-        } else {
-          // 没有token，跳转到登录页
-          uni.redirectTo({
-            url: '/pages/login/login',
-            fail: () => {
-              uni.reLaunch({
-                url: '/pages/login/login'
-              });
-            }
-          });
-        }
-      } else {
-        uni.navigateBack();
+        this.error = '未找到订单ID';
+        this.loading = false;
+        // 显示错误提示
+        uni.showToast({
+          title: this.error,
+          icon: 'none'
+        });
       }
+    },
+  methods: {
+    // 格式化手机号（中间四位显示星号）
+    formatPhone(phone) {
+      if (!phone || phone.length !== 11) return phone;
+      return phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+    },
+    goBack() {
+      uni.navigateBack();
     },
     // 重新加载订单详情
     retryLoad() {
@@ -204,6 +202,11 @@ export default {
             const orderDetail = res.data.data;
             if (orderDetail) {
               console.log('获取到订单详情:', orderDetail);
+              // 详细记录商品数据结构
+              console.log('订单中的商品数据字段情况:');
+              console.log('orderTakeoutDetailList:', orderDetail.orderTakeoutDetailList);
+              console.log('orderItems:', orderDetail.orderItems);
+              console.log('products:', orderDetail.products);
               
               // 严格按照后端OrderMain对象结构进行数据映射
               this.orderData = {
@@ -216,8 +219,20 @@ export default {
                 deliveryFee: orderDetail.deliveryFee || 0,
                 discount: orderDetail.discountAmount || 0,
                 actualPayment: orderDetail.actualAmount || ((orderDetail.totalAmount || 0) + (orderDetail.deliveryFee || 0) - (orderDetail.discountAmount || 0)),
-                // 严格匹配后端订单项字段
-                products: this.transformProducts(orderDetail.orderItems || []),
+                // 顾客信息（从后端数据中获取）
+                customerInfo: {
+                  name: orderDetail.deliverContact || orderDetail.userNickname || '顾客',
+                  phone: orderDetail.deliverPhone || '', // 加密手机号不进行格式化
+                  address: orderDetail.deliverAddress || '',
+                  deliveryType: orderDetail.orderType === 1 ? '外卖配送' : '自取'
+                },
+                // 检查多个可能包含商品数据的字段
+                products: this.transformProducts(
+                  orderDetail.orderTakeoutDetailList || 
+                  orderDetail.orderItems || 
+                  orderDetail.products || 
+                  []
+                ),
                 // 获取套餐详情和备注信息
                 mealDetails: orderDetail.mealDetails || orderDetail.packageDetails || '',
                 notes: orderDetail.notes || orderDetail.remarks || ''
@@ -260,20 +275,39 @@ export default {
     },
     // 转换商品数据格式
     transformProducts(items) {
-      return items.map(item => ({
-        name: item.name || '商品',
-        spec: item.options || item.spec || '',
-        quantity: item.quantity || 1,
-        price: item.price || 0
+      // 确保items是数组
+      if (!Array.isArray(items)) {
+        console.error('transformProducts: items参数不是数组', items);
+        return [];
+      }
+      
+      const result = items.map(item => ({
+        name: item.goodsName || item.productName || item.name || '商品',
+        spec: item.goodsSpec || item.productOption || item.options || item.spec || '',
+        quantity: item.quantity || item.productCount || 1,
+        price: item.goodsPrice || item.price || 0
       }));
+      
+      console.log('订单详情商品数据处理结果:', result);
+      return result;
     },
     // 转换订单状态文本
     getStatusText(status) {
+      // 支持数字状态码和文本状态
       const statusMap = {
+        // 数字状态码映射
+        1: '待处理',
+        2: '待处理',
+        3: '配送中',
+        4: '交易成功',
+        5: '已取消',
+        6: '已取消',
+        // 文本状态映射
         '待接单': '待处理',
         '待取货': '待处理',
         '配送中': '配送中',
         '已完成': '交易成功',
+        '已送达': '交易成功',
         '已取消': '已取消'
       };
       return statusMap[status] || status || '未知状态';
@@ -407,6 +441,52 @@ export default {
   font-size: 28rpx;
   color: #333;
   font-weight: 500;
+}
+
+/* 顾客信息 */
+.customer-info {
+  background-color: #fff;
+  margin-bottom: 20rpx;
+  padding: 30rpx;
+}
+
+.customer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.customer-main {
+  display: flex;
+  align-items: center;
+}
+
+.customer-name {
+  font-size: 30rpx;
+  color: #333;
+  font-weight: bold;
+  margin-right: 20rpx;
+}
+
+.customer-phone {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.customer-delivery {
+  font-size: 26rpx;
+  color: #4A90E2;
+  padding: 4rpx 16rpx;
+  border-radius: 12rpx;
+  background-color: #f0f7ff;
+}
+
+.customer-address {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 40rpx;
+  word-break: break-all;
 }
 
 /* 商品明细 */
