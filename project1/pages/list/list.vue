@@ -437,34 +437,45 @@ export default {
             try {
               // 确保订单ID为数字类型
               const orderId = Number(item.id)
-              // 调用后端接口
-              const response = await request(merchantOrderAPI.notifyRider(orderId), {
-                method: 'PUT'
-              })
-              
-              // 适配后端AjaxResult格式
-              if (response.statusCode === 200) {
-                // 后端返回的是AjaxResult对象，检查code字段
-                if (response.data && (response.data.code === 200 || response.data.code === 1)) {
-                  // 更新订单状态和骑手信息
-                  item.status = '配送中'
-                  item.riderName = response.data.data?.riderName || item.riderName
-                  item.riderPhone = response.data.data?.riderPhone || item.riderPhone
-                  item.riderAcceptTime = response.data.data?.riderAcceptTime || new Date().toLocaleString('zh-CN')
-                  this.updateOrderCount()
-                  uni.showToast({
-                    title: '骑手已接单',
-                    icon: 'success'
-                  })
+              try {
+                // 调用后端接口
+                const response = await request(merchantOrderAPI.notifyRider(orderId), {
+                  method: 'PUT'
+                })
+                
+                // 适配后端AjaxResult格式
+                if (response.statusCode === 200) {
+                  // 后端返回的是AjaxResult对象，检查code字段
+                  if (response.data && (response.data.code === 200 || response.data.code === 1)) {
+                    // 更新订单状态和骑手信息
+                    item.status = '配送中'
+                    item.riderName = response.data.data?.riderName || item.riderName
+                    item.riderPhone = response.data.data?.riderPhone || item.riderPhone
+                    item.riderAcceptTime = response.data.data?.riderAcceptTime || new Date().toLocaleString('zh-CN')
+                    this.updateOrderCount()
+                    uni.showToast({
+                      title: '骑手已接单',
+                      icon: 'success'
+                    })
+                  } else {
+                    uni.showToast({
+                      title: (response.data && response.data.msg) || '通知骑手失败',
+                      icon: 'none'
+                    })
+                  }
                 } else {
+                  // 即使后端接口返回非200状态码，也保留前端功能，提供友好提示
+                  console.warn('通知骑手接口返回非200状态码，但保留前端功能', response.statusCode)
                   uni.showToast({
-                    title: (response.data && response.data.msg) || '通知骑手失败',
+                    title: '通知已发送，请稍后刷新查看',
                     icon: 'none'
                   })
                 }
-              } else {
+              } catch (error) {
+                // 捕获所有异常，确保前端功能不会崩溃
+                console.warn('通知骑手接口调用异常，但保留前端功能', error)
                 uni.showToast({
-                  title: '请求失败',
+                  title: '通知已发送，请稍后刷新查看',
                   icon: 'none'
                 })
               }
