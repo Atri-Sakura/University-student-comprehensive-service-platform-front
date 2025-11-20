@@ -93,7 +93,7 @@ export const merchantOrderAPI = {
   accept: (orderId) => `${baseUrl}/merchant/order/accept/${orderId}`,
   // 商家拒单 - 对应后端MerchantOrderController的reject方法
   reject: (orderId) => `${baseUrl}/merchant/order/reject/${orderId}`,
-  // 通知骑手 - 后端暂未提供接口
+  // 通知骑手 - 保留前端实现，即使后端暂未提供对应接口
   notifyRider: (orderId) => `${baseUrl}/merchant/order/notifyRider/${orderId}`,
   // 订单详情 - 对应后端@GetMapping("/{orderMainId}")接口
   detail: (orderId) => `${baseUrl}/merchant/order/${orderId}`
