@@ -62,8 +62,15 @@ export const request = (url, options = {}) => {
     if (method === 'GET' && requestData && Object.keys(requestData).length > 0) {
       const params = [];
       for (const key in requestData) {
-        if (requestData[key] !== null && requestData[key] !== undefined) {
-          params.push(`${encodeURIComponent(key)}=${encodeURIComponent(requestData[key])}`);
+        const value = requestData[key];
+        if (value !== null && value !== undefined) {
+          if (Array.isArray(value)) {
+            value.forEach(item => {
+              params.push(`${encodeURIComponent(key)}=${encodeURIComponent(item)}`);
+            });
+          } else {
+            params.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+          }
         }
       }
       if (params.length > 0) {
