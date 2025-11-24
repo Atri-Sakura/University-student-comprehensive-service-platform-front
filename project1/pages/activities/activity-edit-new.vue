@@ -96,7 +96,7 @@ export default {
     if (options && options.activityId) {
       this.activityId = options.activityId;
       // 初始化商家基础ID（实际应该从登录信息或全局状态中获取）
-      this.merchantBaseId = getApp().globalData.merchantId || '3'; // 设置默认值以防止空值
+      this.merchantBaseId = String(getApp().globalData.merchantId || '3'); // 设置默认值以防止空值
       // 加载活动详情数据
       this.loadActivityData();
     } else {

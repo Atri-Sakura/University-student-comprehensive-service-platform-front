@@ -231,7 +231,7 @@ export default {
     formatMessage(msg) {
       // 获取商户信息，判断是否是自己发送的
       const merchantInfo = uni.getStorageSync('merchantInfo') || {};
-      const merchantId = merchantInfo.merchantBaseId || merchantInfo.id;
+      const merchantId = String(merchantInfo.merchantBaseId || merchantInfo.id || '');
       const isSelf = msg.fromType === 3 && msg.fromId === merchantId;
       
       // 消息类型转换：1-文本 2-图片 3-语音 4-系统通知

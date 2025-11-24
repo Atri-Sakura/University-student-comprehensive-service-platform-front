@@ -9,7 +9,7 @@ const baseUrl = 'http://localhost:8080';
  * 获取会话列表
  * @param {Object} params - 查询参数
  * @param {Number} params.fromType - 发送方类型：1-用户 2-骑手 3-商家（必填）
- * @param {Number} params.fromId - 发送方ID（必填）
+ * @param {String} params.fromId - 发送方ID（必填）
  * @param {Number} params.pageNum - 页码（可选，默认1）
  * @param {Number} params.pageSize - 每页数量（可选，默认20）
  * @returns {Promise}
@@ -19,12 +19,12 @@ export const getChatList = (params = {}) => {
   const merchantInfo = uni.getStorageSync('merchantInfo') || {};
   const fromType = 3; // 3-商家
   
-  // 尝试多个可能的字段名
-  const fromId = merchantInfo.merchantBaseId 
+  // 尝试多个可能的字段名，确保转换为字符串
+  const fromId = String(merchantInfo.merchantBaseId 
     || merchantInfo.merchantId 
     || merchantInfo.id 
     || merchantInfo.merchant_base_id
-    || merchantInfo.merchant_id;
+    || merchantInfo.merchant_id || '');
   
   // 调试日志
   console.log('===== getChatList 调试 =====');
@@ -64,9 +64,9 @@ export const getChatDetail = (sessionId) => {
  * 创建新会话
  * @param {Object} data - 会话信息
  * @param {Number} data.fromType - 发送方类型（必填）
- * @param {Number} data.fromId - 发送方ID（必填）
+ * @param {String} data.fromId - 发送方ID（必填）
  * @param {Number} data.toType - 接收方类型（必填）
- * @param {Number} data.toId - 接收方ID（必填）
+ * @param {String} data.toId - 接收方ID（必填）
  * @returns {Promise}
  */
 export const createChat = (data) => {
@@ -102,7 +102,7 @@ export const markChatRead = (sessionId) => {
 /**
  * 获取未读消息总数
  * @param {Number} fromType - 发送方类型：1-用户 2-骑手 3-商家
- * @param {Number} fromId - 发送方ID
+ * @param {String} fromId - 发送方ID
  * @returns {Promise}
  */
 export const getUnreadCount = (fromType, fromId) => {
@@ -110,11 +110,11 @@ export const getUnreadCount = (fromType, fromId) => {
   if (!fromType || !fromId) {
     const merchantInfo = uni.getStorageSync('merchantInfo') || {};
     fromType = 3; // 3-商家
-    fromId = merchantInfo.merchantBaseId 
+    fromId = String(merchantInfo.merchantBaseId 
       || merchantInfo.merchantId 
       || merchantInfo.id 
       || merchantInfo.merchant_base_id
-      || merchantInfo.merchant_id;
+      || merchantInfo.merchant_id || '');
     
     console.log('getUnreadCount - fromId:', fromId);
   }
@@ -125,12 +125,54 @@ export const getUnreadCount = (fromType, fromId) => {
   });
 };
 
+/**
+ * 修改聊天会话
+ * @param {Object} data - 会话信息
+ * @param {Number} data.sessionId - 会话ID（必填）
+ * @param {Number} data.unreadCount - 未读数（可选）
+ * @param {Number} data.sessionStatus - 会话状态（可选）
+ * @returns {Promise}
+ */
+export const updateChatSession = (data) => {
+  return request(`${baseUrl}/platform/chat/session`, {
+    method: 'PUT',
+    data: data
+  });
+};
+
+/**
+ * 查询聊天会话列表 (条件查询)
+ * @param {Object} params - 查询参数
+ * @returns {Promise}
+ */
+export const getChatSessionList = (params) => {
+  return request(`${baseUrl}/platform/chat/session/list`, {
+    method: 'GET',
+    data: params
+  });
+};
+
+/**
+ * 增加未读计数
+ * @param {Number} sessionId - 会话ID
+ * @returns {Promise}
+ */
+export const increaseUnreadCount = (sessionId) => {
+  return request(`${baseUrl}/platform/chat/session/increaseUnreadCount`, {
+    method: 'POST',
+    data: { sessionId }
+  });
+};
+
 // ==================== 消息管理 ====================
 
 /**
  * 获取聊天历史消息
  * @param {Object} params - 查询参数
  * @param {Number} params.sessionId - 会话ID（必填）
+ * @param {Number} params.fromType - 发送方类型（可选）
+ * @param {Number} params.msgType - 消息类型（可选）
+ * @param {Number} params.msgStatus - 消息状态（可选）
  * @param {Number} params.pageNum - 页码（可选，默认1）
  * @param {Number} params.pageSize - 每页数量（可选，默认50）
  * @returns {Promise}
@@ -139,7 +181,10 @@ export const getMessageList = (params) => {
   return request(`${baseUrl}/platform/chat/message/list`, {
     method: 'GET',
     data: {
-      sessionId: params.sessionId || params.chatId, // 兼容旧参数名
+      sessionId: params.sessionId || params.chatId,
+      fromType: params.fromType,
+      msgType: params.msgType,
+      msgStatus: params.msgStatus,
       pageNum: params.pageNum,
       pageSize: params.pageSize
     }
@@ -151,9 +196,9 @@ export const getMessageList = (params) => {
  * @param {Object} data - 消息数据
  * @param {Number} data.sessionId - 会话ID（必填）
  * @param {Number} data.fromType - 发送方类型（必填）
- * @param {Number} data.fromId - 发送方ID（必填）
+ * @param {String} data.fromId - 发送方ID（必填）
  * @param {Number} data.toType - 接收方类型（必填）
- * @param {Number} data.toId - 接收方ID（必填）
+ * @param {String} data.toId - 接收方ID（必填）
  * @param {String} data.msgContent - 消息内容（必填）
  * @param {Number} data.msgType - 消息类型：1-文本 2-图片 3-语音 4-系统通知（默认1）
  * @returns {Promise}
@@ -162,11 +207,11 @@ export const sendMessage = (data) => {
   // 从localStorage获取商户信息
   const merchantInfo = uni.getStorageSync('merchantInfo') || {};
   const fromType = 3; // 3-商家
-  const fromId = merchantInfo.merchantBaseId 
+  const fromId = String(merchantInfo.merchantBaseId 
     || merchantInfo.merchantId 
     || merchantInfo.id 
     || merchantInfo.merchant_base_id
-    || merchantInfo.merchant_id;
+    || merchantInfo.merchant_id || '');
   
   // 转换消息类型：字符串转数字
   let msgType = 1; // 默认文本
@@ -201,6 +246,50 @@ export const sendMessage = (data) => {
 export const deleteMessage = (messageId) => {
   return request(`${baseUrl}/platform/chat/message/${messageId}`, {
     method: 'DELETE'
+  });
+};
+
+/**
+ * 修改聊天消息
+ * @param {Object} data - 消息数据
+ * @param {Number} data.messageId - 消息ID（必填）
+ * @param {Number} data.msgStatus - 消息状态
+ * @param {String} data.readTime - 已读时间
+ * @param {Number} data.version - 版本号
+ * @returns {Promise}
+ */
+export const updateMessage = (data) => {
+  return request(`${baseUrl}/platform/chat/message`, {
+    method: 'PUT',
+    data: data
+  });
+};
+
+/**
+ * 多会话消息查询
+ * @param {Array|String} sessionIds - 会话ID列表
+ * @returns {Promise}
+ */
+export const getMultiSessionMessages = (sessionIds) => {
+  return request(`${baseUrl}/platform/chat/message/multiSessionMessages`, {
+    method: 'GET',
+    data: { sessionIds }
+  });
+};
+
+/**
+ * 按收发方查询消息
+ * @param {Object} params - 查询参数
+ * @param {Number} params.fromType - 发送方类型
+ * @param {Number} params.fromId - 发送方ID
+ * @param {Number} params.toType - 接收方类型
+ * @param {Number} params.toId - 接收方ID
+ * @returns {Promise}
+ */
+export const getMultiSessionMessagesFromTo = (params) => {
+  return request(`${baseUrl}/platform/chat/message/multiSessionMessagesFromTo`, {
+    method: 'GET',
+    data: params
   });
 };
 
@@ -275,11 +364,11 @@ export const uploadChatFile = (filePath, sessionId) => {
 /**
  * 发送位置信息（作为文本消息发送）
  * @param {Object} data - 位置数据
- * @param {Number} data.sessionId - 会话ID
+ * @param {String} data.sessionId - 会话ID
  * @param {Number} data.fromType - 发送方类型
- * @param {Number} data.fromId - 发送方ID
+ * @param {String} data.fromId - 发送方ID
  * @param {Number} data.toType - 接收方类型
- * @param {Number} data.toId - 接收方ID
+ * @param {String} data.toId - 接收方ID
  * @param {String} data.latitude - 纬度
  * @param {String} data.longitude - 经度
  * @param {String} data.address - 地址描述
@@ -340,7 +429,7 @@ export class ChatWebSocket {
 
     // 获取商户信息
     const merchantInfo = uni.getStorageSync('merchantInfo') || {};
-    const merchantId = merchantInfo.merchantBaseId || merchantInfo.id;
+    const merchantId = String(merchantInfo.merchantBaseId || merchantInfo.id || '');
     
     if (!merchantId) {
       console.error('未找到商户ID，无法连接WebSocket');
@@ -575,11 +664,17 @@ export default {
   deleteChat,
   markChatRead,
   getUnreadCount,
+  updateChatSession,
+  getChatSessionList,
+  increaseUnreadCount,
   
   // 消息管理
   getMessageList,
   sendMessage,
   deleteMessage,
+  updateMessage,
+  getMultiSessionMessages,
+  getMultiSessionMessagesFromTo,
   
   // 文件上传
   uploadChatImage,

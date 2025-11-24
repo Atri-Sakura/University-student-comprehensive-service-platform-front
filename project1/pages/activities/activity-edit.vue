@@ -90,7 +90,7 @@ export default {
   },
   onLoad() {
     // 初始化商家基础ID（实际应该从登录信息或全局状态中获取）
-    this.merchantBaseId = getApp().globalData.merchantId || '3';
+    this.merchantBaseId = String(getApp().globalData.merchantId || '3');
     
     // 设置默认日期（今天到7天后）
     const today = new Date();

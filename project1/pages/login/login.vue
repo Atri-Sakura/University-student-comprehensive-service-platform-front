@@ -224,16 +224,36 @@ export default {
 							
 							if (userInfoResult.code === 200 && userInfoResult.user) {
 								// 保存完整的商户信息
+								const responseText = JSON.stringify(userInfoResult);
+								console.log('🔍 登录响应原始字符串:', responseText);
+								
+								// 使用正则表达式从原始字符串中提取真实的ID值
+								const extractIdFromResponse = (fieldName) => {
+									const regex = new RegExp(`"${fieldName}":\\s*(\\d+)`);
+									const match = responseText.match(regex);
+									return match ? match[1] : null;
+								};
+								
+								const realMerchantBaseId = extractIdFromResponse('merchantBaseId') 
+									|| extractIdFromResponse('merchant_base_id')
+									|| extractIdFromResponse('merchantId')
+									|| extractIdFromResponse('merchant_id')
+									|| extractIdFromResponse('id')
+									|| extractIdFromResponse('userId')
+									|| extractIdFromResponse('user_id');
+								
+								console.log('🔍 提取的真实ID:', {
+									merchantBaseId_from_regex: extractIdFromResponse('merchantBaseId'),
+									merchant_base_id_from_regex: extractIdFromResponse('merchant_base_id'),
+									id_from_regex: extractIdFromResponse('id'),
+									merchantId_from_regex: extractIdFromResponse('merchantId'),
+									finalRealId: realMerchantBaseId
+								});
+								
 								const merchantInfo = {
-									// 优先级顺序：尝试多个可能的ID字段名
-									merchantBaseId: userInfoResult.user.merchantBaseId 
-										|| userInfoResult.user.merchantId 
-										|| userInfoResult.user.userId
-										|| userInfoResult.user.id 
-										|| userInfoResult.user.merchant_base_id
-										|| userInfoResult.user.merchant_id,
-									id: userInfoResult.user.id || userInfoResult.user.merchantId || userInfoResult.user.merchantBaseId,
-									merchantId: userInfoResult.user.merchantId || userInfoResult.user.id,
+									merchantBaseId: realMerchantBaseId || '',
+									id: realMerchantBaseId || '',
+									merchantId: realMerchantBaseId || '',
 									
 									// 其他商户信息
 									merchantName: userInfoResult.user.merchantName || userInfoResult.user.userName || userInfoResult.user.nickName,
@@ -248,7 +268,20 @@ export default {
 								uni.setStorageSync('merchantInfo', merchantInfo);
 								
 								console.log('✅ 商户信息已保存:', merchantInfo);
-								console.log('商户ID:', merchantInfo.merchantBaseId || merchantInfo.id);
+								console.log('🔍 登录时原始后端数据详细分析:', {
+									rawUserData: userInfoResult.user,
+									merchantBaseId_raw: userInfoResult.user.merchantBaseId,
+									merchantBaseId_type: typeof userInfoResult.user.merchantBaseId,
+									merchantBaseId_string: String(userInfoResult.user.merchantBaseId),
+									merchantBaseId_json: JSON.stringify(userInfoResult.user.merchantBaseId),
+									id_raw: userInfoResult.user.id,
+									id_type: typeof userInfoResult.user.id,
+									id_string: String(userInfoResult.user.id),
+									merchantId_raw: userInfoResult.user.merchantId,
+									merchantId_type: typeof userInfoResult.user.merchantId,
+									finalMerchantBaseId: merchantInfo.merchantBaseId,
+									finalMerchantBaseId_type: typeof merchantInfo.merchantBaseId
+								});
 							} else {
 								console.warn('⚠️ 获取商户信息失败，使用手机号作为临时ID');
 								// 如果获取失败，使用手机号作为临时标识

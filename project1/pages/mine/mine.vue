@@ -74,6 +74,15 @@
           <text class="edit-link" @click="editDescription">编辑</text>
         </view>
       </view>
+      
+      <!-- 经营范围 -->
+      <view class="info-section">
+        <text class="section-label">经营范围</text>
+        <view class="info-row">
+          <text class="info-text business-scope">{{ shopInfo.businessScope || '暂未设置经营范围' }}</text>
+          <text class="edit-link" @click="editBusinessScope">编辑</text>
+        </view>
+      </view>
     </view>
 
     <!-- 资质认证 -->
@@ -236,6 +245,7 @@ export default {
         status: 'open', // open, rest, closed
         phone: '138-0013-8000',
         description: '本店提供美味健康的快餐食品，用心做好每一份餐品。',
+        businessScope: '餐饮, 简餐, 饮料', // 经营范围
         logo: '' // 店铺Logo URL
       },
       businessHours: {
@@ -251,7 +261,7 @@ export default {
       editModalTitle: '',
       editModalPlaceholder: '',
       editModalValue: '',
-      editModalType: '', // 'description' 或 'phone'
+      editModalType: '', // 'description'、'phone' 或 'businessScope'
       certImages: {
         business: '', // 营业执照图片
         food: '' // 食品经营许可证图片
@@ -289,7 +299,16 @@ export default {
         // 处理基础信息
         if (baseInfoRes.data && baseInfoRes.data.code === 200) {
           const data = baseInfoRes.data.data;
-          this.merchantBaseId = data.merchantBaseId;
+          
+          // 如果后端没有返回 merchantBaseId，从登录缓存中获取
+          if (!data.merchantBaseId) {
+            const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+            this.merchantBaseId = String(merchantInfo.merchantBaseId || merchantInfo.id || '');
+            console.log('⚠️ 后端未返回 merchantBaseId，从缓存获取:', this.merchantBaseId);
+          } else {
+            this.merchantBaseId = String(data.merchantBaseId || '');
+          }
+          
           
           // 映射数据到前端格式
           this.shopInfo.name = data.merchantName || '美味餐厅';
@@ -299,6 +318,7 @@ export default {
           this.shopInfo.phone = data.merchantPhone || data.phone || savedPhone || '';
           
           this.shopInfo.description = data.description || '';
+          this.shopInfo.businessScope = data.businessScope || '';
           this.shopInfo.logo = data.logo || '';
           
           // 营业状态映射：1-营业中, 0-休息中, 2-打烊
@@ -385,6 +405,7 @@ export default {
         status: this.shopInfo.status,
         phone: this.shopInfo.phone,
         description: this.shopInfo.description,
+        businessScope: this.shopInfo.businessScope, // 经营范围
         logo: this.shopInfo.logo // 🔧 保存Logo
       });
       uni.setStorageSync('businessHours', this.businessHours);
@@ -408,17 +429,19 @@ export default {
         const statusMap = { 'open': 1, 'rest': 0, 'closed': 2 };
         
         const data = {
-          merchantBaseId: this.merchantBaseId,
+          merchantBaseId: String(this.merchantBaseId || ''),
           merchantName: this.shopInfo.name,
           merchantPhone: this.shopInfo.phone,
           businessStatus: statusMap[this.shopInfo.status],
           businessHours: this.shopInfo.hours,
           description: this.shopInfo.description,
+          businessScope: this.shopInfo.businessScope,
           logo: this.shopInfo.logo,
           deliveryRange: this.deliverySettings.range,
           deliveryMinPrice: this.deliverySettings.minPrice,
           deliveryFee: this.deliverySettings.fee
         };
+        
         
         const res = await updateMerchantBase(data);
         
@@ -547,6 +570,13 @@ export default {
       this.editModalType = 'description';
       this.showEditModal = true;
     },
+    editBusinessScope() {
+      this.editModalTitle = '编辑经营范围';
+      this.editModalPlaceholder = '请输入经营范围，如：餐饮, 简餐, 饮料';
+      this.editModalValue = this.shopInfo.businessScope;
+      this.editModalType = 'businessScope';
+      this.showEditModal = true;
+    },
     onEditInput(e) {
       this.editModalValue = e.detail.value;
     },
@@ -568,6 +598,8 @@ export default {
         this.shopInfo.description = this.editModalValue;
       } else if (this.editModalType === 'phone') {
         this.shopInfo.phone = this.editModalValue;
+      } else if (this.editModalType === 'businessScope') {
+        this.shopInfo.businessScope = this.editModalValue;
       }
       
       // 显示加载提示
@@ -900,14 +932,30 @@ export default {
               try {
                 const data = JSON.parse(uploadRes.data);
                 
+                console.log('🔍 上传响应数据:', data);
+                
                 if (data.code === 200) {
-                  // 上传成功，获取图片URL
-                  const logoUrl = data.data.url || data.data.imageUrl || data.url;
+                  // 上传成功，获取图片URL - 添加安全检查
+                  let logoUrl = '';
+                  
+                  if (data.data && typeof data.data === 'object') {
+                    logoUrl = data.data.url || data.data.imageUrl || data.data.fileName;
+                  } else if (data.url) {
+                    logoUrl = data.url;
+                  } else if (data.fileName) {
+                    logoUrl = data.fileName;
+                  } else if (typeof data.data === 'string') {
+                    logoUrl = data.data;
+                  }
                   
                   console.log('🖼️ Logo上传成功，URL:', logoUrl);
                   
-                  // 更新Logo URL
-                  this.shopInfo.logo = logoUrl;
+                  if (logoUrl) {
+                    // 更新Logo URL
+                    this.shopInfo.logo = logoUrl;
+                  } else {
+                    throw new Error('无法获取上传文件的URL');
+                  }
                   
                   // 保存到后端
                   this.saveShopInfo().then(success => {
@@ -1232,6 +1280,11 @@ export default {
 }
 
 .description {
+  line-height: 1.6;
+  color: #666;
+}
+
+.business-scope {
   line-height: 1.6;
   color: #666;
 }

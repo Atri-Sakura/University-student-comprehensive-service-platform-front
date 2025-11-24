@@ -37,7 +37,7 @@ export const addMerchantActivity = (merchantActivity) => {
   // 添加商家基础ID
   const requestData = {
     ...merchantActivity,
-    merchantBaseId: 3
+    merchantBaseId: '3'
   };
   
   return request(`${baseUrl}/merchant/Activity`, {
@@ -131,9 +131,11 @@ export const updateActivity = function(data) {
   
   const activityId = data.id;
   
-  // 确保merchantBaseId存在
+  // 确保merchantBaseId存在且为字符串
   if (!data.merchantBaseId) {
-    data.merchantBaseId = 3;
+    data.merchantBaseId = '3';
+  } else {
+    data.merchantBaseId = String(data.merchantBaseId);
   }
   
   // 构建URL

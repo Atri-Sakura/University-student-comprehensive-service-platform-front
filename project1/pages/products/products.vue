@@ -12,6 +12,15 @@
           placeholder-style="color: #999;"
         />
       </view>
+      <view class="test-btn" @click="testCurrentUser" style="margin-right: 5px; background: #4CAF50; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px;">
+        <text class="test-text">测试用户</text>
+      </view>
+      <view class="relogin-btn" @click="forceRelogin" style="margin-right: 5px; background: #FF9800; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px;">
+        <text class="relogin-text">重新登录</text>
+      </view>
+      <view class="fix-btn" @click="refreshMerchantInfo" style="margin-right: 10px; background: #ff6b6b; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px;">
+        <text class="fix-text">修复ID</text>
+      </view>
       <view class="add-btn" @click="addProduct">
         <text class="add-text">+ 添加</text>
       </view>
@@ -341,6 +350,51 @@ export default {
   
   // 页面生命周期
   async onLoad() {
+    // 🔥 检测到数据失真，强制重新获取商家信息
+    const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+    const currentMerchantBaseId = String(merchantInfo.merchantBaseId || merchantInfo.id || merchantInfo.merchantId || '');
+    
+    // 检查是否是失真的ID（以000结尾）
+    if (currentMerchantBaseId.endsWith('000')) {
+      console.warn('⚠️ 检测到商家ID精度丢失，将从商品列表中获取正确ID...');
+      // 先使用失真的ID加载商品列表，然后从返回的商品数据中获取正确的ID
+    }
+    
+    const merchantBaseId = currentMerchantBaseId;
+    
+    console.log('🔍 商品页面初始化 - 商家信息详细分析:', {
+      merchantInfo_full: merchantInfo,
+      merchantBaseId_from_storage: merchantInfo.merchantBaseId,
+      merchantBaseId_type: typeof merchantInfo.merchantBaseId,
+      merchantBaseId_json: JSON.stringify(merchantInfo.merchantBaseId),
+      id_from_storage: merchantInfo.id,
+      id_type: typeof merchantInfo.id,
+      id_json: JSON.stringify(merchantInfo.id),
+      merchantId_from_storage: merchantInfo.merchantId,
+      merchantId_type: typeof merchantInfo.merchantId,
+      finalMerchantBaseId: merchantBaseId,
+      finalMerchantBaseId_type: typeof merchantBaseId,
+      finalMerchantBaseId_length: merchantBaseId.length,
+      // 检查是否有精度丢失
+      precision_check: {
+        merchantBaseId_equals_string: merchantInfo.merchantBaseId === String(merchantInfo.merchantBaseId),
+        id_equals_string: merchantInfo.id === String(merchantInfo.id),
+        merchantId_equals_string: merchantInfo.merchantId === String(merchantInfo.merchantId)
+      }
+    });
+    
+    if (!merchantBaseId) {
+      console.error('❌ 商家ID不存在，无法加载商品');
+      uni.showToast({
+        title: '商家信息异常，请重新登录',
+        icon: 'none'
+      });
+      return;
+    }
+    
+    // 数据完整性检查
+    this.performDataIntegrityCheck();
+    
     // 先尝试加载分类，如果失败则从商品列表中提取
     await this.loadCategories();
     // 加载商品列表（如果分类加载失败，会从商品列表中提取分类）
@@ -363,6 +417,207 @@ export default {
     this.onLoadMore();
   },
   methods: {
+    // ===== 数据完整性检查 =====
+    
+    /**
+     * 执行数据完整性检查
+     */
+    performDataIntegrityCheck() {
+      const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+      const token = uni.getStorageSync('token');
+      
+      // 解析JWT token
+      let tokenPayload = null;
+      if (token) {
+        try {
+          const payloadPart = token.split('.')[1];
+          if (payloadPart) {
+            const decodedPayload = atob(payloadPart);
+            tokenPayload = JSON.parse(decodedPayload);
+          }
+        } catch (e) {
+          console.warn('⚠️ JWT token解析失败:', e);
+        }
+      }
+      
+      console.log('🔍 数据完整性检查报告:', {
+        // 本地存储数据
+        localStorage: {
+          merchantBaseId: merchantInfo.merchantBaseId,
+          merchantBaseId_type: typeof merchantInfo.merchantBaseId,
+          merchantBaseId_string: String(merchantInfo.merchantBaseId),
+          id: merchantInfo.id,
+          id_type: typeof merchantInfo.id,
+          id_string: String(merchantInfo.id),
+          merchantId: merchantInfo.merchantId,
+          merchantId_type: typeof merchantInfo.merchantId
+        },
+        // JWT token数据
+        jwtToken: tokenPayload ? {
+          merchantBaseId: tokenPayload.merchantBaseId,
+          merchantBaseId_type: typeof tokenPayload.merchantBaseId,
+          merchantBaseId_string: String(tokenPayload.merchantBaseId),
+          id: tokenPayload.id,
+          id_type: typeof tokenPayload.id,
+          userId: tokenPayload.userId,
+          sub: tokenPayload.sub
+        } : null,
+        // 数据一致性检查
+        consistency: tokenPayload ? {
+          merchantBaseId_match: String(merchantInfo.merchantBaseId) === String(tokenPayload.merchantBaseId),
+          id_match: String(merchantInfo.id) === String(tokenPayload.id),
+          any_match: [
+            String(merchantInfo.merchantBaseId) === String(tokenPayload.merchantBaseId),
+            String(merchantInfo.merchantBaseId) === String(tokenPayload.id),
+            String(merchantInfo.id) === String(tokenPayload.merchantBaseId),
+            String(merchantInfo.id) === String(tokenPayload.id)
+          ].some(match => match)
+        } : null,
+        // 精度丢失检查
+        precisionLoss: {
+          merchantBaseId_precision_lost: merchantInfo.merchantBaseId !== String(merchantInfo.merchantBaseId),
+          id_precision_lost: merchantInfo.id !== String(merchantInfo.id),
+          token_merchantBaseId_precision_lost: tokenPayload ? tokenPayload.merchantBaseId !== String(tokenPayload.merchantBaseId) : null,
+          token_id_precision_lost: tokenPayload ? tokenPayload.id !== String(tokenPayload.id) : null
+        }
+      });
+    },
+    
+    /**
+     * 重新获取商家信息（修复精度丢失）
+     */
+    async refreshMerchantInfo() {
+      try {
+        const token = uni.getStorageSync('token');
+        if (!token) {
+          console.error('❌ 没有token，无法重新获取商家信息');
+          return;
+        }
+        
+        console.log('🔄 重新获取商家信息...');
+        
+        const response = await fetch('http://localhost:8080/getInfo', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const result = await response.json();
+        console.log('🔍 重新获取的商家信息响应:', result);
+        
+        if (result.code === 200 && result.user) {
+          // 使用相同的精度修复逻辑
+          const responseText = JSON.stringify(result);
+          
+          const extractIdFromResponse = (fieldName) => {
+            const regex = new RegExp(`"${fieldName}":\\s*(\\d+)`);
+            const match = responseText.match(regex);
+            return match ? match[1] : null;
+          };
+          
+          const realMerchantBaseId = extractIdFromResponse('merchantBaseId') 
+            || extractIdFromResponse('merchant_base_id')
+            || extractIdFromResponse('merchantId')
+            || extractIdFromResponse('merchant_id')
+            || extractIdFromResponse('id')
+            || extractIdFromResponse('userId')
+            || extractIdFromResponse('user_id');
+          
+          console.log('🔍 重新提取的真实ID:', {
+            merchantBaseId_from_regex: extractIdFromResponse('merchantBaseId'),
+            id_from_regex: extractIdFromResponse('id'),
+            finalRealId: realMerchantBaseId
+          });
+          
+          const merchantInfo = {
+            merchantBaseId: realMerchantBaseId || '',
+            id: realMerchantBaseId || '',
+            merchantId: realMerchantBaseId || '',
+            merchantName: result.user.merchantName || result.user.userName || result.user.nickName,
+            phonenumber: result.user.phonenumber || result.user.phone,
+            email: result.user.email,
+            avatar: result.user.avatar,
+            ...result.user
+          };
+          
+          uni.setStorageSync('merchantInfo', merchantInfo);
+          console.log('✅ 商家信息已更新:', merchantInfo);
+          
+          uni.showToast({
+            title: '商家信息已更新',
+            icon: 'success'
+          });
+        }
+      } catch (error) {
+        console.error('❌ 重新获取商家信息失败:', error);
+      }
+    },
+    
+    /**
+     * 测试当前用户信息
+     */
+    async testCurrentUser() {
+      try {
+        console.log('🔍 开始测试当前用户信息...');
+        const result = await goodsApi.testCurrentUser();
+        
+        // 解析JWT Token进行对比
+        const token = uni.getStorageSync('token');
+        let tokenInfo = 'Token解析失败';
+        if (token) {
+          try {
+            const payloadPart = token.split('.')[1];
+            if (payloadPart) {
+              const decodedPayload = atob(payloadPart);
+              const tokenPayload = JSON.parse(decodedPayload);
+              tokenInfo = `Token中的用户ID: ${tokenPayload.id || tokenPayload.sub || tokenPayload.userId || 'null'}\nToken中的商家ID: ${tokenPayload.merchantBaseId || tokenPayload.merchantId || 'null'}`;
+            }
+          } catch (e) {
+            tokenInfo = 'Token解析出错: ' + e.message;
+          }
+        }
+        
+        uni.showModal({
+          title: '用户信息对比',
+          content: `API返回:\n用户ID: ${result.data?.user?.id || 'null'}\n商家ID: ${result.data?.user?.merchantBaseId || 'null'}\n\n${tokenInfo}`,
+          showCancel: false
+        });
+      } catch (error) {
+        console.error('❌ 测试用户信息失败:', error);
+        uni.showToast({
+          title: '获取用户信息失败',
+          icon: 'none'
+        });
+      }
+    },
+    
+    /**
+     * 强制重新登录
+     */
+    forceRelogin() {
+      uni.showModal({
+        title: '重新登录',
+        content: '检测到Token可能已过期，是否重新登录？',
+        success: (res) => {
+          if (res.confirm) {
+            // 清除所有登录信息
+            uni.removeStorageSync('token');
+            uni.removeStorageSync('merchantInfo');
+            uni.removeStorageSync('userType');
+            uni.removeStorageSync('identity');
+            uni.removeStorageSync('identityKey');
+            
+            // 跳转到登录页面
+            uni.reLaunch({
+              url: '/pages/login/login'
+            });
+          }
+        }
+      });
+    },
+    
     // ===== 数据加载 =====
     
     /**
@@ -388,6 +643,36 @@ export default {
         });
         
         if (res.code === 200) {
+          // 🔥 精度丢失修复：从商品数据中获取正确的商家ID
+          if (res.rows && res.rows.length > 0 && res.rows[0].merchantBaseId) {
+            const correctMerchantBaseId = String(res.rows[0].merchantBaseId);
+            const currentMerchantInfo = uni.getStorageSync('merchantInfo') || {};
+            const currentMerchantBaseId = String(currentMerchantInfo.merchantBaseId || '');
+            
+            // 如果当前ID以000结尾且与商品数据中的ID不同，则更新
+            if (currentMerchantBaseId.endsWith('000') && currentMerchantBaseId !== correctMerchantBaseId) {
+              console.log('🔧 修复商家ID精度丢失:', {
+                错误的ID: currentMerchantBaseId,
+                正确的ID: correctMerchantBaseId
+              });
+              
+              // 更新本地存储中的商家信息
+              const updatedMerchantInfo = {
+                ...currentMerchantInfo,
+                merchantBaseId: correctMerchantBaseId,
+                id: correctMerchantBaseId,
+                merchantId: correctMerchantBaseId
+              };
+              
+              uni.setStorageSync('merchantInfo', updatedMerchantInfo);
+              
+              uni.showToast({
+                title: '商家ID已自动修复',
+                icon: 'success'
+              });
+            }
+          }
+          
           // 数据转换
           const newProducts = res.rows.map(item => this.mapBackendToFrontend(item));
           
@@ -809,6 +1094,20 @@ export default {
           // 添加商品
           const res = await goodsApi.addGoods(data);
           if (res.code === 200) {
+            const goodsId = res.data?.id || res.data?.goodsId;
+            
+            // 如果有图片，添加到商品图片关联表
+            if (this.editingProduct.image && goodsId) {
+              try {
+                console.log('🖼️ 添加商品图片关联:', { goodsId, imageUrl: this.editingProduct.image });
+                await goodsApi.addGoodsImage(goodsId, this.editingProduct.image);
+                console.log('✅ 商品图片关联添加成功');
+              } catch (imageError) {
+                console.warn('⚠️ 商品图片关联失败:', imageError);
+                // 图片关联失败不影响商品添加成功的提示
+              }
+            }
+            
             uni.showToast({ 
               title: '添加成功', 
               icon: 'success' 
@@ -822,6 +1121,18 @@ export default {
           // 修改商品
           const res = await goodsApi.updateGoods(this.editingProduct.id, data);
           if (res.code === 200) {
+            // 如果有图片且商品ID存在，更新商品图片关联
+            if (this.editingProduct.image && this.editingProduct.id) {
+              try {
+                console.log('🖼️ 更新商品图片关联:', { goodsId: this.editingProduct.id, imageUrl: this.editingProduct.image });
+                await goodsApi.addGoodsImage(this.editingProduct.id, this.editingProduct.image);
+                console.log('✅ 商品图片关联更新成功');
+              } catch (imageError) {
+                console.warn('⚠️ 商品图片关联失败:', imageError);
+                // 图片关联失败不影响商品修改成功的提示
+              }
+            }
+            
             uni.showToast({ 
               title: '修改成功', 
               icon: 'success' 
@@ -1023,7 +1334,21 @@ export default {
               const data = JSON.parse(uploadRes.data);
               
               if (data.code === 200) {
-                const imageUrl = data.url || data.fileName;
+                // 处理多种可能的图片URL格式
+                let imageUrl = '';
+                
+                if (data.data && typeof data.data === 'object') {
+                  imageUrl = data.data.url || data.data.imageUrl || data.data.fileName;
+                } else if (data.url) {
+                  imageUrl = data.url;
+                } else if (data.fileName) {
+                  imageUrl = data.fileName;
+                } else if (typeof data.data === 'string') {
+                  imageUrl = data.data;
+                }
+                
+                console.log('🔍 图片上传响应:', data);
+                console.log('🖼️ 解析出的图片URL:', imageUrl);
                 
                 // 返回服务器上的图片URL
                 resolve(imageUrl);
@@ -1106,6 +1431,28 @@ export default {
                          data.subcategoryName ||
                          '';
       
+      // 处理图片URL，支持多种可能的字段名
+      let imageUrl = '';
+      if (data.mainImageUrl) {
+        imageUrl = data.mainImageUrl;
+      } else if (data.imageUrl) {
+        imageUrl = data.imageUrl;
+      } else if (data.image) {
+        imageUrl = data.image;
+      } else if (data.imageList && data.imageList.length > 0) {
+        // 如果有图片列表，使用第一张图片
+        imageUrl = data.imageList[0].imageUrl || data.imageList[0].url || data.imageList[0];
+      }
+      
+      console.log('🔍 商品数据映射:', { 
+        goodsId: data.merchantGoodsId, 
+        goodsName: data.goodsName,
+        mainImageUrl: data.mainImageUrl,
+        imageUrl: data.imageUrl,
+        imageList: data.imageList,
+        finalImage: imageUrl
+      });
+      
       return {
         id: data.merchantGoodsId,
         name: data.goodsName,
@@ -1117,7 +1464,7 @@ export default {
         description: data.description,
         tagCodes: data.tagCodes,
         status: data.status === 1, // 转为boolean
-        image: data.mainImageUrl,
+        image: imageUrl, // 使用处理后的图片URL
         imageList: data.imageList || [],
         salesCount: data.salesCount || 0,
         avgRating: data.avgRating || 0,
@@ -1130,7 +1477,14 @@ export default {
      * @param {Object} data - 前端数据
      */
     mapFrontendToBackend(data) {
+      // 获取商家ID
+      const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+      const merchantBaseId = String(merchantInfo.merchantBaseId || merchantInfo.id || merchantInfo.merchantId || '');
+      
+      console.log('🔍 商品数据转换 - merchantBaseId:', merchantBaseId);
+      
       return {
+        merchantBaseId: merchantBaseId,  // 商家ID（必需）
         goodsName: data.name,
         category: data.category,
         subCategory: data.subCategory || '',
