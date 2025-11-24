@@ -125,12 +125,54 @@ export const getUnreadCount = (fromType, fromId) => {
   });
 };
 
+/**
+ * 修改聊天会话
+ * @param {Object} data - 会话信息
+ * @param {Number} data.sessionId - 会话ID（必填）
+ * @param {Number} data.unreadCount - 未读数（可选）
+ * @param {Number} data.sessionStatus - 会话状态（可选）
+ * @returns {Promise}
+ */
+export const updateChatSession = (data) => {
+  return request(`${baseUrl}/platform/chat/session`, {
+    method: 'PUT',
+    data: data
+  });
+};
+
+/**
+ * 查询聊天会话列表 (条件查询)
+ * @param {Object} params - 查询参数
+ * @returns {Promise}
+ */
+export const getChatSessionList = (params) => {
+  return request(`${baseUrl}/platform/chat/session/list`, {
+    method: 'GET',
+    data: params
+  });
+};
+
+/**
+ * 增加未读计数
+ * @param {Number} sessionId - 会话ID
+ * @returns {Promise}
+ */
+export const increaseUnreadCount = (sessionId) => {
+  return request(`${baseUrl}/platform/chat/session/increaseUnreadCount`, {
+    method: 'POST',
+    data: { sessionId }
+  });
+};
+
 // ==================== 消息管理 ====================
 
 /**
  * 获取聊天历史消息
  * @param {Object} params - 查询参数
  * @param {Number} params.sessionId - 会话ID（必填）
+ * @param {Number} params.fromType - 发送方类型（可选）
+ * @param {Number} params.msgType - 消息类型（可选）
+ * @param {Number} params.msgStatus - 消息状态（可选）
  * @param {Number} params.pageNum - 页码（可选，默认1）
  * @param {Number} params.pageSize - 每页数量（可选，默认50）
  * @returns {Promise}
@@ -139,7 +181,10 @@ export const getMessageList = (params) => {
   return request(`${baseUrl}/platform/chat/message/list`, {
     method: 'GET',
     data: {
-      sessionId: params.sessionId || params.chatId, // 兼容旧参数名
+      sessionId: params.sessionId || params.chatId,
+      fromType: params.fromType,
+      msgType: params.msgType,
+      msgStatus: params.msgStatus,
       pageNum: params.pageNum,
       pageSize: params.pageSize
     }
@@ -201,6 +246,50 @@ export const sendMessage = (data) => {
 export const deleteMessage = (messageId) => {
   return request(`${baseUrl}/platform/chat/message/${messageId}`, {
     method: 'DELETE'
+  });
+};
+
+/**
+ * 修改聊天消息
+ * @param {Object} data - 消息数据
+ * @param {Number} data.messageId - 消息ID（必填）
+ * @param {Number} data.msgStatus - 消息状态
+ * @param {String} data.readTime - 已读时间
+ * @param {Number} data.version - 版本号
+ * @returns {Promise}
+ */
+export const updateMessage = (data) => {
+  return request(`${baseUrl}/platform/chat/message`, {
+    method: 'PUT',
+    data: data
+  });
+};
+
+/**
+ * 多会话消息查询
+ * @param {Array|String} sessionIds - 会话ID列表
+ * @returns {Promise}
+ */
+export const getMultiSessionMessages = (sessionIds) => {
+  return request(`${baseUrl}/platform/chat/message/multiSessionMessages`, {
+    method: 'GET',
+    data: { sessionIds }
+  });
+};
+
+/**
+ * 按收发方查询消息
+ * @param {Object} params - 查询参数
+ * @param {Number} params.fromType - 发送方类型
+ * @param {Number} params.fromId - 发送方ID
+ * @param {Number} params.toType - 接收方类型
+ * @param {Number} params.toId - 接收方ID
+ * @returns {Promise}
+ */
+export const getMultiSessionMessagesFromTo = (params) => {
+  return request(`${baseUrl}/platform/chat/message/multiSessionMessagesFromTo`, {
+    method: 'GET',
+    data: params
   });
 };
 
@@ -575,11 +664,17 @@ export default {
   deleteChat,
   markChatRead,
   getUnreadCount,
+  updateChatSession,
+  getChatSessionList,
+  increaseUnreadCount,
   
   // 消息管理
   getMessageList,
   sendMessage,
   deleteMessage,
+  updateMessage,
+  getMultiSessionMessages,
+  getMultiSessionMessagesFromTo,
   
   // 文件上传
   uploadChatImage,
