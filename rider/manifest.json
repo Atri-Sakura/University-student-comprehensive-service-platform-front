@@ -43,7 +43,14 @@
             /* ios打包配置 */
             "ios" : {},
             /* SDK配置 */
-            "sdkConfigs" : {}
+            "sdkConfigs" : {
+                "maps" : {
+                    "amap" : {
+                        "appkey_ios" : "028028a30b035aa9b98cc60033a3ea53",
+                        "appkey_android" : "028028a30b035aa9b98cc60033a3ea53"
+                    }
+                }
+            }
         }
     },
     /* 快应用特有相关 */
@@ -54,7 +61,12 @@
         "setting" : {
             "urlCheck" : false
         },
-        "usingComponents" : true
+        "usingComponents" : true,
+        "permission" : {
+            "scope.userLocation" : {
+                "desc" : "你的位置信息将用于配送路线规划和导航"
+            }
+        }
     },
     "mp-alipay" : {
         "usingComponents" : true
