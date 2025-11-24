@@ -686,7 +686,7 @@ export default {
 .tab-badge {
   position: absolute;
   top: -10rpx;
-  right: 25%;
+  right: 20rpx;
   background-color: #ff4d4f;
   color: white;
   font-size: 20rpx;
@@ -1029,7 +1029,7 @@ export default {
 .tab-badge {
   position: absolute;
   top: 10rpx;
-  right: 30%;
+  right: 20rpx;
   background-color: #ff4d4f;
   color: white;
   font-size: 20rpx;
