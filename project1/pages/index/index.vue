@@ -2,7 +2,10 @@
   <view class="page-container">
     <!-- 顶部店铺信息 -->
     <view class="shop-header">
-      <view class="shop-icon">🏪</view>
+      <view class="shop-icon">
+        <image v-if="shopData.logo" class="logo-image" :src="shopData.logo" mode="aspectFill"></image>
+        <text v-else class="icon-text">🏪</text>
+      </view>
       <view class="shop-info">
         <view class="shop-name">{{ shopData.name }}</view>
         <view class="shop-status">{{ shopData.businessStatus }} · {{ shopData.businessHours }}</view>
@@ -103,6 +106,7 @@
 <script>
 import { merchantAPI, request } from '@/utils/api.js';
 import { getSalesData } from '@/utils/merchantAnalytics.js';
+import { getMerchantBaseInfo } from '@/utils/merchantApi.js';
 
 export default {
   name: 'RestaurantHome',
@@ -111,7 +115,8 @@ export default {
       shopData: {
         name: "美味餐厅",
         businessStatus: "营业中",
-        businessHours: "08:00-22:00"
+        businessHours: "08:00-22:00",
+        logo: "" // 店铺头像
       },
       todayDate: '',
       todayData: {
@@ -182,7 +187,8 @@ export default {
           ...this.shopData,
           name: savedInfo.name || this.shopData.name,
           businessStatus: savedInfo.openStatus || this.shopData.businessStatus,
-          businessHours: savedInfo.hours || this.shopData.businessHours
+          businessHours: savedInfo.hours || this.shopData.businessHours,
+          logo: savedInfo.logo || this.shopData.logo // 加载头像
         };
       }
       
@@ -224,13 +230,15 @@ export default {
           if (data.merchantName) {
             this.shopData = {
               ...this.shopData,
-              name: data.merchantName
+              name: data.merchantName,
+              logo: data.logo || this.shopData.logo // 更新头像
             };
             // 保存到本地缓存
             uni.setStorageSync('shopInfo', {
               name: data.merchantName,
               openStatus: this.shopData.businessStatus,
-              hours: this.shopData.businessHours
+              hours: this.shopData.businessHours,
+              logo: data.logo || this.shopData.logo // 保存头像到缓存
             });
           }
         } else {
@@ -240,7 +248,43 @@ export default {
         
       }
       
-      // 2. 统一使用销售数据接口获取今日数据（与数据分析页面保持一致）
+      // 2. 获取完整的商家基础信息（包括logo）
+      try {
+        const baseInfoRes = await getMerchantBaseInfo();
+        
+        if (baseInfoRes.data && baseInfoRes.data.code === 200) {
+          const data = baseInfoRes.data.data;
+          
+          // 更新店铺信息，包括logo
+          this.shopData = {
+            ...this.shopData,
+            name: data.merchantName || this.shopData.name,
+            logo: data.logo || this.shopData.logo
+          };
+          
+          // 更新营业状态和时间
+          if (data.businessStatus !== undefined) {
+            const statusMap = { 1: '营业中', 0: '休息中', 2: '手动打烊' };
+            this.shopData.businessStatus = statusMap[data.businessStatus] || '营业中';
+          }
+          
+          if (data.businessHours) {
+            this.shopData.businessHours = data.businessHours;
+          }
+          
+          // 保存到本地缓存
+          uni.setStorageSync('shopInfo', {
+            name: this.shopData.name,
+            openStatus: this.shopData.businessStatus,
+            hours: this.shopData.businessHours,
+            logo: this.shopData.logo
+          });
+        }
+      } catch (error) {
+        console.error('获取商家基础信息失败:', error);
+      }
+      
+      // 3. 统一使用销售数据接口获取今日数据（与数据分析页面保持一致）
       try {
         const salesRes = await getSalesData({
           startDate: this.todayDate,
@@ -421,8 +465,25 @@ export default {
 }
 
 .shop-icon {
-  font-size: 80rpx;
+  width: 80rpx;
+  height: 80rpx;
   margin-right: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.logo-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 16rpx;
+  object-fit: cover;
+}
+
+.icon-text {
+  font-size: 80rpx;
 }
 
 .shop-info {

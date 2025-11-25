@@ -27,7 +27,6 @@ export default {
       merchantBaseId: merchantBaseId
     };
     
-    console.log('🔍 获取商品列表 - 查询参数:', queryParams);
     
     try {
       const response = await request(url, {
@@ -35,10 +34,6 @@ export default {
         data: queryParams
       })
       
-      console.log('🔍 商品列表响应:', response);
-      if (response.data && response.data.rows && response.data.rows.length > 0) {
-        console.log('🔍 第一个商品数据示例:', response.data.rows[0]);
-      }
       
       return response.data
     } catch (error) {
@@ -97,11 +92,6 @@ export default {
         method: 'GET'
       });
       
-      console.log('🔍 当前用户信息测试:', {
-        hasToken: !!token,
-        response: response,
-        userInfo: response.data ? response.data.user : null
-      });
       
       return response;
     } catch (error) {
@@ -139,7 +129,6 @@ export default {
         timestamp: new Date().toISOString()
       };
       
-      console.log('🔍 发送调试信息到后端:', debugInfo);
       
       // 发送调试信息到后端（如果后端有调试接口）
       const response = await request(`${BASE_URL}/debug/permission`, {
@@ -176,83 +165,12 @@ export default {
           tokenPayload = JSON.parse(decodedPayload);
         }
       } catch (e) {
-        console.warn('⚠️ JWT token解析失败:', e);
       }
-    }
-    
-    console.log('🔍 删除商品详细信息:', {
-      goodsId: goodsId,
-      goodsIdType: typeof goodsId,
-      merchantBaseId: merchantBaseId,
-      merchantBaseIdType: typeof merchantBaseId,
-      merchantBaseId_json: JSON.stringify(merchantBaseId),
-      hasToken: !!token,
-      tokenLength: token ? token.length : 0,
-      tokenPayload: tokenPayload,
-      tokenMerchantInfo: tokenPayload ? {
-        merchantBaseId: tokenPayload.merchantBaseId,
-        merchantBaseId_type: typeof tokenPayload.merchantBaseId,
-        merchantBaseId_string: String(tokenPayload.merchantBaseId),
-        merchantId: tokenPayload.merchantId,
-        merchantId_type: typeof tokenPayload.merchantId,
-        id: tokenPayload.id,
-        id_type: typeof tokenPayload.id,
-        userId: tokenPayload.userId,
-        sub: tokenPayload.sub,
-        exp: tokenPayload.exp,
-        // 完整的token payload
-        fullPayload: tokenPayload
-      } : null,
-      merchantInfo: merchantInfo,
-      // 比较本地存储和token中的商家ID
-      idComparison: tokenPayload ? {
-        localStorage_vs_token_merchantBaseId: merchantBaseId === String(tokenPayload.merchantBaseId),
-        localStorage_vs_token_id: merchantBaseId === String(tokenPayload.id),
-        localStorage_vs_token_merchantId: merchantBaseId === String(tokenPayload.merchantId),
-        localStorage_vs_token_sub: merchantBaseId === String(tokenPayload.sub),
-        localStorage_vs_token_userId: merchantBaseId === String(tokenPayload.userId),
-        // 详细对比
-        detailedComparison: {
-          localStorage_merchantBaseId: merchantBaseId,
-          token_merchantBaseId: String(tokenPayload.merchantBaseId || 'null'),
-          token_id: String(tokenPayload.id || 'null'),
-          token_merchantId: String(tokenPayload.merchantId || 'null'),
-          token_sub: String(tokenPayload.sub || 'null'),
-          token_userId: String(tokenPayload.userId || 'null')
-        }
-      } : null
-    });
-    
-    // 🔥 关键调试：检查JWT token是否包含正确的商家身份信息
-    if (tokenPayload) {
-      console.log('🔍 JWT Token 商家身份验证详细分析:', {
-        token解析成功: true,
-        可能的商家ID字段: {
-          merchantBaseId: tokenPayload.merchantBaseId,
-          merchantId: tokenPayload.merchantId,
-          id: tokenPayload.id,
-          userId: tokenPayload.userId,
-          sub: tokenPayload.sub,
-          username: tokenPayload.username,
-          user_name: tokenPayload.user_name
-        },
-        本地存储的商家ID: merchantBaseId,
-        是否匹配: {
-          merchantBaseId匹配: merchantBaseId === String(tokenPayload.merchantBaseId || ''),
-          merchantId匹配: merchantBaseId === String(tokenPayload.merchantId || ''),
-          id匹配: merchantBaseId === String(tokenPayload.id || ''),
-          userId匹配: merchantBaseId === String(tokenPayload.userId || ''),
-          sub匹配: merchantBaseId === String(tokenPayload.sub || '')
-        },
-        token过期时间: new Date(tokenPayload.exp * 1000).toLocaleString(),
-        token是否过期: Date.now() > tokenPayload.exp * 1000
-      });
     } else {
       console.error('❌ JWT Token 解析失败，无法验证商家身份');
     }
     
     // 🔥 在删除前先测试当前用户信息和权限调试
-    console.log('🔍 删除前测试当前用户信息...');
     try {
       await this.testCurrentUser();
     } catch (error) {
@@ -260,7 +178,6 @@ export default {
     }
     
     // 🔥 调试权限验证
-    console.log('🔍 调试商品权限验证...');
     try {
       await this.debugGoodsPermission(goodsId);
     } catch (error) {
@@ -297,7 +214,6 @@ export default {
   async upGoods(goodsId) {
     const url = `${BASE_URL}/up/${goodsId}`
     
-    console.log('🔍 商品上架 - goodsId:', goodsId, 'goodsIdType:', typeof goodsId);
     
     try {
       const response = await request(url, {
@@ -319,7 +235,6 @@ export default {
   async downGoods(goodsId) {
     const url = `${BASE_URL}/down/${goodsId}`
     
-    console.log('🔍 商品下架 - goodsId:', goodsId, 'goodsIdType:', typeof goodsId);
     
     try {
       const response = await request(url, {
@@ -361,7 +276,6 @@ export default {
   async addGoodsImage(goodsId, imageUrl) {
     const url = `${BASE_URL}/addImage/${goodsId}`
     
-    console.log('🔍 调用 addGoodsImage API:', { goodsId, imageUrl, url });
     
     try {
       const response = await request(url, {

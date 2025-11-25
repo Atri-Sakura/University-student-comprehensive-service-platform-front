@@ -75,16 +75,6 @@ export const request = (url, options = {}) => {
         }
       });
       
-      // 调试：记录ID字段的转换
-      const hasIdFields = idFields.some(field => processedData[field] !== undefined);
-      if (hasIdFields) {
-        console.log('🔍 API请求 - ID字段转换:', {
-          url: requestUrl,
-          method: method,
-          originalData: requestData,
-          processedData: processedData
-        });
-      }
       
       requestData = processedData;
     }
@@ -113,17 +103,6 @@ export const request = (url, options = {}) => {
     
     // 获取token并添加到请求头
     const token = uni.getStorageSync('token');
-    
-    // 调试：记录token信息
-    if (requestUrl.includes('/goods/') && (method === 'DELETE' || method === 'PUT')) {
-      console.log('🔍 商品操作API请求:', {
-        url: requestUrl,
-        method: method,
-        hasToken: !!token,
-        tokenLength: token ? token.length : 0,
-        tokenPrefix: token ? token.substring(0, 20) + '...' : 'null'
-      });
-    }
     
     // 构建请求参数
     const requestOptions = {
@@ -165,32 +144,9 @@ export const request = (url, options = {}) => {
               .replace(/"fromId":\s*(\d{15,})/g, '"fromId":"$1"')
               .replace(/"toId":\s*(\d{15,})/g, '"toId":"$1"');
             
-            // 详细调试：检查数据转换过程
-            if (originalData !== processedData && (originalData.includes('merchantBaseId') || originalData.includes('merchant_base_id'))) {
-              console.log('🔍 API响应大数字转换详细分析:', {
-                url: requestUrl,
-                originalData_sample: originalData.substring(0, 500),
-                processedData_sample: processedData.substring(0, 500),
-                hasChanges: originalData !== processedData,
-                merchantBaseId_matches: originalData.match(/"merchantBaseId":\s*(\d{15,})/g),
-                merchant_base_id_matches: originalData.match(/"merchant_base_id":\s*(\d{15,})/g),
-                id_matches: originalData.match(/"id":\s*(\d{15,})/g)
-              });
-            }
             
             res.data = JSON.parse(processedData);
             
-            // 解析后再次检查
-            if (res.data && res.data.data && (res.data.data.merchantBaseId || res.data.data.id)) {
-              console.log('🔍 API响应解析后数据检查:', {
-                url: requestUrl,
-                merchantBaseId: res.data.data.merchantBaseId,
-                merchantBaseId_type: typeof res.data.data.merchantBaseId,
-                id: res.data.data.id,
-                id_type: typeof res.data.data.id,
-                fullData: res.data.data
-              });
-            }
           }
           
           // 如果有自定义成功回调，调用它

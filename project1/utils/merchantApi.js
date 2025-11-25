@@ -48,11 +48,12 @@ export const updateMerchantBase = (data) => {
  */
 export const checkMerchantName = (merchantName) => {
   // 暂时返回模拟数据，避免后端路由错误
+  // 返回 exists: false 表示名称不重复，可以使用
   return Promise.resolve({
     data: {
       code: 200,
       msg: '名称可用',
-      data: true
+      exists: false  // false表示不存在重复，名称可用
     }
   });
 };
@@ -149,7 +150,6 @@ export const uploadCertificate = (type, filePath) => {
         try {
           const data = JSON.parse(uploadRes.data);
           
-          console.log('🔍 证书上传响应数据:', data);
           
           if (data.code === 200) {
             // 构建标准响应格式

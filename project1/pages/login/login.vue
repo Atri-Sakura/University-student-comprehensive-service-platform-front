@@ -225,7 +225,6 @@ export default {
 							if (userInfoResult.code === 200 && userInfoResult.user) {
 								// 保存完整的商户信息
 								const responseText = JSON.stringify(userInfoResult);
-								console.log('🔍 登录响应原始字符串:', responseText);
 								
 								// 使用正则表达式从原始字符串中提取真实的ID值
 								const extractIdFromResponse = (fieldName) => {
@@ -241,14 +240,6 @@ export default {
 									|| extractIdFromResponse('id')
 									|| extractIdFromResponse('userId')
 									|| extractIdFromResponse('user_id');
-								
-								console.log('🔍 提取的真实ID:', {
-									merchantBaseId_from_regex: extractIdFromResponse('merchantBaseId'),
-									merchant_base_id_from_regex: extractIdFromResponse('merchant_base_id'),
-									id_from_regex: extractIdFromResponse('id'),
-									merchantId_from_regex: extractIdFromResponse('merchantId'),
-									finalRealId: realMerchantBaseId
-								});
 								
 								const merchantInfo = {
 									merchantBaseId: realMerchantBaseId || '',

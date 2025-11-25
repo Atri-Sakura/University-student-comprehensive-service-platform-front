@@ -932,7 +932,6 @@ export default {
               try {
                 const data = JSON.parse(uploadRes.data);
                 
-                console.log('🔍 上传响应数据:', data);
                 
                 if (data.code === 200) {
                   // 上传成功，获取图片URL - 添加安全检查

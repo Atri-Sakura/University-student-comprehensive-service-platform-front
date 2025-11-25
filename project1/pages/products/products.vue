@@ -12,15 +12,6 @@
           placeholder-style="color: #999;"
         />
       </view>
-      <view class="test-btn" @click="testCurrentUser" style="margin-right: 5px; background: #4CAF50; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px;">
-        <text class="test-text">测试用户</text>
-      </view>
-      <view class="relogin-btn" @click="forceRelogin" style="margin-right: 5px; background: #FF9800; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px;">
-        <text class="relogin-text">重新登录</text>
-      </view>
-      <view class="fix-btn" @click="refreshMerchantInfo" style="margin-right: 10px; background: #ff6b6b; color: white; padding: 8px 12px; border-radius: 4px; font-size: 12px;">
-        <text class="fix-text">修复ID</text>
-      </view>
       <view class="add-btn" @click="addProduct">
         <text class="add-text">+ 添加</text>
       </view>
@@ -156,6 +147,10 @@
               >
                 <text class="tag-option-text">{{ tag.name }}</text>
               </view>
+              <!-- 添加新标签按钮 -->
+              <view class="tag-option add-option" @click="openAddTagModal">
+                <text class="tag-option-text add-text">+ 添加</text>
+              </view>
             </view>
             <text class="tag-hint">已选择: {{ selectedTags.length }} 个标签</text>
           </view>
@@ -172,6 +167,10 @@
                 @click="selectCategory(cat)"
               >
                 <text class="category-option-text">{{ cat }}</text>
+              </view>
+              <!-- 添加新分类按钮 -->
+              <view class="category-option add-option" @click="openAddCategoryModal">
+                <text class="category-option-text add-text">+ 添加</text>
               </view>
             </view>
           </view>
@@ -248,6 +247,68 @@
         </view>
       </view>
     </view>
+
+    <!-- 添加标签弹窗 -->
+    <view class="add-modal" v-if="showAddTagModal" @click="closeAddTagModal">
+      <view class="add-modal-content" @click.stop>
+        <view class="add-modal-header">
+          <text class="add-modal-title">添加新标签</text>
+          <text class="add-modal-close" @click="closeAddTagModal">✕</text>
+        </view>
+        <view class="add-modal-body">
+          <view class="form-item">
+            <text class="form-label">标签名称</text>
+            <input 
+              class="form-input" 
+              type="text" 
+              v-model="newTagName"
+              placeholder="请输入标签名称"
+              placeholder-style="color: #999;"
+              maxlength="10"
+            />
+          </view>
+        </view>
+        <view class="add-modal-footer">
+          <view class="modal-btn cancel-btn" @click="closeAddTagModal">
+            <text class="modal-btn-text">取消</text>
+          </view>
+          <view class="modal-btn confirm-btn" @click="addNewTag">
+            <text class="modal-btn-text">确定</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 添加分类弹窗 -->
+    <view class="add-modal" v-if="showAddCategoryModal" @click="closeAddCategoryModal">
+      <view class="add-modal-content" @click.stop>
+        <view class="add-modal-header">
+          <text class="add-modal-title">添加新分类</text>
+          <text class="add-modal-close" @click="closeAddCategoryModal">✕</text>
+        </view>
+        <view class="add-modal-body">
+          <view class="form-item">
+            <text class="form-label">分类名称</text>
+            <input 
+              class="form-input" 
+              type="text" 
+              v-model="newCategoryName"
+              placeholder="请输入分类名称"
+              placeholder-style="color: #999;"
+              maxlength="10"
+            />
+          </view>
+        </view>
+        <view class="add-modal-footer">
+          <view class="modal-btn cancel-btn" @click="closeAddCategoryModal">
+            <text class="modal-btn-text">取消</text>
+          </view>
+          <view class="modal-btn confirm-btn" @click="addNewCategory">
+            <text class="modal-btn-text">确定</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -294,6 +355,12 @@ export default {
       
       // ===== 编辑状态 =====
       showEditModal: false,
+      
+      // ===== 添加标签/分类状态 =====
+      showAddTagModal: false,
+      showAddCategoryModal: false,
+      newTagName: '',
+      newCategoryName: '',
       editingProduct: {
         id: null,
         name: '',
@@ -350,6 +417,9 @@ export default {
   
   // 页面生命周期
   async onLoad() {
+    // 加载自定义标签和分类
+    this.loadCustomTagsAndCategories();
+    
     // 🔥 检测到数据失真，强制重新获取商家信息
     const merchantInfo = uni.getStorageSync('merchantInfo') || {};
     const currentMerchantBaseId = String(merchantInfo.merchantBaseId || merchantInfo.id || merchantInfo.merchantId || '');
@@ -362,26 +432,6 @@ export default {
     
     const merchantBaseId = currentMerchantBaseId;
     
-    console.log('🔍 商品页面初始化 - 商家信息详细分析:', {
-      merchantInfo_full: merchantInfo,
-      merchantBaseId_from_storage: merchantInfo.merchantBaseId,
-      merchantBaseId_type: typeof merchantInfo.merchantBaseId,
-      merchantBaseId_json: JSON.stringify(merchantInfo.merchantBaseId),
-      id_from_storage: merchantInfo.id,
-      id_type: typeof merchantInfo.id,
-      id_json: JSON.stringify(merchantInfo.id),
-      merchantId_from_storage: merchantInfo.merchantId,
-      merchantId_type: typeof merchantInfo.merchantId,
-      finalMerchantBaseId: merchantBaseId,
-      finalMerchantBaseId_type: typeof merchantBaseId,
-      finalMerchantBaseId_length: merchantBaseId.length,
-      // 检查是否有精度丢失
-      precision_check: {
-        merchantBaseId_equals_string: merchantInfo.merchantBaseId === String(merchantInfo.merchantBaseId),
-        id_equals_string: merchantInfo.id === String(merchantInfo.id),
-        merchantId_equals_string: merchantInfo.merchantId === String(merchantInfo.merchantId)
-      }
-    });
     
     if (!merchantBaseId) {
       console.error('❌ 商家ID不存在，无法加载商品');
@@ -417,6 +467,147 @@ export default {
     this.onLoadMore();
   },
   methods: {
+    // ===== 添加标签/分类相关方法 =====
+    
+    /**
+     * 显示添加标签弹窗
+     */
+    openAddTagModal() {
+      this.showAddTagModal = true;
+      this.newTagName = '';
+    },
+    
+    /**
+     * 关闭添加标签弹窗
+     */
+    closeAddTagModal() {
+      this.showAddTagModal = false;
+      this.newTagName = '';
+    },
+    
+    /**
+     * 添加新标签
+     */
+    addNewTag() {
+      if (!this.newTagName.trim()) {
+        uni.showToast({
+          title: '请输入标签名称',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 检查是否已存在
+      const exists = this.availableTags.some(tag => tag.name === this.newTagName.trim());
+      if (exists) {
+        uni.showToast({
+          title: '标签已存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 生成标签编码（使用拼音或简单编码）
+      const code = 'CUSTOM_' + Date.now();
+      
+      // 添加到标签列表
+      this.availableTags.push({
+        name: this.newTagName.trim(),
+        code: code
+      });
+      
+      // 保存到本地存储
+      uni.setStorageSync('customTags', this.availableTags.filter(tag => tag.code.startsWith('CUSTOM_')));
+      
+      uni.showToast({
+        title: '标签添加成功',
+        icon: 'success'
+      });
+      
+      this.closeAddTagModal();
+    },
+    
+    /**
+     * 显示添加分类弹窗
+     */
+    openAddCategoryModal() {
+      this.showAddCategoryModal = true;
+      this.newCategoryName = '';
+    },
+    
+    /**
+     * 关闭添加分类弹窗
+     */
+    closeAddCategoryModal() {
+      this.showAddCategoryModal = false;
+      this.newCategoryName = '';
+    },
+    
+    /**
+     * 添加新分类
+     */
+    addNewCategory() {
+      if (!this.newCategoryName.trim()) {
+        uni.showToast({
+          title: '请输入分类名称',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 检查是否已存在
+      const exists = this.categories.includes(this.newCategoryName.trim());
+      if (exists) {
+        uni.showToast({
+          title: '分类已存在',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 添加到分类列表
+      this.categories.push(this.newCategoryName.trim());
+      
+      // 保存到本地存储
+      const customCategories = this.categories.slice(1); // 排除"全部"
+      uni.setStorageSync('customCategories', customCategories);
+      
+      uni.showToast({
+        title: '分类添加成功',
+        icon: 'success'
+      });
+      
+      this.closeAddCategoryModal();
+    },
+    
+    /**
+     * 加载自定义标签和分类
+     */
+    loadCustomTagsAndCategories() {
+      // 加载自定义标签
+      const customTags = uni.getStorageSync('customTags') || [];
+      if (customTags.length > 0) {
+        // 合并自定义标签到可用标签列表中
+        customTags.forEach(customTag => {
+          const exists = this.availableTags.some(tag => tag.code === customTag.code);
+          if (!exists) {
+            this.availableTags.push(customTag);
+          }
+        });
+      }
+      
+      // 加载自定义分类
+      const customCategories = uni.getStorageSync('customCategories') || [];
+      if (customCategories.length > 0) {
+        // 合并自定义分类到分类列表中
+        customCategories.forEach(customCategory => {
+          if (!this.categories.includes(customCategory)) {
+            this.categories.push(customCategory);
+          }
+        });
+      }
+    },
+    
     // ===== 数据完整性检查 =====
     
     /**
@@ -435,190 +626,21 @@ export default {
             const decodedPayload = atob(payloadPart);
             tokenPayload = JSON.parse(decodedPayload);
           }
-        } catch (e) {
-          console.warn('⚠️ JWT token解析失败:', e);
-        }
+        } catch (e) {}
       }
       
-      console.log('🔍 数据完整性检查报告:', {
-        // 本地存储数据
-        localStorage: {
-          merchantBaseId: merchantInfo.merchantBaseId,
-          merchantBaseId_type: typeof merchantInfo.merchantBaseId,
-          merchantBaseId_string: String(merchantInfo.merchantBaseId),
-          id: merchantInfo.id,
-          id_type: typeof merchantInfo.id,
-          id_string: String(merchantInfo.id),
-          merchantId: merchantInfo.merchantId,
-          merchantId_type: typeof merchantInfo.merchantId
-        },
-        // JWT token数据
-        jwtToken: tokenPayload ? {
-          merchantBaseId: tokenPayload.merchantBaseId,
-          merchantBaseId_type: typeof tokenPayload.merchantBaseId,
-          merchantBaseId_string: String(tokenPayload.merchantBaseId),
-          id: tokenPayload.id,
-          id_type: typeof tokenPayload.id,
-          userId: tokenPayload.userId,
-          sub: tokenPayload.sub
-        } : null,
-        // 数据一致性检查
-        consistency: tokenPayload ? {
-          merchantBaseId_match: String(merchantInfo.merchantBaseId) === String(tokenPayload.merchantBaseId),
-          id_match: String(merchantInfo.id) === String(tokenPayload.id),
-          any_match: [
-            String(merchantInfo.merchantBaseId) === String(tokenPayload.merchantBaseId),
-            String(merchantInfo.merchantBaseId) === String(tokenPayload.id),
-            String(merchantInfo.id) === String(tokenPayload.merchantBaseId),
-            String(merchantInfo.id) === String(tokenPayload.id)
-          ].some(match => match)
-        } : null,
-        // 精度丢失检查
-        precisionLoss: {
-          merchantBaseId_precision_lost: merchantInfo.merchantBaseId !== String(merchantInfo.merchantBaseId),
-          id_precision_lost: merchantInfo.id !== String(merchantInfo.id),
-          token_merchantBaseId_precision_lost: tokenPayload ? tokenPayload.merchantBaseId !== String(tokenPayload.merchantBaseId) : null,
-          token_id_precision_lost: tokenPayload ? tokenPayload.id !== String(tokenPayload.id) : null
-        }
-      });
+      // 数据一致性检查
+      const consistency = tokenPayload ? {
+        merchantBaseId_match: String(merchantInfo.merchantBaseId) === String(tokenPayload.merchantBaseId),
+        id_match: String(merchantInfo.id) === String(tokenPayload.id),
+        any_match: [
+          String(merchantInfo.merchantBaseId) === String(tokenPayload.merchantBaseId),
+          String(merchantInfo.merchantBaseId) === String(tokenPayload.id),
+          String(merchantInfo.id) === String(tokenPayload.merchantBaseId),
+          String(merchantInfo.id) === String(tokenPayload.id)
+        ].some(match => match)
+      } : null;
     },
-    
-    /**
-     * 重新获取商家信息（修复精度丢失）
-     */
-    async refreshMerchantInfo() {
-      try {
-        const token = uni.getStorageSync('token');
-        if (!token) {
-          console.error('❌ 没有token，无法重新获取商家信息');
-          return;
-        }
-        
-        console.log('🔄 重新获取商家信息...');
-        
-        const response = await fetch('http://localhost:8080/getInfo', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        const result = await response.json();
-        console.log('🔍 重新获取的商家信息响应:', result);
-        
-        if (result.code === 200 && result.user) {
-          // 使用相同的精度修复逻辑
-          const responseText = JSON.stringify(result);
-          
-          const extractIdFromResponse = (fieldName) => {
-            const regex = new RegExp(`"${fieldName}":\\s*(\\d+)`);
-            const match = responseText.match(regex);
-            return match ? match[1] : null;
-          };
-          
-          const realMerchantBaseId = extractIdFromResponse('merchantBaseId') 
-            || extractIdFromResponse('merchant_base_id')
-            || extractIdFromResponse('merchantId')
-            || extractIdFromResponse('merchant_id')
-            || extractIdFromResponse('id')
-            || extractIdFromResponse('userId')
-            || extractIdFromResponse('user_id');
-          
-          console.log('🔍 重新提取的真实ID:', {
-            merchantBaseId_from_regex: extractIdFromResponse('merchantBaseId'),
-            id_from_regex: extractIdFromResponse('id'),
-            finalRealId: realMerchantBaseId
-          });
-          
-          const merchantInfo = {
-            merchantBaseId: realMerchantBaseId || '',
-            id: realMerchantBaseId || '',
-            merchantId: realMerchantBaseId || '',
-            merchantName: result.user.merchantName || result.user.userName || result.user.nickName,
-            phonenumber: result.user.phonenumber || result.user.phone,
-            email: result.user.email,
-            avatar: result.user.avatar,
-            ...result.user
-          };
-          
-          uni.setStorageSync('merchantInfo', merchantInfo);
-          console.log('✅ 商家信息已更新:', merchantInfo);
-          
-          uni.showToast({
-            title: '商家信息已更新',
-            icon: 'success'
-          });
-        }
-      } catch (error) {
-        console.error('❌ 重新获取商家信息失败:', error);
-      }
-    },
-    
-    /**
-     * 测试当前用户信息
-     */
-    async testCurrentUser() {
-      try {
-        console.log('🔍 开始测试当前用户信息...');
-        const result = await goodsApi.testCurrentUser();
-        
-        // 解析JWT Token进行对比
-        const token = uni.getStorageSync('token');
-        let tokenInfo = 'Token解析失败';
-        if (token) {
-          try {
-            const payloadPart = token.split('.')[1];
-            if (payloadPart) {
-              const decodedPayload = atob(payloadPart);
-              const tokenPayload = JSON.parse(decodedPayload);
-              tokenInfo = `Token中的用户ID: ${tokenPayload.id || tokenPayload.sub || tokenPayload.userId || 'null'}\nToken中的商家ID: ${tokenPayload.merchantBaseId || tokenPayload.merchantId || 'null'}`;
-            }
-          } catch (e) {
-            tokenInfo = 'Token解析出错: ' + e.message;
-          }
-        }
-        
-        uni.showModal({
-          title: '用户信息对比',
-          content: `API返回:\n用户ID: ${result.data?.user?.id || 'null'}\n商家ID: ${result.data?.user?.merchantBaseId || 'null'}\n\n${tokenInfo}`,
-          showCancel: false
-        });
-      } catch (error) {
-        console.error('❌ 测试用户信息失败:', error);
-        uni.showToast({
-          title: '获取用户信息失败',
-          icon: 'none'
-        });
-      }
-    },
-    
-    /**
-     * 强制重新登录
-     */
-    forceRelogin() {
-      uni.showModal({
-        title: '重新登录',
-        content: '检测到Token可能已过期，是否重新登录？',
-        success: (res) => {
-          if (res.confirm) {
-            // 清除所有登录信息
-            uni.removeStorageSync('token');
-            uni.removeStorageSync('merchantInfo');
-            uni.removeStorageSync('userType');
-            uni.removeStorageSync('identity');
-            uni.removeStorageSync('identityKey');
-            
-            // 跳转到登录页面
-            uni.reLaunch({
-              url: '/pages/login/login'
-            });
-          }
-        }
-      });
-    },
-    
-    // ===== 数据加载 =====
     
     /**
      * 加载商品列表
@@ -1094,20 +1116,6 @@ export default {
           // 添加商品
           const res = await goodsApi.addGoods(data);
           if (res.code === 200) {
-            const goodsId = res.data?.id || res.data?.goodsId;
-            
-            // 如果有图片，添加到商品图片关联表
-            if (this.editingProduct.image && goodsId) {
-              try {
-                console.log('🖼️ 添加商品图片关联:', { goodsId, imageUrl: this.editingProduct.image });
-                await goodsApi.addGoodsImage(goodsId, this.editingProduct.image);
-                console.log('✅ 商品图片关联添加成功');
-              } catch (imageError) {
-                console.warn('⚠️ 商品图片关联失败:', imageError);
-                // 图片关联失败不影响商品添加成功的提示
-              }
-            }
-            
             uni.showToast({ 
               title: '添加成功', 
               icon: 'success' 
@@ -1121,18 +1129,6 @@ export default {
           // 修改商品
           const res = await goodsApi.updateGoods(this.editingProduct.id, data);
           if (res.code === 200) {
-            // 如果有图片且商品ID存在，更新商品图片关联
-            if (this.editingProduct.image && this.editingProduct.id) {
-              try {
-                console.log('🖼️ 更新商品图片关联:', { goodsId: this.editingProduct.id, imageUrl: this.editingProduct.image });
-                await goodsApi.addGoodsImage(this.editingProduct.id, this.editingProduct.image);
-                console.log('✅ 商品图片关联更新成功');
-              } catch (imageError) {
-                console.warn('⚠️ 商品图片关联失败:', imageError);
-                // 图片关联失败不影响商品修改成功的提示
-              }
-            }
-            
             uni.showToast({ 
               title: '修改成功', 
               icon: 'success' 
@@ -1347,9 +1343,6 @@ export default {
                   imageUrl = data.data;
                 }
                 
-                console.log('🔍 图片上传响应:', data);
-                console.log('🖼️ 解析出的图片URL:', imageUrl);
-                
                 // 返回服务器上的图片URL
                 resolve(imageUrl);
               } else {
@@ -1441,17 +1434,20 @@ export default {
         imageUrl = data.image;
       } else if (data.imageList && data.imageList.length > 0) {
         // 如果有图片列表，使用第一张图片
-        imageUrl = data.imageList[0].imageUrl || data.imageList[0].url || data.imageList[0];
+        const firstImage = data.imageList[0];
+        if (typeof firstImage === 'string') {
+          imageUrl = firstImage;
+        } else if (firstImage && typeof firstImage === 'object') {
+          imageUrl = firstImage.imageUrl || firstImage.url || firstImage.mainImageUrl || '';
+        }
       }
       
-      console.log('🔍 商品数据映射:', { 
-        goodsId: data.merchantGoodsId, 
-        goodsName: data.goodsName,
-        mainImageUrl: data.mainImageUrl,
-        imageUrl: data.imageUrl,
-        imageList: data.imageList,
-        finalImage: imageUrl
-      });
+      // 确保图片URL是完整的URL
+      if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+        // 如果是相对路径，添加服务器地址
+        imageUrl = `http://localhost:8080${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+      }
+      
       
       return {
         id: data.merchantGoodsId,
@@ -1481,7 +1477,6 @@ export default {
       const merchantInfo = uni.getStorageSync('merchantInfo') || {};
       const merchantBaseId = String(merchantInfo.merchantBaseId || merchantInfo.id || merchantInfo.merchantId || '');
       
-      console.log('🔍 商品数据转换 - merchantBaseId:', merchantBaseId);
       
       return {
         merchantBaseId: merchantBaseId,  // 商家ID（必需）
@@ -2141,6 +2136,78 @@ export default {
 
 .confirm-btn .modal-btn-text {
   color: white;
+}
+
+/* 添加标签/分类按钮样式 */
+.add-option {
+  border: 2rpx dashed #4A90E2 !important;
+  background: #f0f8ff !important;
+}
+
+.add-option .add-text {
+  color: #4A90E2 !important;
+  font-weight: 500;
+}
+
+.add-option:hover {
+  background: #e6f3ff !important;
+  border-color: #357abd !important;
+}
+
+/* 添加弹窗样式 */
+.add-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.add-modal-content {
+  width: 85%;
+  max-width: 600rpx;
+  background: white;
+  border-radius: 20rpx;
+  overflow: hidden;
+}
+
+.add-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  background: #f8f9fa;
+}
+
+.add-modal-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.add-modal-close {
+  font-size: 40rpx;
+  color: #999;
+  width: 50rpx;
+  height: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-modal-body {
+  padding: 30rpx;
+}
+
+.add-modal-footer {
+  display: flex;
+  border-top: 1rpx solid #f0f0f0;
 }
 </style>
 
