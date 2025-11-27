@@ -7,7 +7,8 @@ import request from './request.js';
 
 // API路径
 const EVALUATION_API = {
-	MY_LIST: '/rider/evaluation/myList' // 查询收到的评价列表
+	MY_LIST: '/rider/evaluation/myList', // 查询收到的评价列表
+	MY_STATISTICS: '/rider/evaluation/myStatistics' // 查询评价统计信息
 };
 
 /**
@@ -23,5 +24,15 @@ export async function getMyEvaluationList(params = {}) {
 		url: EVALUATION_API.MY_LIST,
 		method: 'GET',
 		data: params
+	});
+}
+
+/**
+ * 查询我的评价统计信息
+ */
+export async function getMyEvaluationStatistics() {
+	return request({
+		url: EVALUATION_API.MY_STATISTICS,
+		method: 'GET'
 	});
 }
