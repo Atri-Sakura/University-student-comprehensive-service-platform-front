@@ -4,7 +4,7 @@
  */
 
 // 导入基础请求
-import request, { API_BASE_URL } from './request.js';
+import 请求, { API_BASE_URL } from './request.js';
 
 // 导入各模块API
 import * as authApi from './auth.js';
@@ -12,6 +12,7 @@ import * as riderApi from './rider.js';
 import * as paymentApi from './payment.js';
 import * as orderApi from './order.js';
 import * as chatApi from './chat.js';
+import * as evaluationApi from './evaluation.js';
 
 // ========== 重新导出所有API ==========
 
@@ -51,6 +52,11 @@ export const {
 	getOrderStatistics
 } = orderApi;
 
+// 评价相关
+export const {
+	getMyEvaluationList
+} = evaluationApi;
+
 // 聊天相关
 export const {
 	sendMessage,
@@ -62,12 +68,12 @@ export const {
 } = chatApi;
 
 // ========== 导出请求方法和配置 ==========
-export { request, API_BASE_URL };
+export { 请求, API_BASE_URL };
 
 // ========== 默认导出 ==========
 export default {
 	// 基础
-	request,
+	请求,
 	API_BASE_URL,
 	
 	// 认证相关
