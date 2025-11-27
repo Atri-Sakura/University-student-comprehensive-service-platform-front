@@ -13,57 +13,25 @@
 		<view class="stats-card">
 			<view class="stats-header">
 				<view class="overall-score">
-					<text class="score-number">4.8</text>
+					<text class="score-number">{{ averageRating || 0 }}</text>
 					<text class="score-total">/5.0</text>
 				</view>
 				<view class="score-info">
 					<text class="score-label">综合评分</text>
 					<view class="stars">
-						<text class="star filled">★</text>
-						<text class="star filled">★</text>
-						<text class="star filled">★</text>
-						<text class="star filled">★</text>
-						<text class="star half">★</text>
+						<text class="star" :class="{ filled: i < Math.floor(averageRating) || (i === Math.floor(averageRating) && averageRating % 1 >= 0.5) }" v-for="i in 5" :key="i">★</text>
 					</view>
-					<text class="total-reviews">共328条评价</text>
+					<text class="total-reviews">共{{ totalReviews }}条评价</text>
 				</view>
 			</view>
 			
 			<view class="rating-bars">
-				<view class="rating-bar-item">
-					<text class="rating-label">5星</text>
+				<view class="rating-bar-item" v-for="score in [5, 4, 3, 2, 1]" :key="score">
+					<text class="rating-label">{{ score }}星</text>
 					<view class="bar-wrapper">
-						<view class="bar-fill" style="width: 85%"></view>
+						<view class="bar-fill" :style="{ width: calculateBarWidth(score) + '%' }"></view>
 					</view>
-					<text class="rating-percent">85%</text>
-				</view>
-				<view class="rating-bar-item">
-					<text class="rating-label">4星</text>
-					<view class="bar-wrapper">
-						<view class="bar-fill" style="width: 10%"></view>
-					</view>
-					<text class="rating-percent">10%</text>
-				</view>
-				<view class="rating-bar-item">
-					<text class="rating-label">3星</text>
-					<view class="bar-wrapper">
-						<view class="bar-fill" style="width: 3%"></view>
-					</view>
-					<text class="rating-percent">3%</text>
-				</view>
-				<view class="rating-bar-item">
-					<text class="rating-label">2星</text>
-					<view class="bar-wrapper">
-						<view class="bar-fill" style="width: 1%"></view>
-					</view>
-					<text class="rating-percent">1%</text>
-				</view>
-				<view class="rating-bar-item">
-					<text class="rating-label">1星</text>
-					<view class="bar-wrapper">
-						<view class="bar-fill" style="width: 1%"></view>
-					</view>
-					<text class="rating-percent">1%</text>
+					<text class="rating-percent">{{ calculateBarWidth(score) }}%</text>
 				</view>
 			</view>
 		</view>
@@ -85,7 +53,18 @@
 
 		<!-- 评价列表 -->
 		<view class="reviews-list">
-			<view class="review-item" v-for="(review, index) in filteredReviews" :key="index">
+			<!-- 加载中 -->
+			<view v-if="loading && reviews.length === 0" class="loading-container">
+				<text class="loading-text">加载中...</text>
+			</view>
+			
+			<!-- 空状态 -->
+			<view v-else-if="reviews.length === 0" class="empty-container">
+				<text class="empty-text">暂无评价</text>
+			</view>
+			
+			<!-- 评价列表 -->
+			<view class="review-item" v-else v-for="(review, index) in filteredReviews" :key="index">
 				<view class="review-header">
 					<image class="customer-avatar" :src="review.avatar" mode="aspectFill"></image>
 					<view class="customer-info">
@@ -93,8 +72,8 @@
 						<text class="review-time">{{ review.time }}</text>
 					</view>
 					<view class="review-stars">
-						<text class="star" :class="{ filled: i < review.rating }" v-for="i in 5" :key="i">★</text>
-					</view>
+							<text class="star" :class="{ filled: i <= review.rating }" v-for="i in 5" :key="i">★</text>
+						</view>
 				</view>
 				
 				<view class="review-content">
@@ -109,80 +88,26 @@
 					<text class="order-text">订单：{{ review.orderId }}</text>
 				</view>
 				
-				<!-- 回复区域 -->
-				<view class="reply-section">
-					<!-- 已有回复显示 -->
-					<view class="existing-reply" v-if="review.reply">
-						<view class="reply-header">
-							<text class="reply-label">骑手回复：</text>
-							<text class="reply-time">{{ review.replyTime }}</text>
-						</view>
-						<text class="reply-content">{{ review.reply }}</text>
-					</view>
-					
-					<!-- 回复按钮 -->
-					<view class="reply-actions">
-						<view 
-							class="reply-btn" 
-							:class="{ 'replied': review.reply }"
-							@tap="handleReply(index)"
-						>
-							<text class="reply-btn-text">{{ review.reply ? '修改回复' : '回复' }}</text>
-						</view>
-					</view>
-				</view>
+
+			</view>
+			<!-- 加载更多 -->
+			<view v-if="loading && reviews.length > 0" class="load-more-container">
+				<uni-load-more :status="'loading'" :content-text="{loadingText: '加载中...'}"></uni-load-more>
+			</view>
+			
+			<!-- 没有更多数据 -->
+			<view v-else-if="reviews.length >= total && total > 0" class="no-more-container">
+				<uni-load-more :status="'noMore'" :content-text="{noMoreText: '没有更多数据了'}"></uni-load-more>
 			</view>
 		</view>
 		
-		<!-- 回复弹窗 -->
-		<view class="reply-modal" v-if="showReplyModal" @tap="closeReplyModal">
-			<view class="modal-content" @tap.stop="">
-				<view class="modal-header">
-					<text class="modal-title">回复评价</text>
-					<text class="modal-close" @tap="closeReplyModal">✕</text>
-				</view>
-				
-				<view class="modal-body">
-					<!-- 原评价内容 -->
-					<view class="original-review">
-						<view class="review-info">
-							<text class="customer-name">{{ currentReview.customer }}</text>
-							<view class="review-stars">
-								<text class="star" :class="{ filled: i < currentReview.rating }" v-for="i in 5" :key="i">★</text>
-							</view>
-						</view>
-						<text class="review-text">{{ currentReview.content }}</text>
-					</view>
-					
-					<!-- 回复输入框 -->
-					<view class="reply-input-section">
-						<text class="input-label">您的回复：</text>
-						<textarea 
-							class="reply-textarea"
-							v-model="replyText"
-							placeholder="请输入您的回复内容..."
-							maxlength="200"
-							:show-confirm-bar="false"
-							:auto-focus="true"
-							:cursor-spacing="20"
-							:adjust-position="true"
-						></textarea>
-						<text class="char-count">{{ replyText.length }}/200</text>
-					</view>
-				</view>
-				
-				<view class="modal-footer">
-					<button class="cancel-btn" @tap="closeReplyModal">取消</button>
-					<button class="confirm-btn" @tap="submitReply" :disabled="!replyText.trim()">
-						{{ currentReview.reply ? '修改回复' : '发送回复' }}
-					</button>
-				</view>
-			</view>
-		</view>
+
 	</view>
 </template>
 
 <script>
+	// 导入API
+	import { getMyEvaluationList } from '../../utils/api/index.js';
 	export default {
 		data() {
 			return {
@@ -193,95 +118,24 @@
 					{ key: 'medium', name: '中评' },
 					{ key: 'bad', name: '差评' }
 				],
-				// 回复相关数据
-				showReplyModal: false,
-				currentReviewIndex: -1,
-				currentReview: {},
-				replyText: '',
-				reviews: [
-					{
-						customer: '张先生',
-						avatar: '/static/logo.png',
-						time: '2024-01-15 14:30',
-						rating: 5,
-						content: '骑手服务态度非常好，配送速度很快，食物也很完整，非常满意！',
-						tags: ['服务好', '速度快', '态度好'],
-						orderId: 'ORD20240115001',
-						type: 'good'
-					},
-					{
-						customer: '李女士',
-						avatar: '/static/logo.png',
-						time: '2024-01-14 18:45',
-						rating: 5,
-						content: '准时送达，骑手很有礼貌，下次还会继续使用。',
-						tags: ['准时', '有礼貌'],
-						orderId: 'ORD20240114002',
-						type: 'good',
-						reply: '谢谢您的好评！为您提供优质服务是我们的职责，期待下次为您服务！',
-						replyTime: '2024-01-14 20:30'
-					},
-					{
-						customer: '王先生',
-						avatar: '/static/logo.png',
-						time: '2024-01-13 12:20',
-						rating: 4,
-						content: '配送速度可以，但是联系不太及时，希望改进。',
-						tags: ['速度可以'],
-						orderId: 'ORD20240113003',
-						type: 'medium'
-					},
-					{
-						customer: '刘女士',
-						avatar: '/static/logo.png',
-						time: '2024-01-12 19:15',
-						rating: 5,
-						content: '骑手很负责任，下雨天还帮忙送到楼上，非常感谢！',
-						tags: ['负责任', '服务好'],
-						orderId: 'ORD20240112004',
-						type: 'good'
-					},
-					{
-						customer: '陈先生',
-						avatar: '/static/logo.png',
-						time: '2024-01-11 16:30',
-						rating: 3,
-						content: '配送时间比预计的晚了一些，其他还好。',
-						tags: ['有待改进'],
-						orderId: 'ORD20240111005',
-						type: 'medium'
-					},
-					{
-						customer: '周女士',
-						avatar: '/static/logo.png',
-						time: '2024-01-10 15:20',
-						rating: 5,
-						content: '很棒的服务体验，骑手很专业，值得推荐！',
-						tags: ['专业', '推荐'],
-						orderId: 'ORD20240110006',
-						type: 'good'
-					},
-					{
-						customer: '吴先生',
-						avatar: '/static/logo.png',
-						time: '2024-01-09 13:45',
-						rating: 2,
-						content: '配送速度太慢了，等了很久才到。',
-						tags: ['速度慢'],
-						orderId: 'ORD20240109007',
-						type: 'bad'
-					},
-					{
-						customer: '赵女士',
-						avatar: '/static/logo.png',
-						time: '2024-01-08 11:30',
-						rating: 5,
-						content: '非常满意，骑手态度好，配送快，五星好评！',
-						tags: ['满意', '五星'],
-						orderId: 'ORD20240108008',
-						type: 'good'
-					}
-				]
+				// 评价列表数据
+				reviews: [],
+				// 加载状态
+				loading: false,
+				// 分页数据
+				page: 1,
+				pageSize: 10,
+				total: 0,
+				// 评分统计
+				averageRating: 0,
+				totalReviews: 0,
+				ratingDistribution: {
+					5: 0,
+					4: 0,
+					3: 0,
+					2: 0,
+					1: 0
+				}
 			}
 		},
 		computed: {
@@ -289,9 +143,37 @@
 				if (this.activeFilter === 'all') {
 					return this.reviews;
 				}
-				return this.reviews.filter(review => review.type === this.activeFilter);
+				return this.reviews.filter(review => {
+					// 根据评分判断评价类型
+					if (review.rating === 4 || review.rating === 5) {
+						return this.activeFilter === 'good';
+					} else if (review.rating === 2 || review.rating === 3) {
+						return this.activeFilter === 'medium';
+					} else {
+						return this.activeFilter === 'bad';
+					}
+				});
 			}
 		},
+		// 页面加载时获取评价列表
+		onLoad() {
+			this.getEvaluationList();
+		},
+		
+		// 下拉刷新
+		onPullDownRefresh() {
+			this.page = 1;
+			this.getEvaluationList(true);
+		},
+		
+		// 上拉加载更多
+		onReachBottom() {
+			if (this.reviews.length < this.total) {
+				this.page++;
+				this.getEvaluationList(false, true);
+			}
+		},
+		
 		methods: {
 			goBack() {
 				const pages = getCurrentPages();
@@ -305,71 +187,145 @@
 				this.activeFilter = filterKey;
 			},
 			
-			// 处理回复按钮点击
-			handleReply(index) {
-				this.currentReviewIndex = index;
-				this.currentReview = this.filteredReviews[index];
-				this.replyText = this.currentReview.reply || '';
-				this.showReplyModal = true;
+			// 获取评价列表
+		async getEvaluationList(refresh = false, loadMore = false) {
+			if (this.loading && !loadMore) return;
+			
+			this.loading = true;
+			
+			try {
+				// 构建请求参数
+				const params = {
+					page: this.page,
+					pageSize: this.pageSize
+				};
 				
-				// 延迟聚焦输入框
-				this.$nextTick(() => {
-					setTimeout(() => {
-						// 尝试聚焦输入框
-						const textarea = uni.createSelectorQuery().select('.reply-textarea');
-						if (textarea) {
-							textarea.focus();
+				// 根据筛选条件添加评分参数
+				if (this.activeFilter === 'good') {
+					params.rating = 5;
+				} else if (this.activeFilter === 'medium') {
+					params.rating = 3;
+				} else if (this.activeFilter === 'bad') {
+					params.rating = 1;
+				}
+				
+				// 调用API获取评价列表
+				const res = await getMyEvaluationList(params);
+				console.log('API返回原始数据:', res);
+				
+				if (res.code === 200) {
+					// 处理返回数据
+					let list = [];
+					let total = 0;
+					
+					// 检查res是否包含rows和total字段
+					if (res.rows && Array.isArray(res.rows)) {
+						list = res.rows;
+						total = res.total || res.rows.length;
+					} 
+					// 或者检查res.data是否存在
+					else if (res.data) {
+						// 如果res.data是数组，直接使用
+						if (Array.isArray(res.data)) {
+							list = res.data;
+							total = res.data.length;
+						} 
+						// 否则检查是否有rows和total字段
+						else {
+							list = res.data.rows || [];
+							total = res.data.total || 0;
 						}
-					}, 300);
-				});
-			},
-			
-			// 关闭回复弹窗
-			closeReplyModal() {
-				this.showReplyModal = false;
-				this.currentReviewIndex = -1;
-				this.currentReview = {};
-				this.replyText = '';
-			},
-			
-			// 提交回复
-			submitReply() {
-				if (!this.replyText.trim()) {
+					}
+					console.log('处理后的list:', list);
+					console.log('处理后的total:', total);
+					
+					this.total = total;
+					
+					// 格式化数据
+					const formattedReviews = list.map(item => ({
+						id: item.riderevaluateid || item.id || Math.random().toString(36).substr(2, 9),
+						customer: item.userNickname || item.username || item.customerName || '匿名用户',
+						avatar: '/static/logo.png', // 后端没有返回头像字段，使用默认头像
+						time: item.createtime || item.createTime || '',
+						rating: Number(item.rating) || 0, // 确保评分是数字类型
+						content: item.content || item.evaluationContent || '',
+						tags: [], // 后端没有返回标签字段
+						orderId: item.orderid || item.orderNo || item.orderSn || '',
+						reply: item.riderreply || item.replyContent || '',
+						replyTime: item.replytime || item.replyTime || ''
+					}));
+					
+					// 更新评价列表
+					if (refresh || this.page === 1) {
+						this.reviews = formattedReviews;
+					} else if (loadMore) {
+						this.reviews = [...this.reviews, ...formattedReviews];
+					}
+					console.log('格式化后的reviews:', formattedReviews);
+					console.log('更新后的reviews数组:', this.reviews);
+					
+					// 计算评分统计
+					this.calculateRatingStats();
+					
+					// 停止下拉刷新
+					if (refresh) {
+						uni.stopPullDownRefresh();
+					}
+				} else {
 					uni.showToast({
-						title: '请输入回复内容',
+						title: res.message || '获取评价列表失败',
 						icon: 'none'
 					});
+				}
+			} catch (error) {
+				console.error('获取评价列表失败:', error);
+				uni.showToast({
+					title: '网络错误，请稍后重试',
+					icon: 'none'
+				});
+			} finally {
+				this.loading = false;
+			}
+		},
+			
+			// 计算评分统计
+			calculateRatingStats() {
+				if (this.reviews.length === 0) {
+					this.averageRating = 0;
+					this.totalReviews = 0;
+					this.ratingDistribution = {
+						5: 0,
+						4: 0,
+						3: 0,
+						2: 0,
+						1: 0
+					};
 					return;
 				}
 				
-				// 找到原始评价在reviews数组中的索引
-				const originalIndex = this.reviews.findIndex(review => 
-					review.orderId === this.currentReview.orderId
-				);
+				this.totalReviews = this.total;
 				
-				if (originalIndex !== -1) {
-					// 更新回复内容
-					this.$set(this.reviews[originalIndex], 'reply', this.replyText.trim());
-					this.$set(this.reviews[originalIndex], 'replyTime', this.formatCurrentTime());
-					
-					uni.showToast({
-						title: this.currentReview.reply ? '回复已修改' : '回复成功',
-						icon: 'success'
-					});
-					
-					this.closeReplyModal();
-				}
+				// 计算各评分数量
+				this.ratingDistribution = {
+					5: this.reviews.filter(r => r.rating === 5).length,
+					4: this.reviews.filter(r => r.rating === 4).length,
+					3: this.reviews.filter(r => r.rating === 3).length,
+					2: this.reviews.filter(r => r.rating === 2).length,
+					1: this.reviews.filter(r => r.rating === 1).length
+				};
+				
+				// 计算平均评分
+				const sum = this.reviews.reduce((acc, review) => acc + review.rating, 0);
+				this.averageRating = parseFloat((sum / this.reviews.length).toFixed(1));
 			},
 			
-			// 格式化当前时间
-			formatCurrentTime() {
-				const now = new Date();
-				const year = now.getFullYear();
-				const month = String(now.getMonth() + 1).padStart(2, '0');
-				const day = String(now.getDate()).padStart(2, '0');
-				const hours = String(now.getHours()).padStart(2, '0');
-				const minutes = String(now.getMinutes()).padStart(2, '0');
-				return `${year}-${month}-${day} ${hours}:${minutes}`;
+
+			
+			// 计算评分条宽度
+			calculateBarWidth(score) {
+				if (this.totalReviews === 0) return 0;
+				const count = this.ratingDistribution[score] || 0;
+				return Math.round((count / this.totalReviews) * 100) || 0;
 			}
 		}
 	}
@@ -672,227 +628,25 @@
 		color: #999999;
 	}
 
-	/* 回复区域样式 */
-	.reply-section {
-		margin-top: 20rpx;
-		border-top: 1rpx solid #f0f0f0;
-		padding-top: 20rpx;
-		background-color: #fafafa;
-		border-radius: 8rpx;
-		padding: 20rpx;
-	}
 
-	.existing-reply {
-		background-color: #f8f9fa;
-		border-radius: 12rpx;
-		padding: 20rpx;
-		margin-bottom: 16rpx;
-	}
-
-	.reply-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 12rpx;
-	}
-
-	.reply-label {
-		font-size: 26rpx;
-		color: #007aff;
-		font-weight: 500;
-	}
-
-	.reply-time {
-		font-size: 22rpx;
-		color: #999999;
-	}
-
-	.reply-content {
-		font-size: 28rpx;
-		color: #333333;
-		line-height: 1.5;
-	}
-
-	.reply-actions {
-		display: flex;
-		justify-content: flex-end;
-		margin-top: 16rpx;
-	}
-
-	.reply-btn {
-		background-color: #007aff;
-		border-radius: 20rpx;
-		padding: 16rpx 32rpx;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		transition: all 0.3s;
-		cursor: pointer;
-		box-shadow: 0 2rpx 8rpx rgba(0, 122, 255, 0.3);
-		min-width: 120rpx;
-		min-height: 60rpx;
-	}
-
-	.reply-btn.replied {
-		background-color: #28a745;
-	}
-
-	.reply-btn:active {
-		opacity: 0.8;
-		transform: scale(0.98);
-	}
-
-	.reply-btn-text {
-		font-size: 28rpx;
-		color: #ffffff;
-		font-weight: 600;
+	
+	/* 加载状态样式 */
+	.loading-container,
+	.load-more-container,
+	.no-more-container {
+		padding: 20rpx 0;
 		text-align: center;
 	}
-
-	/* 回复弹窗样式 */
-	.reply-modal {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		z-index: 9999;
-		padding: 40rpx;
+	
+	/* 空状态样式 */
+	.empty-container {
+		padding: 100rpx 0;
+		text-align: center;
 	}
-
-	.modal-content {
-		background-color: #ffffff;
-		border-radius: 20rpx;
-		width: 100%;
-		max-width: 600rpx;
-		max-height: 80vh;
-		overflow: hidden;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.modal-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 30rpx;
-		border-bottom: 1rpx solid #f0f0f0;
-	}
-
-	.modal-title {
-		font-size: 32rpx;
-		font-weight: 600;
-		color: #333333;
-	}
-
-	.modal-close {
-		font-size: 40rpx;
-		color: #999999;
-		padding: 10rpx;
-	}
-
-	.modal-body {
-		flex: 1;
-		padding: 30rpx;
-		overflow-y: auto;
-	}
-
-	.original-review {
-		background-color: #f8f9fa;
-		border-radius: 12rpx;
-		padding: 20rpx;
-		margin-bottom: 30rpx;
-	}
-
-	.review-info {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 12rpx;
-	}
-
-	.reply-input-section {
-		position: relative;
-	}
-
-	.input-label {
+	
+	.empty-text {
 		font-size: 28rpx;
-		color: #333333;
-		font-weight: 500;
-		display: block;
-		margin-bottom: 16rpx;
+		color: #999;
 	}
-
-	.reply-textarea {
-		width: 100%;
-		min-height: 200rpx;
-		border: 2rpx solid #e0e0e0;
-		border-radius: 12rpx;
-		padding: 20rpx;
-		font-size: 28rpx;
-		color: #333333;
-		line-height: 1.5;
-		box-sizing: border-box;
-		resize: none;
-		background-color: #ffffff;
-		z-index: 1001;
-		position: relative;
-	}
-
-	.reply-textarea:focus {
-		border-color: #007aff;
-		outline: none;
-		background-color: #ffffff;
-	}
-
-	.char-count {
-		position: absolute;
-		bottom: 16rpx;
-		right: 16rpx;
-		font-size: 22rpx;
-		color: #999999;
-	}
-
-	.modal-footer {
-		display: flex;
-		justify-content: space-between;
-		padding: 30rpx;
-		border-top: 1rpx solid #f0f0f0;
-		gap: 20rpx;
-	}
-
-	.cancel-btn,
-	.confirm-btn {
-		flex: 1;
-		height: 80rpx;
-		border-radius: 12rpx;
-		font-size: 28rpx;
-		border: none;
-		transition: all 0.3s;
-	}
-
-	.cancel-btn {
-		background-color: #f5f5f5;
-		color: #666666;
-	}
-
-	.confirm-btn {
-		background-color: #007aff;
-		color: #ffffff;
-	}
-
-	.confirm-btn:disabled {
-		background-color: #cccccc;
-		color: #999999;
-	}
-
-	.cancel-btn:active,
-	.confirm-btn:active:not(:disabled) {
-		opacity: 0.8;
-		transform: scale(0.98);
-	}
+	
 </style>
