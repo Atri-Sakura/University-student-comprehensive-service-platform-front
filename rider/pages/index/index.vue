@@ -89,6 +89,7 @@
 
 <script>
 	import { getRiderBaseInfo } from '@/utils/profile-api.js';
+import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 	
 	export default {
 		data() {
@@ -118,11 +119,15 @@
 				
 				this.loading = true;
 				try {
-					// 优先从后端获取最新数据
-					const response = await getRiderBaseInfo();
+					// 并行请求获取骑手基本信息和评价统计信息
+					const [baseInfoResponse, statisticsResponse] = await Promise.all([
+						getRiderBaseInfo(),
+						getMyEvaluationStatistics()
+					]);
 					
-					if (response.code === 200 && response.data) {
-						const data = response.data;
+					// 更新骑手基本信息
+					if (baseInfoResponse.code === 200 && baseInfoResponse.data) {
+						const data = baseInfoResponse.data;
 						console.log('🏠 个人中心获取到的数据:', data);
 						
 						// 更新用户信息，优先显示昵称，如果没有昵称则显示真实姓名
@@ -131,8 +136,6 @@
 							name: data.nickname || data.realName || '未设置',
 							avatar: data.avatar || '/static/logo.png'
 						};
-						
-						console.log('📱 个人中心更新后的用户信息:', this.userInfo);
 						
 						// 保存到本地缓存
 						uni.setStorageSync('riderInfo', {
@@ -149,6 +152,20 @@
 						// 如果接口失败，从本地缓存获取
 						this.loadFromCache();
 					}
+					
+					// 更新评价统计信息
+					if (statisticsResponse.code === 200 && statisticsResponse.data) {
+						const statistics = statisticsResponse.data;
+						console.log('⭐ 个人中心获取到的评价统计:', statistics);
+						
+						// 更新综合评分
+						this.userInfo = {
+							...this.userInfo,
+							rating: statistics.avgRating || this.userInfo.rating
+						};
+					}
+					
+					console.log('📱 个人中心更新后的用户信息:', this.userInfo);
 				} catch (error) {
 					console.error('个人中心获取骑手信息失败:', error);
 					// 网络错误时从本地缓存获取
