@@ -14,7 +14,7 @@ import { API_BASE_URL } from '../config.js';
  * @param {Object} options.headers 额外的请求头
  * @param {Boolean} options.needAuth 是否需要token认证，默认true
  */
-async function request(options) {
+async function 请求(options) {
 	const {
 		url,
 		method = 'GET',
@@ -64,11 +64,25 @@ async function request(options) {
 			title: '加载中...',
 			mask: true
 		});
+
+		// 处理GET请求参数
+		let url = fullUrl;
+		if (method.toUpperCase() === 'GET' && requestData && typeof requestData === 'object') {
+			const params = [];
+			for (const key in requestData) {
+				if (requestData.hasOwnProperty(key) && requestData[key] !== undefined && requestData[key] !== null) {
+					params.push(`${encodeURIComponent(key)}=${encodeURIComponent(requestData[key])}`);
+				}
+			}
+			if (params.length > 0) {
+				url += (fullUrl.includes('?') ? '&' : '?') + params.join('&');
+			}
+		}
 		
 		// 使用 uni.request 发送请求
 		const response = await new Promise((resolve, reject) => {
-			uni.request({
-				url: fullUrl,
+			uni.请求({
+				url: url,
 				method: method.toUpperCase(),
 				data: method.toUpperCase() === 'GET' ? {} : requestData,
 				header: requestHeaders,
@@ -106,6 +120,15 @@ async function request(options) {
  * 处理响应数据
  */
 function handleResponse(result) {
+// 如果结果是数组，直接返回成功格式
+	if (Array.isArray(result)) {
+		return {
+			code: 200,
+			data: result,
+			msg: '请求成功'
+		};
+	}
+	
 	// 根据code判断请求是否成功
 	if (result.code === 200) {
 		return result;
@@ -152,5 +175,5 @@ function handleTokenExpired() {
 	}, 2000);
 }
 
-export { request, API_BASE_URL };
-export default request;
+export { 请求, API_BASE_URL };
+export default 请求;
