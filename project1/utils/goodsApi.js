@@ -83,6 +83,50 @@ export default {
   },
 
   /**
+   * 添加商品图片关联（通过文件上传）
+   * @param {Number} goodsId - 商品ID
+   * @param {String} filePath - 本地文件路径
+   * @param {Number} isMain - 是否主图：0-否 1-是（默认1）
+   * @returns {Promise}
+   */
+  async addGoodsImage(goodsId, filePath, isMain = 1) {
+    const url = `${BASE_URL}/addImage/${goodsId}`
+    
+    return new Promise((resolve, reject) => {
+      const token = uni.getStorageSync('token')
+      
+      uni.uploadFile({
+        url: url,
+        filePath: filePath,
+        name: 'file', // 后端接收的参数名
+        formData: {
+          isMain: isMain
+        },
+        header: {
+          'Authorization': 'Bearer ' + token
+        },
+        success: (uploadRes) => {
+          try {
+            const data = JSON.parse(uploadRes.data)
+            
+            if (data.code === 200) {
+              resolve(data)
+            } else {
+              const errorMsg = data.msg || '添加图片失败'
+              reject(new Error(errorMsg))
+            }
+          } catch (parseError) {
+            reject(new Error('响应解析失败'))
+          }
+        },
+        fail: (err) => {
+          reject(err)
+        }
+      })
+    })
+  },
+
+  /**
    * 测试当前用户信息（调试用）
    */
   async testCurrentUser() {
@@ -267,32 +311,6 @@ export default {
     }
   },
 
-  /**
-   * 添加商品图片
-   * @param {Number} goodsId - 商品ID
-   * @param {String} imageUrl - 图片URL
-   * @returns {Promise}
-   */
-  async addGoodsImage(goodsId, imageUrl) {
-    const url = `${BASE_URL}/addImage/${goodsId}`
-    
-    
-    try {
-      const response = await request(url, {
-        method: 'POST',
-        data: { imageUrl: imageUrl },  // 包装为对象
-        header: {
-          'Content-Type': 'application/json'
-        }
-      })
-      
-      console.log('✅ addGoodsImage 响应:', response);
-      return response.data
-    } catch (error) {
-      console.error('❌ addGoodsImage 失败:', error);
-      throw error
-    }
-  },
 
   /**
    * 删除商品图片

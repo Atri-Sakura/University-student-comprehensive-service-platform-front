@@ -1088,6 +1088,8 @@ export default {
       // 直接使用列表数据
       this.editingIndex = this.products.findIndex(p => p.id === item.id);
       this.editingProduct = { ...item };
+      // 清除本地图片路径，避免编辑模式下的混淆
+      this.editingProduct.localImagePath = '';
       this.showEditModal = true;
       
       // 如果商品有分类，加载对应的子分类
@@ -1116,6 +1118,36 @@ export default {
           // 添加商品
           const res = await goodsApi.addGoods(data);
           if (res.code === 200) {
+            // 商品添加成功，现在处理图片
+            if (this.editingProduct.localImagePath) {
+              try {
+                // 获取新添加商品的ID（从响应中获取或通过查询获取）
+                const newGoodsId = res.data || await this.getLatestGoodsId();
+                
+                if (newGoodsId) {
+                  // 显示图片上传进度
+                  uni.showLoading({ title: '上传图片中...' });
+                  
+                  // 调用后端的addImage接口，将图片关联到商品
+                  const imageSuccess = await this.addGoodsImage(newGoodsId, this.editingProduct.localImagePath);
+                  
+                  uni.hideLoading();
+                  
+                  if (imageSuccess) {
+                    // 商品和图片都添加成功
+                  }
+                }
+              } catch (imageError) {
+                uni.hideLoading();
+                // 图片关联失败不影响商品添加成功的提示
+                uni.showToast({
+                  title: '商品添加成功，图片上传失败',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
+            }
+            
             uni.showToast({ 
               title: '添加成功', 
               icon: 'success' 
@@ -1129,6 +1161,26 @@ export default {
           // 修改商品
           const res = await goodsApi.updateGoods(this.editingProduct.id, data);
           if (res.code === 200) {
+            // 商品修改成功，处理图片更新
+            if (this.editingProduct.localImagePath) {
+              try {
+                // 显示图片上传进度
+                uni.showLoading({ title: '更新图片中...' });
+                
+                // 对于编辑模式，如果图片发生了变化，需要更新图片
+                await this.updateGoodsImage(this.editingProduct.id, this.editingProduct.localImagePath);
+                
+                uni.hideLoading();
+              } catch (imageError) {
+                uni.hideLoading();
+                uni.showToast({
+                  title: '商品修改成功，图片更新失败',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
+            }
+            
             uni.showToast({ 
               title: '修改成功', 
               icon: 'success' 
@@ -1249,6 +1301,60 @@ export default {
       return this.selectedTags.join(',');
     },
     
+    /**
+     * 获取最新添加的商品ID（用于图片关联）
+     */
+    async getLatestGoodsId() {
+      try {
+        // 重新加载商品列表，获取最新的商品ID
+        const res = await goodsApi.getGoodsList({
+          pageNum: 1,
+          pageSize: 1 // 只获取最新的一条
+        });
+        
+        if (res.code === 200 && res.rows && res.rows.length > 0) {
+          const latestGoods = res.rows[0];
+          return latestGoods.merchantGoodsId || latestGoods.id;
+        }
+      } catch (error) {
+        // 获取失败时返回null
+      }
+      return null;
+    },
+    
+    /**
+     * 添加商品图片关联
+     * @param {Number} goodsId - 商品ID
+     * @param {String} filePath - 本地文件路径
+     */
+    async addGoodsImage(goodsId, filePath) {
+      try {
+        const res = await goodsApi.addGoodsImage(goodsId, filePath, 1); // isMain=1 表示主图
+        if (res.code === 200) {
+          return true;
+        } else {
+          return false;
+        }
+      } catch (error) {
+        return false;
+      }
+    },
+    
+    /**
+     * 更新商品图片
+     * @param {Number} goodsId - 商品ID
+     * @param {String} filePath - 本地文件路径
+     */
+    async updateGoodsImage(goodsId, filePath) {
+      try {
+        // 对于编辑模式，直接添加新图片，后端会处理重复图片的逻辑
+        return await this.addGoodsImage(goodsId, filePath);
+      } catch (error) {
+        return false;
+      }
+    },
+    
+    
     // ===== 图片处理 =====
     
     /**
@@ -1259,44 +1365,26 @@ export default {
         count: 1,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
-        success: async (res) => {
+        success: (res) => {
           const tempFilePath = res.tempFilePaths[0];
           
-          // 立即显示本地图片预览
+          // 保存本地图片路径，用于预览和后续上传
           this.editingProduct.image = tempFilePath;
+          this.editingProduct.localImagePath = tempFilePath; // 保存本地路径
           
-          // 上传图片到服务器
-          uni.showLoading({ title: '上传中...' });
+          uni.showToast({ 
+            title: '图片选择成功', 
+            icon: 'success',
+            duration: 1000
+          });
           
-          try {
-            const imageUrl = await this.uploadImage(tempFilePath);
-            
-            // 上传成功，使用服务器返回的URL
-            this.editingProduct.image = imageUrl;
-            
-            uni.hideLoading();
-            uni.showToast({ 
-              title: '图片上传成功', 
-              icon: 'success' 
+          // 提示用户保存商品
+          if (this.editingProduct.id) {
+            uni.showToast({
+              title: '请点击"保存"按钮保存修改',
+              icon: 'none',
+              duration: 2000
             });
-            
-            // ⚠️ 临时方案：因后端 addImage 接口有bug，暂时跳过单独调用
-            // 图片URL已保存在 editingProduct.image 中
-            // 在点击"保存"按钮时会一起提交到后端
-            
-            if (this.editingProduct.id) {
-              // 提示用户需要点击保存
-              uni.showToast({
-                title: '请点击"保存"按钮保存图片',
-                icon: 'none',
-                duration: 2000
-              });
-            }
-          } catch (error) {
-            uni.hideLoading();
-            this.editingProduct.image = '';
-            
-            this.handleError(error, '图片上传失败');
           }
         },
         fail: () => {
@@ -1374,10 +1462,11 @@ export default {
         price: '',
         originalPrice: '',
         stock: '',
-        category: '中餐',
+        category: '',
         subCategory: '',
         image: '',
-        emoji: '🍔',
+        localImagePath: '', // 本地图片路径
+        emoji: '',
         status: true,
         tagCodes: ''
       };

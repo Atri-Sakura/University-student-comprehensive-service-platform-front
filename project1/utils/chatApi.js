@@ -3,6 +3,23 @@ import { request } from './api.js';
 
 const baseUrl = 'http://localhost:8080';
 
+// 获取token的函数
+const getToken = () => {
+  return uni.getStorageSync('token');
+};
+
+// 通用请求函数
+const chatRequest = (url, options = {}) => {
+  return request(url, {
+    ...options,
+    header: {
+      'Authorization': `Bearer ${getToken()}`,
+      'Content-Type': 'application/json',
+      ...options.header
+    }
+  });
+};
+
 // ==================== 会话管理 ====================
 
 /**
@@ -39,7 +56,7 @@ export const getChatList = (params = {}) => {
     console.error('merchantInfo内容:', JSON.stringify(merchantInfo));
   }
   
-  return request(`${baseUrl}/platform/chat/session/sessions`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/sessions`, {
     method: 'GET',
     data: {
       fromType: fromType,
@@ -55,7 +72,7 @@ export const getChatList = (params = {}) => {
  * @returns {Promise}
  */
 export const getChatDetail = (sessionId) => {
-  return request(`${baseUrl}/platform/chat/session/${sessionId}`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/${sessionId}`, {
     method: 'GET'
   });
 };
@@ -70,7 +87,7 @@ export const getChatDetail = (sessionId) => {
  * @returns {Promise}
  */
 export const createChat = (data) => {
-  return request(`${baseUrl}/platform/chat/session`, {
+  return chatRequest(`${baseUrl}/platform/chat/session`, {
     method: 'POST',
     data: data
   });
@@ -82,7 +99,19 @@ export const createChat = (data) => {
  * @returns {Promise}
  */
 export const deleteChat = (sessionId) => {
-  return request(`${baseUrl}/platform/chat/session/${sessionId}`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/${sessionId}`, {
+    method: 'DELETE'
+  });
+};
+
+/**
+ * 批量删除聊天会话
+ * @param {Array} sessionIds - 会话ID数组
+ * @returns {Promise}
+ */
+export const deleteChatBatch = (sessionIds) => {
+  const idsString = Array.isArray(sessionIds) ? sessionIds.join(',') : sessionIds;
+  return chatRequest(`${baseUrl}/platform/chat/session/${idsString}`, {
     method: 'DELETE'
   });
 };
@@ -93,7 +122,7 @@ export const deleteChat = (sessionId) => {
  * @returns {Promise}
  */
 export const markChatRead = (sessionId) => {
-  return request(`${baseUrl}/platform/chat/session/readUnreadCount`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/readUnreadCount`, {
     method: 'POST',
     data: { sessionId }
   });
@@ -119,7 +148,7 @@ export const getUnreadCount = (fromType, fromId) => {
     console.log('getUnreadCount - fromId:', fromId);
   }
   
-  return request(`${baseUrl}/platform/chat/session/unread`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/unread`, {
     method: 'GET',
     data: { fromType, fromId }
   });
@@ -134,7 +163,7 @@ export const getUnreadCount = (fromType, fromId) => {
  * @returns {Promise}
  */
 export const updateChatSession = (data) => {
-  return request(`${baseUrl}/platform/chat/session`, {
+  return chatRequest(`${baseUrl}/platform/chat/session`, {
     method: 'PUT',
     data: data
   });
@@ -146,7 +175,7 @@ export const updateChatSession = (data) => {
  * @returns {Promise}
  */
 export const getChatSessionList = (params) => {
-  return request(`${baseUrl}/platform/chat/session/list`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/list`, {
     method: 'GET',
     data: params
   });
@@ -158,7 +187,7 @@ export const getChatSessionList = (params) => {
  * @returns {Promise}
  */
 export const increaseUnreadCount = (sessionId) => {
-  return request(`${baseUrl}/platform/chat/session/increaseUnreadCount`, {
+  return chatRequest(`${baseUrl}/platform/chat/session/increaseUnreadCount`, {
     method: 'POST',
     data: { sessionId }
   });
@@ -178,7 +207,7 @@ export const increaseUnreadCount = (sessionId) => {
  * @returns {Promise}
  */
 export const getMessageList = (params) => {
-  return request(`${baseUrl}/platform/chat/message/list`, {
+  return chatRequest(`${baseUrl}/platform/chat/message/list`, {
     method: 'GET',
     data: {
       sessionId: params.sessionId || params.chatId,
@@ -188,6 +217,39 @@ export const getMessageList = (params) => {
       pageNum: params.pageNum,
       pageSize: params.pageSize
     }
+  });
+};
+
+/**
+ * 获取单条消息详情
+ * @param {Number} messageId - 消息ID
+ * @returns {Promise}
+ */
+export const getMessageDetail = (messageId) => {
+  return chatRequest(`${baseUrl}/platform/chat/message/${messageId}`, {
+    method: 'GET'
+  });
+};
+
+/**
+ * 查询最近更新的消息
+ * @returns {Promise}
+ */
+export const getRecentMessages = () => {
+  return chatRequest(`${baseUrl}/platform/chat/message/recent`, {
+    method: 'GET'
+  });
+};
+
+/**
+ * 查询带附件的聊天消息
+ * @param {Object} params - 查询参数
+ * @returns {Promise}
+ */
+export const getMessagesWithAttachment = (params) => {
+  return chatRequest(`${baseUrl}/platform/chat/message/chatMessageWithAttachment`, {
+    method: 'GET',
+    data: params
   });
 };
 
@@ -223,7 +285,7 @@ export const sendMessage = (data) => {
     msgType = 4;
   }
   
-  return request(`${baseUrl}/platform/chat/message`, {
+  return chatRequest(`${baseUrl}/platform/chat/message`, {
     method: 'POST',
     data: {
       sessionId: data.sessionId || data.chatId, // 兼容旧参数名
@@ -233,7 +295,11 @@ export const sendMessage = (data) => {
       toId: data.toId,
       msgType: msgType,
       msgContent: data.msgContent || data.content, // 兼容旧参数名
-      msgStatus: 0 // 0-发送中
+      msgStatus: 0, // 0-发送中
+      sendTime: new Date().toISOString().split('T')[0], // 当前日期
+      isDeleted: 0,
+      version: 1,
+      attachment: data.attachment // 附件信息
     }
   });
 };
@@ -244,7 +310,19 @@ export const sendMessage = (data) => {
  * @returns {Promise}
  */
 export const deleteMessage = (messageId) => {
-  return request(`${baseUrl}/platform/chat/message/${messageId}`, {
+  return chatRequest(`${baseUrl}/platform/chat/message/${messageId}`, {
+    method: 'DELETE'
+  });
+};
+
+/**
+ * 批量删除消息
+ * @param {Array} messageIds - 消息ID数组
+ * @returns {Promise}
+ */
+export const deleteMessageBatch = (messageIds) => {
+  const idsString = Array.isArray(messageIds) ? messageIds.join(',') : messageIds;
+  return chatRequest(`${baseUrl}/platform/chat/message/${idsString}`, {
     method: 'DELETE'
   });
 };
@@ -259,7 +337,7 @@ export const deleteMessage = (messageId) => {
  * @returns {Promise}
  */
 export const updateMessage = (data) => {
-  return request(`${baseUrl}/platform/chat/message`, {
+  return chatRequest(`${baseUrl}/platform/chat/message`, {
     method: 'PUT',
     data: data
   });
@@ -271,9 +349,9 @@ export const updateMessage = (data) => {
  * @returns {Promise}
  */
 export const getMultiSessionMessages = (sessionIds) => {
-  return request(`${baseUrl}/platform/chat/message/multiSessionMessages`, {
-    method: 'GET',
-    data: { sessionIds }
+  const idsString = Array.isArray(sessionIds) ? sessionIds.join(',') : sessionIds;
+  return chatRequest(`${baseUrl}/platform/chat/message/multiSessionMessages?sessionIds=${idsString}`, {
+    method: 'GET'
   });
 };
 
@@ -287,9 +365,70 @@ export const getMultiSessionMessages = (sessionIds) => {
  * @returns {Promise}
  */
 export const getMultiSessionMessagesFromTo = (params) => {
-  return request(`${baseUrl}/platform/chat/message/multiSessionMessagesFromTo`, {
+  return chatRequest(`${baseUrl}/platform/chat/message/multiSessionMessagesFromTo`, {
     method: 'GET',
     data: params
+  });
+};
+
+// ==================== 消息附件管理 ====================
+
+/**
+ * 查询消息附件详情
+ * @param {Number} attachmentId - 附件ID
+ * @returns {Promise}
+ */
+export const getAttachmentDetail = (attachmentId) => {
+  return chatRequest(`${baseUrl}/platform/chat/attachment/${attachmentId}`, {
+    method: 'GET'
+  });
+};
+
+/**
+ * 查询消息附件列表
+ * @param {Object} params - 查询参数
+ * @returns {Promise}
+ */
+export const getAttachmentList = (params) => {
+  return chatRequest(`${baseUrl}/platform/chat/attachment/list`, {
+    method: 'GET',
+    data: params
+  });
+};
+
+/**
+ * 新增消息附件
+ * @param {Object} data - 附件数据
+ * @returns {Promise}
+ */
+export const createAttachment = (data) => {
+  return chatRequest(`${baseUrl}/platform/chat/attachment`, {
+    method: 'POST',
+    data: data
+  });
+};
+
+/**
+ * 修改消息附件
+ * @param {Object} data - 附件数据
+ * @returns {Promise}
+ */
+export const updateAttachment = (data) => {
+  return chatRequest(`${baseUrl}/platform/chat/attachment`, {
+    method: 'PUT',
+    data: data
+  });
+};
+
+/**
+ * 批量删除消息附件
+ * @param {Array} attachmentIds - 附件ID数组
+ * @returns {Promise}
+ */
+export const deleteAttachmentBatch = (attachmentIds) => {
+  const idsString = Array.isArray(attachmentIds) ? attachmentIds.join(',') : attachmentIds;
+  return chatRequest(`${baseUrl}/platform/chat/attachment/${idsString}`, {
+    method: 'DELETE'
   });
 };
 
@@ -311,7 +450,7 @@ export const uploadChatImage = (filePath, sessionId) => {
         sessionId: sessionId
       },
       header: {
-        'Authorization': `Bearer ${uni.getStorageSync('token')}`
+        'Authorization': `Bearer ${getToken()}`
       },
       success: (uploadRes) => {
         const data = JSON.parse(uploadRes.data);
@@ -344,7 +483,7 @@ export const uploadChatFile = (filePath, sessionId) => {
         sessionId: sessionId
       },
       header: {
-        'Authorization': `Bearer ${uni.getStorageSync('token')}`
+        'Authorization': `Bearer ${getToken()}`
       },
       success: (uploadRes) => {
         const data = JSON.parse(uploadRes.data);
@@ -421,7 +560,7 @@ export class ChatWebSocket {
    * @param {Function} options.onClose - 关闭回调
    */
   connect(options = {}) {
-    const token = uni.getStorageSync('token');
+    const token = getToken();
     if (!token) {
       console.error('未找到token，无法连接WebSocket');
       return;
@@ -662,6 +801,7 @@ export default {
   getChatDetail,
   createChat,
   deleteChat,
+  deleteChatBatch,
   markChatRead,
   getUnreadCount,
   updateChatSession,
@@ -670,11 +810,22 @@ export default {
   
   // 消息管理
   getMessageList,
+  getMessageDetail,
+  getRecentMessages,
+  getMessagesWithAttachment,
   sendMessage,
   deleteMessage,
+  deleteMessageBatch,
   updateMessage,
   getMultiSessionMessages,
   getMultiSessionMessagesFromTo,
+  
+  // 附件管理
+  getAttachmentDetail,
+  getAttachmentList,
+  createAttachment,
+  updateAttachment,
+  deleteAttachmentBatch,
   
   // 文件上传
   uploadChatImage,

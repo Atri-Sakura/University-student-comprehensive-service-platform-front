@@ -178,6 +178,15 @@
         <text class="modify-text">保存配送设置</text>
       </view>
     </view>
+
+    <!-- 退出登录按钮 -->
+    <view class="logout-card">
+      <view class="logout-btn" @click="showLogoutConfirm">
+        <text class="logout-icon">🚪</text>
+        <text class="logout-text">退出登录</text>
+        <text class="logout-arrow">→</text>
+      </view>
+    </view>
     
     <!-- 自定义底部导航栏 -->
     <view class="custom-tab-bar">
@@ -258,6 +267,27 @@
         </view>
       </view>
     </view>
+
+    <!-- 退出登录确认弹窗 -->
+    <view class="logout-modal" v-if="showLogoutModal" @click="closeLogoutModal">
+      <view class="logout-modal-content" @click.stop>
+        <view class="logout-modal-header">
+          <text class="logout-modal-title">确认退出</text>
+        </view>
+        <view class="logout-modal-body">
+          <text class="logout-modal-text">确定要退出登录吗？</text>
+          <text class="logout-modal-desc">退出后需要重新登录才能使用</text>
+        </view>
+        <view class="logout-modal-footer">
+          <view class="modal-btn cancel-btn" @click="closeLogoutModal">
+            <text class="modal-btn-text">取消</text>
+          </view>
+          <view class="modal-btn logout-confirm-btn" @click="confirmLogout">
+            <text class="modal-btn-text">退出登录</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -313,6 +343,7 @@ export default {
       editModalPlaceholder: '',
       editModalValue: '',
       editModalType: '', // 'description'、'phone'、'businessScope'
+      showLogoutModal: false, // 退出登录确认弹窗
       certImages: {
         business: '', // 营业执照图片
         food: '' // 食品经营许可证图片
@@ -1241,6 +1272,60 @@ export default {
           url: urlMap[tab]
         });
       }
+    },
+
+    // ==================== 退出登录方法 ====================
+    
+    /**
+     * 显示退出登录确认弹窗
+     */
+    showLogoutConfirm() {
+      this.showLogoutModal = true;
+    },
+    
+    /**
+     * 关闭退出登录确认弹窗
+     */
+    closeLogoutModal() {
+      this.showLogoutModal = false;
+    },
+    
+    /**
+     * 确认退出登录
+     */
+    confirmLogout() {
+      try {
+        // 清除所有本地存储的登录信息
+        uni.removeStorageSync('token');
+        uni.removeStorageSync('merchantInfo');
+        uni.removeStorageSync('shopInfo');
+        uni.removeStorageSync('userInfo');
+        uni.removeStorageSync('loginTime');
+        
+        // 关闭弹窗
+        this.showLogoutModal = false;
+        
+        // 显示退出成功提示
+        uni.showToast({
+          title: '已退出登录',
+          icon: 'success',
+          duration: 1500
+        });
+        
+        // 延迟跳转到登录页面，确保toast显示完成
+        setTimeout(() => {
+          uni.reLaunch({
+            url: '/pages/login/login'
+          });
+        }, 1500);
+        
+      } catch (error) {
+        console.error('退出登录失败:', error);
+        uni.showToast({
+          title: '退出失败，请重试',
+          icon: 'none'
+        });
+      }
     }
   }
 }
@@ -1922,5 +2007,115 @@ export default {
   font-size: 20rpx;
   color: #999;
   margin-left: 12rpx;
+}
+
+/* 退出登录卡片样式 */
+.logout-card {
+  background: white;
+  border-radius: 20rpx;
+  margin: 20rpx;
+  margin-bottom: 40rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.08);
+}
+
+.logout-btn {
+  display: flex;
+  align-items: center;
+  padding: 32rpx;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.logout-btn:active {
+  background: #f8f9fa;
+}
+
+.logout-icon {
+  font-size: 40rpx;
+  margin-right: 24rpx;
+  color: #FF6B6B;
+}
+
+.logout-text {
+  flex: 1;
+  font-size: 32rpx;
+  color: #FF6B6B;
+  font-weight: 500;
+}
+
+.logout-arrow {
+  font-size: 28rpx;
+  color: #ccc;
+}
+
+/* 退出登录确认弹窗样式 */
+.logout-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.logout-modal-content {
+  background: white;
+  border-radius: 20rpx;
+  width: 600rpx;
+  max-width: 90%;
+  overflow: hidden;
+  box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.15);
+}
+
+.logout-modal-header {
+  padding: 40rpx 40rpx 20rpx;
+  text-align: center;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.logout-modal-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.logout-modal-body {
+  padding: 40rpx;
+  text-align: center;
+}
+
+.logout-modal-text {
+  font-size: 32rpx;
+  color: #333;
+  margin-bottom: 16rpx;
+  display: block;
+}
+
+.logout-modal-desc {
+  font-size: 28rpx;
+  color: #666;
+  line-height: 1.5;
+  display: block;
+}
+
+.logout-modal-footer {
+  display: flex;
+  border-top: 1rpx solid #f0f0f0;
+  border-radius: 0 0 20rpx 20rpx;
+  overflow: hidden;
+}
+
+.logout-confirm-btn {
+  background: linear-gradient(135deg, #FF6B6B, #FF5252);
+  color: white;
+  font-weight: bold;
+}
+
+.logout-confirm-btn:active {
+  background: linear-gradient(135deg, #FF5252, #F44336);
 }
 </style>

@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="Add files via upload" />
+    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="解决了店铺头像问题，改名问题">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/_metadata.json" beforeDir="false" afterPath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/_metadata.json" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,19 +58,6 @@
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
-  <component name="RunManager">
-    <configuration default="true" type="JetRunConfigurationType">
-      <module name="University-student-comprehensive-service-platform-front" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
-      <module name="University-student-comprehensive-service-platform-front" />
-      <option name="filePath" />
-      <method v="2" />
-    </configuration>
-  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -97,6 +87,8 @@
       <workItem from="1764063243717" duration="11000" />
       <workItem from="1764068682212" duration="24000" />
       <workItem from="1764074451705" duration="114000" />
+      <workItem from="1764214088114" duration="1957000" />
+      <workItem from="1764313101533" duration="185000" />
     </task>
     <task id="LOCAL-00001" summary="Update list.vue">
       <option name="closed" value="true" />
@@ -218,7 +210,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764074471307</updated>
     </task>
-    <option name="localTasksCounter" value="16" />
+    <task id="LOCAL-00016" summary="解决了店铺头像问题，改名问题">
+      <option name="closed" value="true" />
+      <created>1764214161530</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1764214161530</updated>
+    </task>
+    <option name="localTasksCounter" value="17" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -240,6 +240,8 @@
     <MESSAGE value="Update list.vue" />
     <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant" />
     <MESSAGE value="Add files via upload" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add files via upload" />
+    <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant&#10;&#10;# Conflicts:&#10;#&#9;project1/utils/chatApi.js" />
+    <MESSAGE value="解决了店铺头像问题，改名问题" />
+    <option name="LAST_COMMIT_MESSAGE" value="解决了店铺头像问题，改名问题" />
   </component>
 </project>
