@@ -43,6 +43,13 @@
       }
     },
     {
+      "path": "pages/payment/alipay-payment",
+      "style": {
+        "navigationBarTitleText": "支付宝支付",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/message/message",
       "style": {
         "navigationBarTitleText": "消息",
@@ -61,8 +68,7 @@
       "path": "pages/mine/mine",
       "style": {
         "navigationBarTitleText": "我的",
-        "navigationBarBackgroundColor": "#5DCDFF",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom"
       }
     },
     {
@@ -312,13 +318,6 @@
       "path": "pages/errand/errand",
       "style": {
         "navigationBarTitleText": "跑腿服务",
-        "navigationStyle": "custom"
-      }
-    },
-    {
-      "path": "pages/errand/errand-payment",
-      "style": {
-        "navigationBarTitleText": "订单支付",
         "navigationStyle": "custom"
       }
     },

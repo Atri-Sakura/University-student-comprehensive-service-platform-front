@@ -163,6 +163,9 @@ export default {
   onShow() {
     // 页面显示时重新加载数据（可能从充值/提现页面返回）
     this.loadWalletData();
+    
+    // 检查是否有充值成功标识
+    this.checkRechargeSuccess();
   },
   onPullDownRefresh() {
     // 下拉刷新
@@ -559,6 +562,45 @@ export default {
       uni.navigateTo({
         url: '/pages/mine/wallet-withdraw'
       });
+    },
+    
+    /**
+     * 检查充值成功状态并显示提示
+     */
+    checkRechargeSuccess() {
+      // 检查本地存储中是否有充值成功标识
+      const rechargeSuccess = uni.getStorageSync('rechargeSuccess');
+      if (rechargeSuccess) {
+        // 清除标识
+        uni.removeStorageSync('rechargeSuccess');
+        
+        // 显示充值成功提示
+        this.showRechargeSuccessToast(rechargeSuccess);
+      }
+    },
+    
+    /**
+     * 显示充值成功提示
+     */
+    showRechargeSuccessToast(rechargeInfo) {
+      const amount = rechargeInfo.amount || '未知';
+      
+      // 显示成功提示
+      uni.showToast({
+        title: `充值成功！金额：¥${amount}`,
+        icon: 'success',
+        duration: 3000
+      });
+      
+      // 延迟显示详细信息
+      setTimeout(() => {
+        uni.showModal({
+          title: '充值成功',
+          content: `恭喜您！充值¥${amount}已到账，请查看您的账户余额。`,
+          showCancel: false,
+          confirmText: '知道了'
+        });
+      }, 3500);
     },
     viewBill() {
       uni.navigateTo({

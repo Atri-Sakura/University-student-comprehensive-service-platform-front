@@ -182,18 +182,7 @@ export default {
     
     // 返回
     goBack() {
-      // 获取当前页面栈
-      const pages = getCurrentPages();
-      
-      // 如果页面栈只有一个页面（刷新后的情况），则跳转到二手交易市场
-      if (pages.length <= 1) {
-        uni.redirectTo({
-          url: '/pages/market/market'
-        });
-      } else {
-        // 否则正常返回上一页
-        uni.navigateBack();
-      }
+      uni.navigateBack();
     },
     // 切换标签
     switchTab(index) {

@@ -1,5 +1,12 @@
 <template>
   <view class="container">
+    <!-- 自定义导航栏 -->
+    <view class="custom-navbar">
+      <view class="navbar-content">
+        <text class="navbar-title">我的</text>
+      </view>
+    </view>
+    
     <!-- 用户信息区域 -->
     <view class="user-info-section">
       <view class="user-avatar">
@@ -38,6 +45,7 @@
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
 import { getUserInfo } from '@/api/user.js';
+import AvatarManager from '@/utils/avatar-manager.js';
 
 export default {
   components: {
@@ -81,39 +89,44 @@ export default {
   },
   methods: {
     async loadUserInfo() {
+      // 使用AvatarManager检查和修复数据一致性
+      const localAvatar = AvatarManager.checkAndRepairConsistency();
+      
+      // 初始化用户信息，使用修复后的头像
+      const storedInfo = uni.getStorageSync('userInfo') || {};
+      this.userInfo = {
+        avatar: localAvatar,
+        nickname: storedInfo.nickname || '',
+        profile: storedInfo.profile || ''
+      };
+      
       try {
-        // 先从本地存储加载
-        const storedInfo = uni.getStorageSync('userInfo');
-        if (storedInfo && typeof storedInfo === 'object') {
-          this.userInfo = {
-            avatar: storedInfo.avatar || '',
-            nickname: storedInfo.nickname || '',
-            profile: storedInfo.profile || ''
-          };
-        }
-        
-        // 然后从服务器获取最新数据
+        // 从服务器获取最新数据
         const res = await getUserInfo();
+        
         if (res && res.code === 200 && res.data) {
           const data = res.data;
+          
+          // 使用AvatarManager同步服务器头像
+          const finalAvatar = AvatarManager.syncServerAvatar(data.avatar);
+          
+          // 更新用户信息
           this.userInfo = {
-            avatar: data.avatar || '',
+            avatar: finalAvatar,
             nickname: data.nickname || '',
             profile: data.profile || ''
           };
+          
           // 更新本地存储
           uni.setStorageSync('userInfo', this.userInfo);
         }
       } catch (error) {
-        // 如果网络请求失败，使用本地存储的数据
-        const storedInfo = uni.getStorageSync('userInfo');
-        if (storedInfo && typeof storedInfo === 'object') {
-          this.userInfo = {
-            avatar: storedInfo.avatar || '',
-            nickname: storedInfo.nickname || '',
-            profile: storedInfo.profile || ''
-          };
-        }
+        console.error('获取用户信息失败:', error);
+        this.userInfo = {
+          avatar: localAvatar,
+          nickname: storedInfo.nickname || '',
+          profile: storedInfo.profile || ''
+        };
       }
     },
     handleMenuClick(item) {
@@ -126,9 +139,8 @@ export default {
             content: '确定要切换账号吗？',
             success: (res) => {
               if (res.confirm) {
-                // 清除用户信息和token
-                uni.removeStorageSync('userInfo');
-                uni.removeStorageSync('token');
+                // 使用头像管理器清除所有用户数据
+                AvatarManager.clearAllUserData();
                 // 清空当前用户信息
                 this.userInfo = {
                   avatar: '',
@@ -152,10 +164,8 @@ export default {
         content: '确定要退出登录吗？',
         success: (res) => {
           if (res.confirm) {
-            // 执行退出登录操作
-            // 例如清除本地存储的用户信息、token等
-            uni.removeStorageSync('userInfo');
-            uni.removeStorageSync('token');
+            // 使用头像管理器清除所有用户数据
+            AvatarManager.clearAllUserData();
             // 清空当前用户信息
             this.userInfo = {
               avatar: '',
@@ -182,10 +192,38 @@ export default {
   padding-bottom: 100rpx; /* 为底部导航栏留出空间 */
 }
 
+/* 自定义导航栏样式 */
+.custom-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(44px + var(--status-bar-height, 0px));
+  background: linear-gradient(to bottom, #4A90E2, #6AAFE2);
+  z-index: 9998;
+  padding-top: var(--status-bar-height, 0px);
+}
+
+.navbar-content {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.navbar-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  text-align: center;
+}
+
 /* 用户信息区域样式 */
 .user-info-section {
   background: linear-gradient(to bottom, #4A90E2, #6AAFE2);
   padding: 40rpx;
+  padding-top: calc(44px + var(--status-bar-height, 0px) + 40rpx);
   display: flex;
   align-items: center;
   color: white;

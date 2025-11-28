@@ -189,22 +189,56 @@ export default {
         return;
       }
       
-      if (!address.name) {
-        console.error('地址对象缺少name属性');
-        uni.showToast({
-          title: '地址信息不完整',
-          icon: 'none'
-        });
-        return;
-      }
-      
       try {
         // 深拷贝地址对象，避免引用问题，适配不同的字段名
+        // 增强地址字段适配，支持更多可能的字段名
+        const receiverName = address.name || address.receiver || address.consignee || '';
+        const receiverPhone = address.phone || address.tel || address.mobile || '';
+        
+        // 确保姓名不为空
+        if (!receiverName) {
+          console.error('地址对象缺少姓名字段');
+          uni.showToast({
+            title: '地址信息不完整，缺少收货人姓名',
+            icon: 'none'
+          });
+          return;
+        }
+        
+        // 确保电话不为空
+        if (!receiverPhone) {
+          console.error('地址对象缺少电话字段');
+          uni.showToast({
+            title: '地址信息不完整，缺少联系电话',
+            icon: 'none'
+          });
+          return;
+        }
+        
+        // 增强地址拼接逻辑，支持更多可能的字段名和结构
+        const province = address.province || address.prov || '';
+        const city = address.city || '';
+        const district = address.district || address.area || '';
+        const detail = address.detail || address.detailAddress || address.addressDetail || address.address || '';
+        
+        // 构建完整地址字符串，确保所有信息都被包含
+        let fullAddress = '';
+        if (province && !detail.includes(province)) fullAddress += province;
+        if (city && !detail.includes(city)) fullAddress += city;
+        if (district && !detail.includes(district)) fullAddress += district;
+        fullAddress += detail;
+        
+        // 如果拼接后的地址为空，使用原始地址字段
+        if (!fullAddress) {
+          fullAddress = address.address || '未知地址';
+        }
+        
         const newAddress = {
-          name: address.name || address.receiver || '',
-          phone: address.phone || '',
-          // 确保地址拼接正确，处理undefined值
-          address: `${address.province || ''}${address.city || ''}${address.district || ''}${address.detail || address.detailAddress || ''}`
+          name: receiverName,
+          phone: receiverPhone,
+          address: fullAddress,
+          // 保留原始地址信息，便于调试和后续使用
+          originalAddress: address
         };
         
         console.log('新地址对象:', newAddress);

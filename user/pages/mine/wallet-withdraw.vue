@@ -66,6 +66,21 @@
       </view>
     </view>
 
+    <!-- 支付密码 -->
+    <view class="password-section">
+      <view class="section-title">支付密码</view>
+      <view class="password-input-wrapper">
+        <input
+          class="password-input"
+          type="password"
+          placeholder="请输入支付密码"
+          v-model="payPassword"
+          maxlength="6"
+        />
+      </view>
+      <view class="password-tips">注：目前支付密码校验功能暂时停用，可以不填</view>
+    </view>
+
     <!-- 底部确认按钮 -->
     <view class="bottom-actions">
       <view class="confirm-button" @click="confirmWithdraw">
@@ -76,15 +91,19 @@
 </template>
 
 <script>
+import { withdrawWallet, getWalletBalance } from '@/api/wallet.js';
+
 export default {
   data() {
     return {
-      balance: 888.88,
+      balance: 0,
       withdrawAmount: '',
       selectedMethod: 'alipay',
+      payPassword: '',
       withdrawMethods: [
-        { value: 'alipay', name: '支付宝', desc: '2小时内到账', icon: '💙' },
-        { value: 'bank', name: '银行卡', desc: '1-3个工作日到账', icon: '💳' }
+        { value: 'alipay', name: '支付宝', desc: '2小时内到账', icon: '💙' }
+        // 暂时只支持支付宝，根据后端接口文档
+        // { value: 'bank', name: '银行卡', desc: '1-3个工作日到账', icon: '💳' }
       ]
     };
   },
@@ -95,15 +114,21 @@ export default {
     goBack() {
       uni.navigateBack();
     },
-    loadBalance() {
-      // 从本地存储加载余额
-      const walletData = uni.getStorageSync('walletData');
-      if (walletData && walletData.balance) {
-        this.balance = walletData.balance;
+    async loadBalance() {
+      try {
+        // 调用API获取余额
+        const response = await getWalletBalance();
+        if (response.code === 200 && response.data) {
+          this.balance = parseFloat(response.data.balance) || 0;
+        }
+      } catch (error) {
+        console.error('获取余额失败:', error);
+        // 如果获取失败，从本地存储加载余额
+        const walletData = uni.getStorageSync('walletData');
+        if (walletData && walletData.balance) {
+          this.balance = walletData.balance;
+        }
       }
-      
-      // 这里应该调用API获取余额
-      // this.fetchBalanceFromAPI();
     },
     onAmountInput(e) {
       const value = parseFloat(e.detail.value);
@@ -164,72 +189,69 @@ export default {
         }
       });
     },
-    processWithdraw(amount) {
+    async processWithdraw(amount) {
       uni.showLoading({
         title: '提现中...'
       });
 
-      // 模拟提现流程
-      setTimeout(() => {
+      try {
+        // 调用后端提现接口
+        const response = await withdrawWallet({
+          amount: amount,
+          payChannel: this.getPayChannelCode(this.selectedMethod),
+          payPassword: this.payPassword
+        });
+
         uni.hideLoading();
+
+        if (response.code === 200) {
+          uni.showToast({
+            title: response.msg || '提现申请已提交',
+            icon: 'success',
+            duration: 2000
+          });
+
+          // 重新加载余额
+          await this.loadBalance();
+
+          setTimeout(() => {
+            uni.navigateBack();
+          }, 2000);
+        } else {
+          uni.showToast({
+            title: response.msg || '提现失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('提现失败:', error);
         
-        // 更新余额
-        this.balance -= amount;
-        const walletData = uni.getStorageSync('walletData') || {};
-        walletData.balance = this.balance;
-        uni.setStorageSync('walletData', walletData);
+        // 处理常见错误
+        let errorMsg = '网络错误，请重试';
+        if (error.message && error.message.includes('余额不足')) {
+          errorMsg = '余额不足，无法提现';
+        } else if (error.message && error.message.includes('密码')) {
+          errorMsg = '支付密码错误';
+        }
         
         uni.showToast({
-          title: '提现申请已提交',
-          icon: 'success',
-          duration: 2000
+          title: errorMsg,
+          icon: 'none'
         });
-
-        setTimeout(() => {
-          uni.navigateBack();
-        }, 2000);
-
-        // 实际提现流程：
-        /*
-        uni.request({
-          url: 'https://your-api.com/wallet/withdraw',
-          method: 'POST',
-          header: {
-            'Authorization': 'Bearer ' + uni.getStorageSync('token'),
-            'Content-Type': 'application/json'
-          },
-          data: {
-            amount: amount,
-            method: this.selectedMethod
-          },
-          success: (res) => {
-            uni.hideLoading();
-            if (res.data.code === 200) {
-              this.balance -= amount;
-              uni.showToast({
-                title: '提现申请已提交',
-                icon: 'success'
-              });
-              setTimeout(() => {
-                uni.navigateBack();
-              }, 2000);
-            } else {
-              uni.showToast({
-                title: res.data.message || '提现失败',
-                icon: 'none'
-              });
-            }
-          },
-          fail: (err) => {
-            uni.hideLoading();
-            uni.showToast({
-              title: '网络错误，请重试',
-              icon: 'none'
-            });
-          }
-        });
-        */
-      }, 2000);
+      }
+    },
+    
+    /**
+     * 获取支付渠道代码
+     */
+    getPayChannelCode(paymentMethod) {
+      const channelMap = {
+        'alipay': 1,
+        'wechat': 2,
+        'bank': 3
+      };
+      return channelMap[paymentMethod] || 1;
     }
   }
 };
@@ -467,6 +489,37 @@ export default {
   font-size: 24rpx;
   color: white;
   font-weight: bold;
+}
+
+/* 支付密码 */
+.password-section {
+  background-color: white;
+  margin: 20rpx 30rpx;
+  padding: 40rpx 30rpx;
+  border-radius: 20rpx;
+}
+
+.password-input-wrapper {
+  display: flex;
+  align-items: center;
+  height: 100rpx;
+  background-color: #F8F8F8;
+  border-radius: 16rpx;
+  padding: 0 30rpx;
+  margin-bottom: 20rpx;
+}
+
+.password-input {
+  flex: 1;
+  height: 100%;
+  font-size: 32rpx;
+  color: #333333;
+}
+
+.password-tips {
+  font-size: 24rpx;
+  color: #999999;
+  line-height: 1.4;
 }
 
 /* 底部确认按钮 */

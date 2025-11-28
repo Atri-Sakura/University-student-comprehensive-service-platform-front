@@ -99,6 +99,8 @@
 </template>
 
 <script>
+import { safeNavigateBackForMine } from '@/utils/navigation.js';
+
 export default {
   data() {
     return {
@@ -228,7 +230,7 @@ export default {
   },
   methods: {
     goBack() {
-      uni.navigateBack();
+      safeNavigateBackForMine('login-history');
     },
     loadLoginHistory() {
       // 从本地存储加载登录记录

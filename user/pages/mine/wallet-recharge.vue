@@ -82,6 +82,8 @@
 </template>
 
 <script>
+import { rechargeWallet } from '@/api/wallet.js';
+
 export default {
   data() {
     return {
@@ -91,12 +93,30 @@ export default {
       presetAmounts: [50, 100, 200, 500, 1000],
       selectedPayment: 'alipay',
       paymentMethods: [
-        { value: 'alipay', name: '支付宝', icon: '💙' },
-        { value: 'wechat', name: '微信支付', icon: '💚' },
-        { value: 'bank', name: '银行卡', icon: '💳' }
+        { value: 'alipay', name: '支付宝', icon: '💙' }
+        // 暂时只支持支付宝，根据后端接口文档
+        // { value: 'wechat', name: '微信支付', icon: '💚' },
+        // { value: 'bank', name: '银行卡', icon: '💳' }
       ]
     };
   },
+  
+  // 页面显示时的处理
+  onShow() {
+    // 当从支付页面返回时，可以在这里处理一些逻辑
+    console.log('充值页面显示');
+  },
+  
+  // 页面隐藏时的处理
+  onHide() {
+    console.log('充值页面隐藏');
+  },
+  
+  // 页面卸载时的处理
+  onUnload() {
+    console.log('充值页面卸载');
+  },
+  
   computed: {
     finalAmount() {
       if (this.isCustomAmount) {
@@ -147,7 +167,7 @@ export default {
 
       uni.showModal({
         title: '确认充值',
-        content: `充值金额：¥${this.finalAmount.toFixed(2)}\n支付方式：${this.getPaymentName(this.selectedPayment)}`,
+        content: '充值金额：¥' + this.finalAmount.toFixed(2) + '\n支付方式：' + this.getPaymentName(this.selectedPayment),
         success: (res) => {
           if (res.confirm) {
             this.processRecharge();
@@ -159,76 +179,110 @@ export default {
       const method = this.paymentMethods.find(m => m.value === value);
       return method ? method.name : '未知';
     },
-    processRecharge() {
+    async processRecharge() {
       uni.showLoading({
         title: '充值中...'
       });
 
-      // 模拟支付流程
-      setTimeout(() => {
+      try {
+        // 调用后端充值接口
+        const response = await rechargeWallet({
+          amount: this.finalAmount,
+          payChannel: this.getPayChannelCode(this.selectedPayment)
+        });
+
         uni.hideLoading();
-        
-        // 模拟支付成功
-        uni.showToast({
-          title: '充值成功',
-          icon: 'success',
-          duration: 2000
-        });
 
-        setTimeout(() => {
-          uni.navigateBack();
-        }, 2000);
-
-        // 实际支付流程：
-        /*
-        // 调用支付API
-        uni.request({
-          url: 'https://your-api.com/wallet/recharge',
-          method: 'POST',
-          header: {
-            'Authorization': 'Bearer ' + uni.getStorageSync('token'),
-            'Content-Type': 'application/json'
-          },
-          data: {
-            amount: this.finalAmount,
-            paymentMethod: this.selectedPayment
-          },
-          success: (res) => {
-            uni.hideLoading();
-            if (res.data.code === 200) {
-              // 调用支付接口
-              if (this.selectedPayment === 'alipay') {
-                // 调用支付宝支付
-                // uni.requestPayment({ provider: 'alipay', ... })
-              } else if (this.selectedPayment === 'wechat') {
-                // 调用微信支付
-                // uni.requestPayment({ provider: 'wxpay', ... })
-              }
-              
-              uni.showToast({
-                title: '充值成功',
-                icon: 'success'
-              });
-              setTimeout(() => {
-                uni.navigateBack();
-              }, 2000);
-            } else {
-              uni.showToast({
-                title: res.data.message || '充值失败',
-                icon: 'none'
-              });
-            }
-          },
-          fail: (err) => {
-            uni.hideLoading();
+        if (response.code === 200) {
+          // 充值成功，处理支付宝页面跳转
+          if (response.payPageHtml) {
+            this.handleAlipayPayment(response.payPageHtml);
+          } else {
             uni.showToast({
-              title: '网络错误，请重试',
-              icon: 'none'
+              title: '充值成功',
+              icon: 'success'
             });
+            setTimeout(() => {
+              uni.navigateBack();
+            }, 1500);
           }
+        } else {
+          uni.showToast({
+            title: response.msg || '充值失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('充值失败:', error);
+        uni.showToast({
+          title: '网络错误，请重试',
+          icon: 'none'
         });
-        */
-      }, 2000);
+      }
+    },
+    
+    /**
+     * 处理支付宝支付页面跳转，完全模仿recharge.html的做法
+     */
+    handleAlipayPayment(payPageHtml) {
+      console.log('收到支付HTML，准备跳转:', payPageHtml.substring(0, 200) + '...');
+      
+      // 设置充值成功标识到本地存储
+      const amount = this.finalAmount;
+      try {
+        uni.setStorageSync('rechargeSuccess', {
+          amount: amount,
+          time: Date.now()
+        });
+      } catch (e) {
+        console.log('设置本地存储失败:', e);
+      }
+      
+      // #ifdef H5
+      try {
+        // 完全模仿recharge.html的做法：直接替换当前页面内容
+        console.log('模仿recharge.html: 使用document.write()直接替换页面');
+        
+        // 添加支付完成后的跳转逻辑
+        const enhancedPayPageHtml = this.addReturnLogicToPayPage(payPageHtml);
+        
+        document.open();
+        document.write(enhancedPayPageHtml);
+        document.close();
+        console.log('已直接替换为支付宝页面（包含返回逻辑）');
+        
+        // 支付页面已显示，用户完成支付后可手动返回
+        return;
+      } catch (error) {
+        console.error('直接替换页面失败:', error);
+      }
+      // #endif
+      
+      // 如果直接替换失败或非H5环境，跳转到支付页面
+      uni.navigateTo({
+        url: '/pages/payment/alipay-payment?payPageHtml=' + encodeURIComponent(payPageHtml) + '&amount=' + this.finalAmount
+      });
+    },
+    
+    /**
+     * 在支付页面HTML中添加返回逻辑
+     */
+    addReturnLogicToPayPage(payPageHtml) {
+      // 简单处理，直接返回原HTML，不添加任何脚本
+      return payPageHtml;
+    },
+    
+    /**
+     * 获取支付渠道代码
+     */
+    getPayChannelCode(method) {
+      const channelMap = {
+        'alipay': 1,
+        'wechat': 2,
+        'bank': 3
+      };
+      return channelMap[method] || 1;
     }
   }
 };

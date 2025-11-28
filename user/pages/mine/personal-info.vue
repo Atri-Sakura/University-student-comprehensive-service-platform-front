@@ -109,6 +109,7 @@
 
 <script>
 import { getUserInfo, updateUserInfo } from '@/api/user.js';
+import AvatarManager from '@/utils/avatar-manager.js';
 
 export default {
   data() {
@@ -201,6 +202,23 @@ export default {
     },
     async loadUserInfo() {
       try {
+        // 先从本地存储加载用户信息，包括专门的头像存储
+        const storedInfo = uni.getStorageSync('userInfo');
+        const storedAvatar = uni.getStorageSync('userAvatar');
+        
+        if (storedInfo && typeof storedInfo === 'object') {
+          Object.keys(this.userInfo).forEach(key => {
+            if (storedInfo[key] !== undefined && storedInfo[key] !== null && storedInfo[key] !== '') {
+              this.userInfo[key] = storedInfo[key];
+            }
+          });
+          
+          // 如果有专门保存的头像，优先使用
+          if (storedAvatar) {
+            this.userInfo.avatar = storedAvatar;
+          }
+        }
+        
         const res = await getUserInfo();
         
         // 检查响应格式
@@ -250,6 +268,10 @@ export default {
             'gender': ['gender', 'sex']
           };
           
+          // 保存当前头像信息，避免被覆盖
+          const currentAvatar = this.userInfo.avatar;
+          const storedAvatar = uni.getStorageSync('userAvatar');
+          
           // 直接使用后端返回的数据，如果字段为空则保持为空，不使用默认值
           Object.keys(this.userInfo).forEach(frontendKey => {
             let value = undefined;
@@ -273,13 +295,35 @@ export default {
               // 如果后端返回的值是 null 或 undefined，设置为空字符串
               // 注意：0、false 等有效值需要保留
               if (value === null || value === undefined) {
-                this.userInfo[frontendKey] = '';
+                // 对于头像字段，如果后端返回空值，优先使用专门保存的头像，然后是当前头像
+                if (frontendKey === 'avatar') {
+                  this.userInfo[frontendKey] = storedAvatar || currentAvatar || '';
+                } else {
+                  this.userInfo[frontendKey] = '';
+                }
               } else {
-                this.userInfo[frontendKey] = value;
+                // 对于头像字段，如果后端返回了头像，同步更新专门的头像存储
+                if (frontendKey === 'avatar' && value && value.trim() !== '') {
+                  // 确保头像URL是完整的
+                  const fullAvatarUrl = value.startsWith('http') 
+                    ? value 
+                    : `http://localhost:8080${value}`;
+                  this.userInfo[frontendKey] = fullAvatarUrl;
+                  uni.setStorageSync('userAvatar', fullAvatarUrl);
+                } else if (frontendKey === 'avatar') {
+                  // 后端返回的头像为空，使用本地保存的头像
+                  this.userInfo[frontendKey] = storedAvatar || currentAvatar || '';
+                } else {
+                  this.userInfo[frontendKey] = value;
+                }
               }
             } else {
-              // 如果后端没有返回该字段，保持为空
-              this.userInfo[frontendKey] = '';
+              // 如果后端没有返回该字段，对于头像保留本地保存的值，其他字段保持为空
+              if (frontendKey === 'avatar') {
+                this.userInfo[frontendKey] = storedAvatar || currentAvatar || '';
+              } else {
+                this.userInfo[frontendKey] = '';
+              }
             }
           });
           
@@ -322,12 +366,220 @@ export default {
         sourceType: ['album', 'camera'],
         success: async (res) => {
           const tempFilePath = res.tempFilePaths[0];
-          this.userInfo.avatar = tempFilePath;
+          
+          // 显示上传进度
+          uni.showLoading({
+            title: '上传头像中...',
+            mask: true
+          });
+          
           try {
+            // 先上传图片到服务器
+            const uploadResult = await this.uploadAvatar(tempFilePath);
+            
+            if (uploadResult && uploadResult.url) {
+              // 使用返回的URL
+              this.userInfo.avatar = uploadResult.url;
+              uni.showToast({
+                title: '头像上传成功',
+                icon: 'success'
+              });
+            } else {
+              // 如果上传失败，恢复原头像
+              this.userInfo.avatar = originalAvatar;
+              uni.showToast({
+                title: '头像上传失败',
+                icon: 'error'
+              });
+              return; // 不继续保存
+            }
+            
+            // 使用头像管理器保存头像
+            AvatarManager.saveAvatar(this.userInfo.avatar);
+            
+            // 保存用户信息到服务器
             await this.saveUserInfo({ toastTitle: '头像更新成功' });
+            
           } catch (error) {
+            console.error('头像上传失败:', error);
             this.userInfo.avatar = originalAvatar;
+            uni.showToast({
+              title: '头像上传失败',
+              icon: 'none'
+            });
+          } finally {
+            uni.hideLoading();
           }
+        }
+      });
+    },
+    
+    // 上传头像到服务器
+    async uploadAvatar(filePath) {
+      try {
+        const http = (await import('@/api/request.js')).default;
+        
+        // 首先尝试专门的头像上传接口
+        try {
+          const result = await http.uploadFile({
+            url: '/system/user/profile/avatar', // 正确的头像上传接口
+            filePath: filePath,
+            name: 'avatarfile', // 后端要求的参数名
+            formData: {}
+          });
+          
+          if (result.code === 200 && result.imgUrl) {
+            // 拼接完整的服务器地址
+            const fullUrl = result.imgUrl.startsWith('http') 
+              ? result.imgUrl 
+              : `http://localhost:8080${result.imgUrl}`;
+            return {
+              url: fullUrl,
+              isServerUrl: true
+            };
+          }
+        } catch (avatarUploadError) {
+          console.log('专门头像上传接口失败，尝试通用接口:', avatarUploadError);
+        }
+        
+        // 如果专门接口失败，尝试通用文件上传接口
+        try {
+          const result = await http.uploadFile({
+            url: '/common/upload', // 通用文件上传接口
+            filePath: filePath,
+            name: 'file',
+            formData: {}
+          });
+          
+          if (result.code === 200 && result.data) {
+            // 修复：正确提取URL
+            const uploadUrl = result.data.url || result.url || 
+                             (result.data.fileName ? `http://localhost:8080${result.data.fileName}` : null) ||
+                             (result.fileName ? `http://localhost:8080${result.fileName}` : null);
+            
+            if (uploadUrl) {
+              // 确保URL是完整的服务器地址
+              const fullUrl = uploadUrl.startsWith('http') 
+                ? uploadUrl 
+                : `http://localhost:8080${uploadUrl}`;
+              return {
+                url: fullUrl,
+                isServerUrl: true
+              };
+            }
+          }
+        } catch (commonUploadError) {
+          // 通用接口也失败
+        }
+        
+        // 如果都失败了，返回null
+        return null;
+        
+      } catch (error) {
+        console.error('头像上传完全失败:', error);
+        // 最后的备选方案：转换为base64
+        return await this.convertToBase64(filePath);
+      }
+    },
+    
+    // 将图片转换为base64格式
+    async convertToBase64(filePath) {
+      return new Promise((resolve) => {
+        try {
+          console.log('尝试转换base64，文件路径:', filePath);
+          
+          // 在H5环境中，使用Canvas转换blob URL为base64
+          if (filePath.startsWith('blob:')) {
+            this.blobToBase64(filePath).then(base64 => {
+              if (base64) {
+                console.log('Canvas转换base64成功，长度:', base64.length);
+                resolve({
+                  url: base64,
+                  isBase64: true
+                });
+              } else {
+                console.log('Canvas转换失败，使用本地标识');
+                resolve({
+                  url: 'LOCAL_AVATAR_' + Date.now(),
+                  isLocal: true
+                });
+              }
+            });
+            return;
+          }
+          
+          // 尝试uni-app的文件系统API
+          if (uni.getFileSystemManager) {
+            uni.getFileSystemManager().readFile({
+              filePath: filePath,
+              encoding: 'base64',
+              success: (res) => {
+                const base64 = 'data:image/jpeg;base64,' + res.data;
+                console.log('uni-app转换base64成功，长度:', base64.length);
+                resolve({
+                  url: base64,
+                  isBase64: true
+                });
+              },
+              fail: (error) => {
+                console.error('uni-app转换base64失败:', error);
+                resolve({
+                  url: 'LOCAL_AVATAR_' + Date.now(),
+                  isLocal: true
+                });
+              }
+            });
+          } else {
+            console.log('uni-app文件系统API不可用，使用本地标识');
+            resolve({
+              url: 'LOCAL_AVATAR_' + Date.now(),
+              isLocal: true
+            });
+          }
+        } catch (error) {
+          console.error('base64转换异常:', error);
+          resolve({
+            url: 'LOCAL_AVATAR_' + Date.now(),
+            isLocal: true
+          });
+        }
+      });
+    },
+    
+    // 使用Canvas将blob URL转换为base64
+    async blobToBase64(blobUrl) {
+      return new Promise((resolve) => {
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            ctx.drawImage(img, 0, 0);
+            
+            try {
+              const base64 = canvas.toDataURL('image/jpeg', 0.8);
+              resolve(base64);
+            } catch (error) {
+              console.error('Canvas转换失败:', error);
+              resolve(null);
+            }
+          };
+          
+          img.onerror = function() {
+            console.error('图片加载失败');
+            resolve(null);
+          };
+          
+          img.src = blobUrl;
+        } catch (error) {
+          console.error('Canvas转换异常:', error);
+          resolve(null);
         }
       });
     },

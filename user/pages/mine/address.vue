@@ -72,6 +72,7 @@ import { getAddressList, deleteAddress as deleteAddressAPI, setDefaultAddress } 
 import { processApiResponseIds, safeStringifyId } from '@/utils/id-utils.js';
 import { fixAddressArray } from '@/utils/address-id-fix.js';
 import { fixKnownId } from '@/utils/id-fix-helper.js';
+import { safeNavigateBackForMine } from '@/utils/navigation.js';
 
 export default {
   data() {
@@ -98,25 +99,7 @@ export default {
       return tagMap[tagValue] || '家';
     },
     goBack() {
-      // 检查页面栈，如果只有一个页面（刷新后的情况），则跳转到我的页面
-      const pages = getCurrentPages();
-      if (pages.length <= 1) {
-        // 页面栈只有一个页面，直接跳转到我的页面
-        uni.redirectTo({
-          url: '/pages/mine/mine'
-        });
-      } else {
-        // 正常返回上一页
-        uni.navigateBack({
-          delta: 1,
-          fail: (err) => {
-            // 如果返回失败，也跳转到我的页面
-            uni.redirectTo({
-              url: '/pages/mine/mine'
-            });
-          }
-        });
-      }
+      safeNavigateBackForMine('address');
     },
     async loadAddressList() {
       let loadingShown = false;
@@ -334,7 +317,7 @@ export default {
         if (prevPage && prevPage.selectAddress) {
           prevPage.selectAddress(address);
         }
-        uni.navigateBack();
+        safeNavigateBackForMine('address');
       }
     },
     saveAddressList() {

@@ -78,6 +78,7 @@
 
 <script>
 import http from '@/api/request.js';
+import AvatarManager from '@/utils/avatar-manager.js';
 
 export default {
 	data() {
@@ -156,6 +157,29 @@ export default {
 					// 如果返回了用户信息，保存用户信息
 					if (result.user) {
 						uni.setStorageSync('userInfo', result.user);
+					}
+					
+					// 登录成功后立即获取完整的用户信息，确保包含头像等所有字段
+					try {
+						const userInfoResponse = await http.get('/user/info');
+						
+						if (userInfoResponse && userInfoResponse.code === 200 && userInfoResponse.data) {
+							// 使用AvatarManager同步服务器头像
+							const finalAvatar = AvatarManager.syncServerAvatar(userInfoResponse.data.avatar);
+							
+							// 合并用户信息，确保不丢失任何字段
+							const existingUserInfo = uni.getStorageSync('userInfo') || {};
+							const completeUserInfo = {
+								...existingUserInfo,
+								...userInfoResponse.data,
+								avatar: finalAvatar // 使用AvatarManager处理后的头像
+							};
+							
+							uni.setStorageSync('userInfo', completeUserInfo);
+						}
+					} catch (userInfoError) {
+						// 不影响登录流程，只是记录警告
+						console.warn('登录后获取用户信息失败，但登录成功:', userInfoError);
 					}
 					
 					// 保存用户ID（从多个可能的字段中获取）

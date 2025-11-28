@@ -140,7 +140,15 @@ export default {
         { label: '公司', value: 'COMPANY' },
         { label: '学校', value: 'SCHOOL' },
         { label: '其他', value: 'OTHER' }
-      ]
+      ],
+      // 保存页面滚动位置
+      scrollTop: 0,
+      // 地区选择状态
+      regionPickerState: {
+        step: 0, // 0: 选择省份, 1: 选择城市, 2: 选择区县
+        selectedProvince: null,
+        selectedCity: null
+      }
     };
   },
   computed: {
@@ -253,9 +261,37 @@ export default {
       }
     },
     showRegionPicker() {
+      // 保存当前页面滚动位置
+      this.saveScrollPosition();
+      
+      // 重置地区选择状态
+      this.regionPickerState = {
+        step: 0,
+        selectedProvince: null,
+        selectedCity: null
+      };
+      
       // 直接使用自定义选择器，避免 chooseLocation 可能卡住的问题
       this.showCustomRegionPicker();
     },
+    
+    saveScrollPosition() {
+      // 获取当前页面滚动位置
+      uni.createSelectorQuery().selectViewport().scrollOffset((res) => {
+        this.scrollTop = res.scrollTop;
+      }).exec();
+    },
+    
+    restoreScrollPosition() {
+      // 恢复页面滚动位置
+      if (this.scrollTop > 0) {
+        uni.pageScrollTo({
+          scrollTop: this.scrollTop,
+          duration: 0
+        });
+      }
+    },
+    
     showCustomRegionPicker() {
       // 使用完整的全国省市区数据
       const provinces = regionData;
@@ -266,40 +302,102 @@ export default {
         itemList: provinceNames,
         success: (res) => {
           const selectedProvince = provinces[res.tapIndex];
+          this.regionPickerState.selectedProvince = selectedProvince;
           this.formData.province = selectedProvince.name;
           
-          // 选择城市
-          const cityNames = selectedProvince.cities.map(c => c.name);
-          uni.showActionSheet({
-            itemList: cityNames,
-            success: (cityRes) => {
-              const selectedCity = selectedProvince.cities[cityRes.tapIndex];
-              this.formData.city = selectedCity.name;
-              
-              // 选择区县
-              this.showDistrictPicker(selectedCity.districts);
-            },
-            fail: () => {
-              // 取消选择城市，清空省份
-              this.formData.province = '';
-            }
-          });
+          // 使用更长的延时确保 ActionSheet 完全关闭，避免滚动位置继承
+          setTimeout(() => {
+            this.showCityPicker(selectedProvince);
+          }, 500);
+        },
+        complete: () => {
+          // ActionSheet 关闭后恢复滚动位置
+          setTimeout(() => {
+            this.restoreScrollPosition();
+          }, 100);
         }
       });
     },
+    
+    showCityPicker(selectedProvince) {
+      const cityNames = selectedProvince.cities.map(c => c.name);
+      
+      // 强制清除可能的滚动状态，确保城市列表从顶部开始显示
+      this.$nextTick(() => {
+        uni.showActionSheet({
+          itemList: cityNames,
+          success: (cityRes) => {
+            const selectedCity = selectedProvince.cities[cityRes.tapIndex];
+            this.regionPickerState.selectedCity = selectedCity;
+            this.formData.city = selectedCity.name;
+            
+            // 使用更长的延时确保上一个 ActionSheet 完全关闭后再显示下一个
+            setTimeout(() => {
+              this.showDistrictPicker(selectedCity.districts);
+            }, 500);
+          },
+          fail: () => {
+            // 取消选择城市，清空省份
+            this.formData.province = '';
+            this.regionText = '';
+          },
+          complete: () => {
+            // ActionSheet 关闭后恢复滚动位置
+            setTimeout(() => {
+              this.restoreScrollPosition();
+            }, 100);
+          }
+        });
+      });
+    },
+    
     showDistrictPicker(districts) {
-      uni.showActionSheet({
-        itemList: districts,
-        success: (res) => {
-          this.formData.district = districts[res.tapIndex];
-          this.regionText = this.regionDisplay;
-        },
-        fail: () => {
-          // 取消选择区县，清空省市
-          this.formData.province = '';
-          this.formData.city = '';
-          this.regionText = '';
-        }
+      if (!districts || districts.length === 0) {
+        // 如果没有区县数据，直接完成选择
+        this.formData.district = '市辖区';
+        this.regionText = this.regionDisplay;
+        
+        uni.showToast({
+          title: '地区选择完成',
+          icon: 'success',
+          duration: 1000
+        });
+        
+        // 恢复滚动位置
+        setTimeout(() => {
+          this.restoreScrollPosition();
+        }, 100);
+        return;
+      }
+      
+      // 强制清除可能的滚动状态，确保区县列表从顶部开始显示
+      this.$nextTick(() => {
+        uni.showActionSheet({
+          itemList: districts,
+          success: (res) => {
+            this.formData.district = districts[res.tapIndex];
+            this.regionText = this.regionDisplay;
+            
+            // 选择完成后的UI反馈
+            uni.showToast({
+              title: '地区选择完成',
+              icon: 'success',
+              duration: 1000
+            });
+          },
+          fail: () => {
+            // 取消选择区县，清空省市
+            this.formData.province = '';
+            this.formData.city = '';
+            this.regionText = '';
+          },
+          complete: () => {
+            // ActionSheet 关闭后恢复滚动位置
+            setTimeout(() => {
+              this.restoreScrollPosition();
+            }, 100);
+          }
+        });
       });
     },
     parseAddress(address) {

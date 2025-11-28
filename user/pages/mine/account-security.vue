@@ -142,6 +142,8 @@
 </template>
 
 <script>
+import { safeNavigateBackForMine } from '@/utils/navigation.js';
+
 export default {
   data() {
     return {
@@ -170,16 +172,7 @@ export default {
   },
   methods: {
     goBack() {
-      uni.navigateBack({
-        delta: 1,
-        fail: (err) => {
-          console.error('返回失败:', err);
-          // 如果返回失败，尝试跳转到我的页面
-          uni.reLaunch({
-            url: '/pages/mine/mine'
-          });
-        }
-      });
+      safeNavigateBackForMine('account-security');
     },
     loadAccountInfo() {
       // 从本地存储加载账号信息

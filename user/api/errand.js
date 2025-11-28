@@ -6,20 +6,15 @@ import http from './request.js';
 
 /**
  * 创建跑腿预支付订单
- * @param {Object} data - 订单数据（CreateErrandOrderDto）
- * @param {Number} data.orderType - 订单类型：1-外卖单 2-跑腿单 3-二手交易单
- * @param {Number} data.senderId - 发送者ID
- * @param {String} data.merchantName - 商家名称（冗余）
- * @param {Number} data.deliverAddressId - 送货地址ID（必填）
- * @param {String} data.deliverAddress - 送货地址文本
+ * @param {Object} data - 订单数据
+ * @param {String} data.serviceType - 服务类型（EXPRESS/FOOD/SHOPPING/OTHER）
+ * @param {String} data.goodsName - 商品名称
  * @param {Number} data.goodsPrice - 商品价格
- * @param {String} data.deliverContact - 收货联系人
- * @param {String} data.deliverPhone - 收货电话
- * @param {Number} data.deliverLongitude - 送货经度
- * @param {Number} data.deliverLatitude - 送货纬度
- * @param {String} data.remark - 订单备注
- * @param {String} data.expectTime - 预期送达时间（格式：yyyy-MM-dd HH:mm:ss）
- * @param {String} data.goodsDesc - 商品描述
+ * @param {Number} data.servicePrice - 服务费
+ * @param {Number} data.totalPrice - 总价
+ * @param {Number} data.deliverAddressId - 送货地址ID（必填）
+ * @param {String} data.remark - 备注
+ * @param {String} data.expectedTime - 期望送达时间
  */
 export function createErrandPrepay(data) {
   return http.post('/user/errandOrder/prepay', data);
@@ -27,11 +22,11 @@ export function createErrandPrepay(data) {
 
 /**
  * 支付并创建订单
- * @param {Object} data - 支付数据（PayOrderDTO）
+ * @param {Object} data - 支付数据
  * @param {String} data.preOrderNo - 预订单号
- * @param {String} data.payPassword - 支付密码
  * @param {Number} data.payType - 支付方式（1-余额 2-微信 3-支付宝 4-面付）
- * @param {Number} data.payAmount - 支付金额
+ * @param {Number} data.payAmount - 支付金额（必填）
+ * @param {String} data.payNo - 支付流水号
  * @param {Number} data.userAddressId - 用户地址ID
  */
 export function payAndCreateOrder(data) {
@@ -52,7 +47,7 @@ export function cancelPrepayOrder(preOrderNo) {
  * @param {String} cancelReason - 取消原因
  */
 export function cancelOrder(orderMainId, cancelReason) {
-  return http.put(`/user/errandOrder/cancel/${orderMainId}?cancelReason=${encodeURIComponent(cancelReason)}`);
+  return http.put(`/user/errandOrder/cancel/${orderMainId}`, { cancelReason });
 }
 
 /**
@@ -61,10 +56,7 @@ export function cancelOrder(orderMainId, cancelReason) {
  * @param {Number} riderId - 骑手ID（可选）
  */
 export function confirmOrder(orderMainId, riderId) {
-  const url = riderId 
-    ? `/user/errandOrder/confirm/${orderMainId}?riderId=${riderId}`
-    : `/user/errandOrder/confirm/${orderMainId}`;
-  return http.put(url);
+  return http.put(`/user/errandOrder/confirm/${orderMainId}`, riderId ? { riderId } : {});
 }
 
 /**

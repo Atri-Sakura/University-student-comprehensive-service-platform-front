@@ -50,7 +50,7 @@
 </template>
 
 <script>
-import { getAddressList, deleteAddress, setDefault } from '@/api/address.js';
+import { getAddressList, deleteAddress, setDefaultAddress } from '@/api/address.js';
 
 export default {
   data() {
@@ -244,8 +244,8 @@ export default {
           if (res.confirm) {
             try {
               this.loading = true;
-              // 调用删除地址API
-              const result = await deleteAddress(addressId);
+              // 调用删除地址API，传递正确的参数格式
+              const result = await deleteAddress({ userAddressId: addressId });
               
               if (result && result.code === 200) {
                 // 从列表中移除
@@ -280,8 +280,8 @@ export default {
     async setDefault(addressId, index) {
       try {
         this.loading = true;
-        // 调用设置默认地址API
-        const result = await setDefault(addressId);
+        // 调用设置默认地址API，使用正确的函数名
+        const result = await setDefaultAddress(addressId);
         
         if (result && result.code === 200) {
           // 更新本地列表

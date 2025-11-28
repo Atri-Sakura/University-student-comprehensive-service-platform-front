@@ -78,6 +78,8 @@
 </template>
 
 <script>
+import { safeNavigateBackForMine } from '@/utils/navigation.js';
+
 export default {
   data() {
     return {
@@ -92,7 +94,7 @@ export default {
   },
   methods: {
     goBack() {
-      uni.navigateBack();
+      safeNavigateBackForMine('change-password');
     },
     toggleNewPassword() {
       this.showNewPassword = !this.showNewPassword;
