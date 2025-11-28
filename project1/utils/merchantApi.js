@@ -48,12 +48,11 @@ export const updateMerchantBase = (data) => {
  */
 export const checkMerchantName = (merchantName) => {
   // 暂时返回模拟数据，避免后端路由错误
-  // 返回 exists: false 表示名称不重复，可以使用
   return Promise.resolve({
     data: {
       code: 200,
       msg: '名称可用',
-      exists: false  // false表示不存在重复，名称可用
+      data: true
     }
   });
 };
@@ -61,7 +60,7 @@ export const checkMerchantName = (merchantName) => {
 // ==================== 商家地址信息 ====================
 
 /**
- * 获取商家地址信息
+ * 获取商家地址信息（使用商家专用接口）
  * @returns {Promise}
  */
 export const getMerchantAddress = () => {
@@ -71,14 +70,28 @@ export const getMerchantAddress = () => {
 };
 
 /**
- * 修改商家地址信息
+ * 新增商家地址信息（使用商家专用接口）
  * @param {Object} data - 商家地址信息对象
- * @param {Number} data.merchantAddressId - 地址ID（必填）
- * @param {String} data.address - 详细地址
- * @param {String} data.longitude - 经度
- * @param {String} data.latitude - 纬度
- * @param {String} data.contactName - 联系人
- * @param {String} data.contactPhone - 联系电话
+ * @param {String} data.province - 省份
+ * @param {String} data.city - 城市
+ * @param {String} data.district - 区县
+ * @param {String} data.detailAddress - 详细地址
+ * @returns {Promise}
+ */
+export const addMerchantAddress = (data) => {
+  return request(`${baseUrl}/merchant/info/address`, {
+    method: 'POST',
+    data: data
+  });
+};
+
+/**
+ * 修改商家地址信息（使用商家专用接口）
+ * @param {Object} data - 商家地址信息对象
+ * @param {String} data.province - 省份
+ * @param {String} data.city - 城市
+ * @param {String} data.district - 区县
+ * @param {String} data.detailAddress - 详细地址
  * @returns {Promise}
  */
 export const updateMerchantAddress = (data) => {
@@ -150,6 +163,7 @@ export const uploadCertificate = (type, filePath) => {
         try {
           const data = JSON.parse(uploadRes.data);
           
+          console.log('🔍 证书上传响应数据:', data);
           
           if (data.code === 200) {
             // 构建标准响应格式
@@ -207,6 +221,7 @@ export default {
   updateMerchantBase,
   checkMerchantName,
   getMerchantAddress,
+  addMerchantAddress,
   updateMerchantAddress,
   getDeliverySettings,
   updateDeliverySettings,
