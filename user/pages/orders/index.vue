@@ -5,15 +5,15 @@
       <view class="overview-title">订单概览</view>
       <view class="overview-stats">
         <view class="stat-item">
-          <view class="stat-number">8</view>
+          <view class="stat-number">{{ totalOrders }}</view>
           <view class="stat-label">全部订单</view>
         </view>
         <view class="stat-item">
-          <view class="stat-number">2</view>
+          <view class="stat-number">{{ pendingOrders }}</view>
           <view class="stat-label">待处理</view>
         </view>
         <view class="stat-item">
-          <view class="stat-number">6</view>
+          <view class="stat-number">{{ completedOrders }}</view>
           <view class="stat-label">已完成</view>
         </view>
       </view>
@@ -53,6 +53,8 @@
 
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
+import orderApi from '@/api/order.js';
+import { getErrandOrderList } from '@/api/errand.js';
 
 export default {
   components: {
@@ -60,10 +62,82 @@ export default {
   },
   data() {
     return {
-      // 可以在这里添加订单数据
+      totalOrders: 0,
+      pendingOrders: 0,
+      completedOrders: 0
     };
   },
+  onLoad() {
+    this.loadOrderStats();
+  },
+  onShow() {
+    // 每次显示页面时刷新统计数据
+    this.loadOrderStats();
+  },
   methods: {
+    // 加载订单统计数据
+    async loadOrderStats() {
+      try {
+        // 同时获取外卖订单和跑腿订单
+        const [foodOrderRes, errandOrderRes] = await Promise.all([
+          orderApi.getOrderList({}),  // 外卖订单
+          getErrandOrderList({})       // 跑腿订单
+        ]);
+        
+        console.log('外卖订单响应:', foodOrderRes);
+        console.log('跑腿订单响应:', errandOrderRes);
+        
+        let allOrders = [];
+        
+        // 提取外卖订单数据
+        if (foodOrderRes && foodOrderRes.code === 200) {
+          let foodOrders = [];
+          if (Array.isArray(foodOrderRes.rows)) {
+            foodOrders = foodOrderRes.rows;
+          } else if (Array.isArray(foodOrderRes.data)) {
+            foodOrders = foodOrderRes.data;
+          } else if (foodOrderRes.data && Array.isArray(foodOrderRes.data.rows)) {
+            foodOrders = foodOrderRes.data.rows;
+          }
+          allOrders = allOrders.concat(foodOrders);
+          console.log('外卖订单数量:', foodOrders.length);
+        }
+        
+        // 提取跑腿订单数据
+        if (errandOrderRes && errandOrderRes.code === 200) {
+          let errandOrders = [];
+          if (Array.isArray(errandOrderRes.rows)) {
+            errandOrders = errandOrderRes.rows;
+          } else if (Array.isArray(errandOrderRes.data)) {
+            errandOrders = errandOrderRes.data;
+          } else if (errandOrderRes.data && Array.isArray(errandOrderRes.data.rows)) {
+            errandOrders = errandOrderRes.data.rows;
+          }
+          allOrders = allOrders.concat(errandOrders);
+          console.log('跑腿订单数量:', errandOrders.length);
+        }
+        
+        console.log('所有订单总数:', allOrders.length);
+        
+        // 计算统计数据
+        this.totalOrders = allOrders.length;
+        this.pendingOrders = allOrders.filter(order => {
+          const status = order.orderStatus || order.status;
+          // 待处理状态：待支付、已支付、准备中、配送中等
+          return status === 'PENDING' || status === 'PAID' || status === 'PREPARING' || 
+                 status === 'DELIVERING' || status === 1 || status === 2;
+        }).length;
+        this.completedOrders = allOrders.filter(order => {
+          const status = order.orderStatus || order.status;
+          return status === 'COMPLETED' || status === 3;
+        }).length;
+        
+        console.log('统计结果 - 总订单:', this.totalOrders, '待处理:', this.pendingOrders, '已完成:', this.completedOrders);
+      } catch (error) {
+        console.error('加载订单统计失败:', error);
+      }
+    },
+    
     navigateToOrderType(type) {
       // 根据订单类型导航到不同的子页面
       console.log('跳转到', type, '订单页面');

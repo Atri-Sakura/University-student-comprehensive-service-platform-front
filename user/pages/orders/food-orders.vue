@@ -34,6 +34,7 @@
 
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
+import orderApi from '@/api/order.js';
 
 export default {
   components: {
@@ -41,42 +42,123 @@ export default {
   },
   data() {
     return {
-      orders: [
-        {
-          id: '1',
-          foodName: '香酥鸡排饭',
-          orderTime: '2025-09-05 18:32',
-          orderId: '20250905183201',
-          status: '已完成',
-          price: '18.80',
-          imageUrl: '/static/food1.jpg'
-        },
-        {
-          id: '2',
-          foodName: '珍珠奶茶',
-          orderTime: '2025-09-06 09:15',
-          orderId: '20250906091502',
-          status: '已完成',
-          price: '12.00',
-          imageUrl: '/static/food2.jpg'
-        },
-        {
-          id: '3',
-          foodName: '水果冰淇淋',
-          orderTime: '2025-09-07 13:42',
-          orderId: '20250907134203',
-          status: '已完成',
-          price: '10.50',
-          imageUrl: '/static/food3.jpg'
-        }
-      ]
+      orders: [],
+      loading: false
     };
   },
+  onLoad() {
+    this.loadOrders();
+  },
+  onShow() {
+    // 每次显示页面时刷新订单列表
+    this.loadOrders();
+  },
   methods: {
+    // 加载订单列表
+    async loadOrders() {
+      this.loading = true;
+      try {
+        // 调用订单API，不传orderType参数或传数字类型
+        // 根据后端错误信息，orderType应该是Long类型，不是字符串
+        const res = await orderApi.getOrderList({
+          // 暂时不传orderType，获取所有订单，或者后端需要确认外卖订单的类型编码
+        });
+        
+        console.log('=== 外卖订单列表API响应 ===');
+        console.log('完整响应:', res);
+        console.log('res.rows:', res.rows);
+        console.log('res.data:', res.data);
+        
+        if (res && res.code === 200) {
+          // 处理订单数据，兼容不同的数据结构
+          let orderData = [];
+          
+          // 优先检查 res.rows（根据图片显示的数据结构）
+          if (Array.isArray(res.rows)) {
+            orderData = res.rows;
+            console.log('从 res.rows 获取订单数据');
+          } else if (Array.isArray(res.data)) {
+            orderData = res.data;
+            console.log('从 res.data 获取订单数据');
+          } else if (res.data && Array.isArray(res.data.rows)) {
+            orderData = res.data.rows;
+            console.log('从 res.data.rows 获取订单数据');
+          } else if (res.data && Array.isArray(res.data.list)) {
+            orderData = res.data.list;
+            console.log('从 res.data.list 获取订单数据');
+          } else if (res.data && Array.isArray(res.data.records)) {
+            orderData = res.data.records;
+            console.log('从 res.data.records 获取订单数据');
+          }
+          
+          console.log('提取的订单数据:', orderData);
+          console.log('订单数量:', orderData.length);
+          
+          // 格式化订单数据以适配页面显示
+          this.orders = orderData.map(order => {
+            console.log('处理订单:', order);
+            return {
+              id: order.orderId || order.id || order.orderBaseId,
+              foodName: order.orderName || order.goodsName || order.merchantName || '外卖订单',
+              orderTime: this.formatTime(order.createTime || order.orderTime),
+              orderId: order.orderNo || order.orderId || order.id,
+              status: this.formatStatus(order.orderStatus || order.status),
+              price: order.totalAmount || order.payAmount || order.amount || '0.00',
+              imageUrl: order.imageUrl || order.goodsImage || order.merchantImage || '/static/food-default.jpg'
+            };
+          });
+          
+          console.log('格式化后的订单列表:', this.orders);
+        } else {
+          console.error('获取订单失败，响应码:', res?.code, '消息:', res?.message);
+          uni.showToast({
+            title: res?.message || '获取订单失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        console.error('=== 加载订单异常 ===');
+        console.error('错误详情:', error);
+        console.error('错误堆栈:', error.stack);
+        uni.showToast({
+          title: '加载订单失败',
+          icon: 'none'
+        });
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // 格式化时间
+    formatTime(time) {
+      if (!time) return '';
+      const date = new Date(time);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
+    },
+    
+    // 格式化订单状态
+    formatStatus(status) {
+      const statusMap = {
+        'PENDING': '待支付',
+        'PAID': '已支付',
+        'PREPARING': '商家准备中',
+        'DELIVERING': '配送中',
+        'COMPLETED': '已完成',
+        'CANCELLED': '已取消',
+        'REFUNDED': '已退款'
+      };
+      return statusMap[status] || status || '未知状态';
+    },
+    
     goToShopping() {
       console.log('去下单');
-      // 跳转到外卖首页
-      uni.navigateTo({ url: '/pages/index/index' });
+      // 跳转到外卖页面
+      uni.navigateTo({ url: '/pages/food/food' });
     },
     
     // 查看订单详情
