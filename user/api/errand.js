@@ -1,80 +1,96 @@
-import http from './request.js';
+import http from './request.js'
 
 /**
- * 跑腿订单相关API
+ * 跑腿服务相关API
  */
 
 /**
  * 创建跑腿预支付订单
- * @param {Object} data - 订单数据
- * @param {String} data.serviceType - 服务类型（EXPRESS/FOOD/SHOPPING/OTHER）
- * @param {String} data.goodsName - 商品名称
- * @param {Number} data.goodsPrice - 商品价格
- * @param {Number} data.servicePrice - 服务费
- * @param {Number} data.totalPrice - 总价
- * @param {Number} data.deliverAddressId - 送货地址ID（必填）
- * @param {String} data.remark - 备注
- * @param {String} data.expectedTime - 期望送达时间
+ * @param {Object} params 订单参数
+ * @param {String} params.serviceType 服务类型：EXPRESS-取快递 FOOD-买食物 SHOPPING-代买物品 OTHER-其他
+ * @param {String} params.goodsName 商品名称
+ * @param {Number} params.goodsPrice 商品价格
+ * @param {Number} params.servicePrice 服务费
+ * @param {Number} params.totalPrice 总价
+ * @param {Number} params.deliverAddressId 送货地址ID
+ * @param {String} params.remark 备注
+ * @param {String} params.expectedTime 期望送达时间
+ * @returns {Promise}
  */
-export function createErrandPrepay(data) {
-  return http.post('/user/errandOrder/prepay', data);
+export const createErrandPrepay = (params) => {
+	return http.post('/api/user/errand/prepay', params)
 }
 
 /**
- * 支付并创建订单
- * @param {Object} data - 支付数据
- * @param {String} data.preOrderNo - 预订单号
- * @param {Number} data.payType - 支付方式（1-余额 2-微信 3-支付宝 4-面付）
- * @param {Number} data.payAmount - 支付金额（必填）
- * @param {String} data.payNo - 支付流水号
- * @param {Number} data.userAddressId - 用户地址ID
+ * 支付并创建跑腿订单
+ * @param {Object} params 支付参数
+ * @param {String} params.preOrderNo 预订单号
+ * @param {Number} params.payType 支付方式：1-余额 2-微信 3-支付宝 4-面付
+ * @param {Number} params.payAmount 支付金额
+ * @param {String} params.payNo 支付密码或支付流水号
+ * @param {Number} params.userAddressId 用户地址ID
+ * @param {Number} params.deliverAddressId 送货地址ID
+ * @returns {Promise}
  */
-export function payAndCreateOrder(data) {
-  return http.post('/user/errandOrder/pay-and-create', data);
+export const payAndCreateOrder = (params) => {
+	return http.post('/api/user/errand/pay', params)
 }
 
 /**
- * 取消预支付订单
- * @param {String} preOrderNo - 预订单号
+ * 获取跑腿订单列表
+ * @param {Object} params 查询参数
+ * @param {Number} params.pageNum 当前页码（默认1）
+ * @param {Number} params.pageSize 每页数量（默认10）
+ * @param {String} params.status 订单状态（可选）
+ * @returns {Promise}
  */
-export function cancelPrepayOrder(preOrderNo) {
-  return http.del(`/user/errandOrder/prepay/${preOrderNo}`);
+export const getErrandOrderList = (params = {}) => {
+	const { pageNum = 1, pageSize = 10, status } = params
+	
+	const queryParams = {
+		pageNum,
+		pageSize
+	}
+	
+	if (status) {
+		queryParams.status = status
+	}
+	
+	return http.get('/api/user/errand/order/list', queryParams)
 }
 
 /**
- * 用户取消订单
- * @param {Number} orderMainId - 订单ID
- * @param {String} cancelReason - 取消原因
+ * 获取跑腿订单详情
+ * @param {String} orderNo 订单编号
+ * @returns {Promise}
  */
-export function cancelOrder(orderMainId, cancelReason) {
-  return http.put(`/user/errandOrder/cancel/${orderMainId}`, { cancelReason });
+export const getErrandOrderDetail = (orderNo) => {
+	return http.get(`/api/user/errand/order/detail/${orderNo}`)
 }
 
 /**
- * 用户确认收货
- * @param {Number} orderMainId - 订单ID
- * @param {Number} riderId - 骑手ID（可选）
+ * 取消跑腿订单
+ * @param {String} orderNo 订单编号
+ * @returns {Promise}
  */
-export function confirmOrder(orderMainId, riderId) {
-  return http.put(`/user/errandOrder/confirm/${orderMainId}`, riderId ? { riderId } : {});
+export const cancelErrandOrder = (orderNo) => {
+	return http.post(`/api/user/errand/order/cancel/${orderNo}`)
 }
 
 /**
- * 查询用户订单列表
- * @param {Object} params - 查询参数
- * @param {Number} params.pageNum - 页码
- * @param {Number} params.pageSize - 每页数量
- * @param {String} params.orderStatus - 订单状态（可选）
- * @param {String} params.orderType - 订单类型（可选）
+ * 确认收货
+ * @param {String} orderNo 订单编号
+ * @returns {Promise}
  */
-export function getErrandOrderList(params) {
-  return http.get('/user/errandOrder/list', params);
+export const confirmErrandOrder = (orderNo) => {
+	return http.post(`/api/user/errand/order/confirm/${orderNo}`)
 }
 
-/**
- * 查询订单详情
- * @param {Number} orderMainId - 订单ID
- */
-export function getErrandOrderDetail(orderMainId) {
-  return http.get(`/user/errandOrder/${orderMainId}`);
+export default {
+	createErrandPrepay,
+	payAndCreateOrder,
+	getErrandOrderList,
+	getErrandOrderDetail,
+	cancelErrandOrder,
+	confirmErrandOrder
 }
