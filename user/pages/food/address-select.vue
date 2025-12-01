@@ -72,18 +72,19 @@ export default {
     // 获取地址列表
     async getAddressList() {
       try {
-        // 首先从本地存储获取地址列表
-        const localAddressList = uni.getStorageSync('addressList') || [];
-        if (localAddressList.length > 0) {
-          this.addressList = localAddressList;
-        }
-        
-        // 然后尝试从服务器获取最新地址列表
+        // 直接从服务器获取最新地址列表
         const result = await getAddressList();
         if (result && result.code === 200) {
-          this.addressList = result.data || [];
-          // 更新本地存储
-          uni.setStorageSync('addressList', this.addressList);
+          // 处理地址数据，确保姓名字段正确
+          this.addressList = (result.data || []).map(item => {
+            return {
+              ...item,
+              // 确保name字段存在，优先使用receiver，其次是consignee，最后是name
+              name: item.receiver || item.consignee || item.name || '',
+              // 确保detail字段存在
+              detail: item.detail || item.detailAddress || ''
+            };
+          });
         }
       } catch (error) {
         console.error('获取地址列表失败:', error);
@@ -141,12 +142,13 @@ export default {
           district: address.district,
           // 使用detailAddress作为detail（数据结构适配）
           detail: address.detailAddress || address.detail,
+          // 保存原始地址对象，用于后续处理
+          originalAddress: { ...address },
+          // 构建完整地址字符串
+          fullAddress: `${address.province}${address.city}${address.district}${address.detailAddress || address.detail}`,
           // 保留其他原始字段
           ...address
         };
-        
-        // 将选择的地址存储到本地
-        uni.setStorageSync('selectedAddress', formattedAddress);
         
         uni.showToast({
           title: '地址已选择，请返回订单页',
@@ -176,35 +178,54 @@ export default {
         return;
       }
       
-      // 检查方法是否存在
-      if (typeof prevPage.setSelectedAddress !== 'function') {
-        console.error('前一个页面没有setSelectedAddress方法');
-        uni.showToast({
-          title: '系统异常，请重试',
-          icon: 'none'
-        });
-        return;
-      }
-      
       try {
         // 转换地址对象，适配期望的字段名
+        const name = address.receiver || address.name;
+        const phone = address.phone;
+        const province = address.province || '';
+        const city = address.city || '';
+        const district = address.district || '';
+        const detail = address.detailAddress || address.detail || '';
+        
+        // 构建完整地址字符串
+        const fullAddress = `${province}${city}${district}${detail}`;
+        
         const formattedAddress = {
           // 使用receiver作为name（数据结构适配）
-          name: address.receiver || address.name,
-          phone: address.phone,
-          province: address.province,
-          city: address.city,
-          district: address.district,
+          name: name,
+          phone: phone,
+          province: province,
+          city: city,
+          district: district,
           // 使用detailAddress作为detail（数据结构适配）
-          detail: address.detailAddress || address.detail,
+          detail: detail,
+          // 构建address字段，与fullAddress保持一致
+          address: fullAddress,
+          // 添加fullAddress字段
+          fullAddress: fullAddress,
+          // 保存原始地址对象
+          originalAddress: {
+            province: province,
+            city: city,
+            district: district,
+            detail: detail
+          },
           // 保留其他原始字段
           ...address
         };
         
         console.log('转换后的地址对象:', JSON.stringify(formattedAddress));
-        // 调用前一个页面的方法设置地址
-        prevPage.setSelectedAddress(formattedAddress);
-        console.log('地址设置成功');
+        
+        // 在Vue页面栈中，需要通过$vm访问Vue实例的方法
+        if (prevPage.$vm && typeof prevPage.$vm.setSelectedAddress === 'function') {
+          // 调用前一个页面的方法设置地址
+          prevPage.$vm.setSelectedAddress(formattedAddress);
+          console.log('通过$vm调用地址设置成功');
+        } else {
+          // 兼容处理：如果直接调用setSelectedAddress方法
+          prevPage.setSelectedAddress(formattedAddress);
+          console.log('直接调用地址设置成功');
+        }
         
         // 延迟返回，确保地址设置生效
         setTimeout(() => {
@@ -212,6 +233,7 @@ export default {
         }, 100);
       } catch (error) {
         console.error('设置地址时出错:', error);
+        
         uni.showToast({
           title: '设置地址失败，请重试',
           icon: 'none'
@@ -250,8 +272,6 @@ export default {
               if (result && result.code === 200) {
                 // 从列表中移除
                 this.addressList.splice(index, 1);
-                // 更新本地存储
-                uni.setStorageSync('addressList', this.addressList);
                 
                 uni.showToast({
                   title: '删除成功',
@@ -288,9 +308,6 @@ export default {
           this.addressList.forEach(item => {
             item.isDefault = item.id === addressId;
           });
-          
-          // 更新本地存储
-          uni.setStorageSync('addressList', this.addressList);
           
           uni.showToast({
             title: '设置成功',
