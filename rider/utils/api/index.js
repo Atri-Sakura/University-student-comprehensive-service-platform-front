@@ -13,6 +13,7 @@ import * as paymentApi from './payment.js';
 import * as orderApi from './order.js';
 import * as chatApi from './chat.js';
 import * as evaluationApi from './evaluation.js';
+import feedbackApi from './feedback.js';
 
 // ========== 重新导出所有API ==========
 
@@ -67,6 +68,10 @@ export const {
 	getMessagesFromTo
 } = chatApi;
 
+// 反馈相关
+export const getFeedbackInfo = feedbackApi.getFeedbackInfo;
+export const addFeedback = feedbackApi.addFeedback;
+
 // ========== 导出请求方法和配置 ==========
 export { 请求, API_BASE_URL };
 
@@ -86,5 +91,8 @@ export default {
 	...paymentApi,
 	
 	// 订单相关
-	...orderApi
+	...orderApi,
+
+	// 反馈相关
+	...feedbackApi
 };
