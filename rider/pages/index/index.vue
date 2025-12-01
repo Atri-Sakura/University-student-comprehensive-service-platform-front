@@ -61,9 +61,6 @@
 					<view class="service-icon">📇</view>
 					<text class="service-text">资质认证</text>
 				</view>
-			</view>
-
-			<view class="service-grid">
 				<view class="service-item" @click="handleService('rating')">
 					<view class="service-icon">⭐</view>
 					<text class="service-text">服务评价</text>
@@ -79,6 +76,10 @@
 				<view class="service-item" @click="handleService('violation')">
 					<view class="service-icon">⚠️</view>
 					<text class="service-text">违规申诉</text>
+				</view>
+				<view class="service-item" @click="handleService('feedback')">
+					<view class="service-icon">💬</view>
+					<text class="service-text">意见反馈</text>
 				</view>
 			</view>
 		</view>
@@ -158,10 +159,10 @@ import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 						const statistics = statisticsResponse.data;
 						console.log('⭐ 个人中心获取到的评价统计:', statistics);
 						
-						// 更新综合评分
+						// 更新综合评分，只有当avgRating为null或undefined时才使用默认值，0是有效的评分
 						this.userInfo = {
 							...this.userInfo,
-							rating: statistics.avgRating || this.userInfo.rating
+							rating: statistics.avgRating !== null && statistics.avgRating !== undefined ? statistics.avgRating : this.userInfo.rating
 						};
 					}
 					
@@ -228,19 +229,24 @@ import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 				return;
 			}
 			if (type === 'support') {
-				uni.navigateTo({ url: '/pages/message/customer-service' });
-				return;
-			}
-			
-			// 其他未实现的功能显示提示
-			const serviceNames = {
+					uni.navigateTo({ url: '/pages/message/customer-service' });
+					return;
+				}
+				
+				if (type === 'feedback') {
+					uni.navigateTo({ url: '/pages/feedback/feedback' });
+					return;
+				}
+				
+				// 其他未实现的功能显示提示
+				const serviceNames = {
 				support: '在线客服'
-			};
-			
-			uni.showToast({
+				};
+				
+				uni.showToast({
 				title: '功能开发中',
 				icon: 'none'
-			});
+				});
 		}
 		}
 	}
@@ -398,19 +404,21 @@ import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 	.service-grid {
 		display: flex;
 		justify-content: space-between;
+		flex-wrap: wrap;
 		margin-bottom: 50rpx;
+		gap: 60rpx 0;
 	}
 
-	.service-grid:last-child {
-		margin-bottom: 0;
-	}
+
 
 	.service-item {
-		flex: 1;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		cursor: pointer;
+		width: 25%;
+		box-sizing: border-box;
+		padding: 0 20rpx;
 	}
 
 	.service-icon {
