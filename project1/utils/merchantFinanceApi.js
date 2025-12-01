@@ -44,6 +44,19 @@ export const getMerchantWallet = () => {
 };
 
 /**
+ * 初始化商家钱包
+ * @returns {Promise}
+ */
+export const initMerchantWallet = () => {
+  // 生成8位数字的钱包ID
+  const merchantWalletId = Math.floor(10000000 + Math.random() * 90000000);
+  
+  return request(`${baseUrl}/merchant/info/initWallet?merchantWalletId=${merchantWalletId}`, {
+    method: 'POST'
+  });
+};
+
+/**
  * 获取交易记录列表
  * @param {Object} params - 查询参数
  * @param {String} params.dateRange - 日期范围类型(today/week/month/custom)
@@ -360,6 +373,7 @@ export const merchantFinanceApi = {
   getFinancialOverview,
   getTodayIncome,
   getMerchantWallet,
+  initMerchantWallet,
   getTransactionList,
   getTransactionDetail,
   getWithdrawalAccounts,

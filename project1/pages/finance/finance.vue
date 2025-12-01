@@ -210,6 +210,9 @@ export default {
     loadWalletData() {
       merchantFinanceApi.getMerchantWallet().then(res => {
         console.log('商家钱包数据:', res);
+        console.log('钱包查询响应数据:', res.data);
+        console.log('钱包查询响应码:', res.data?.code);
+        console.log('钱包查询错误信息:', res.data?.msg);
         // 检查响应格式并更新数据
         if (res && res.data && res.data.code === 200) {
           const walletData = res.data.data;
@@ -222,19 +225,13 @@ export default {
         } else if (res && res.data) {
           console.error('获取钱包数据失败:', res);
           // 根据错误信息显示不同的提示
-          if (res.data.msg && res.data.msg.includes('不存在')) {
-            // 钱包不存在时，设置可提现金额为0并给用户提示
-            this.financialData = {
-              ...this.financialData,
-              withdrawableAmount: '0.00'
-            };
-            uni.showToast({
-              title: '商家钱包信息未创建',
-              icon: 'none'
-            });
+          const errorMsg = res.data.msg || res.data || '';
+          if (errorMsg.includes('不存在') || errorMsg.includes('未找到') || res.data.code === 500) {
+            // 钱包不存在时，自动创建钱包
+            this.initWalletAndReload();
           } else {
             uni.showToast({
-              title: res.data.msg || '获取钱包数据失败',
+              title: errorMsg || '获取钱包数据失败',
               icon: 'none'
             });
           }
@@ -254,6 +251,59 @@ export default {
         };
         uni.showToast({
           title: '网络异常，请重试',
+          icon: 'none'
+        });
+      });
+    },
+    
+    // 初始化钱包并重新加载数据
+    initWalletAndReload() {
+      uni.showLoading({
+        title: '正在初始化钱包...'
+      });
+      
+      merchantFinanceApi.initMerchantWallet().then(res => {
+        uni.hideLoading();
+        console.log('钱包初始化结果:', res);
+        console.log('钱包初始化响应数据:', res.data);
+        console.log('钱包初始化响应码:', res.data?.code);
+        
+        // 检查响应是否成功 - 兼容不同的响应格式
+        const isSuccess = (res && res.statusCode === 200) || 
+                         (res && res.data && res.data.code === 200) ||
+                         (res && res.data && typeof res.data === 'string' && res.data.includes('成功'));
+        
+        if (isSuccess) {
+          uni.showToast({
+            title: '钱包初始化成功',
+            icon: 'success'
+          });
+          // 初始化成功后重新加载钱包数据
+          setTimeout(() => {
+            this.loadWalletData();
+          }, 1000);
+        } else {
+          console.error('钱包初始化失败:', res);
+          // 初始化失败时设置默认值
+          this.financialData = {
+            ...this.financialData,
+            withdrawableAmount: '0.00'
+          };
+          uni.showToast({
+            title: res.data?.msg || res.data || '钱包初始化失败',
+            icon: 'none'
+          });
+        }
+      }).catch(err => {
+        uni.hideLoading();
+        console.error('钱包初始化异常:', err);
+        // 初始化异常时设置默认值
+        this.financialData = {
+          ...this.financialData,
+          withdrawableAmount: '0.00'
+        };
+        uni.showToast({
+          title: '钱包初始化失败，请重试',
           icon: 'none'
         });
       });

@@ -159,7 +159,7 @@ export default {
         quickAmounts: [100, 500, 1000, 2000],
         accounts: [], // 将在加载时动态填充
         accountsData: [], // 存储完整的账户信息
-        selectedAccountIndex: 0,
+        selectedAccountIndex: -1,
         feeRate: 0.005, // 0.5%手续费率
         fee: 0,
         totalDeduction: 0,
@@ -176,11 +176,16 @@ export default {
     // 是否可以提现
     canWithdraw() {
       const balance = parseFloat(this.financialData.withdrawableBalance.replace(/,/g, ''));
-      // 提现金额必须大于0，且余额必须足够支付提现金额和手续费
-      return this.withdrawAmount > 0 && (this.withdrawAmount + this.fee) <= balance;
+      // 提现金额必须大于0，且余额必须足够支付提现金额和手续费，且必须有可用的提现账户
+      return this.withdrawAmount > 0 && 
+             (this.withdrawAmount + this.fee) <= balance && 
+             this.accounts.length > 0 && 
+             this.selectedAccountIndex >= 0;
     }
   },
   onLoad() {
+    // 页面加载时先设置默认支付宝账户
+    this.setDefaultAlipayAccount();
     // 页面加载时计算费用
     this.calculateFee();
     // 加载钱包数据
@@ -260,20 +265,16 @@ export default {
     // 计算手续费和总扣款金额
     calculateFee() {
       const amount = this.withdrawAmount || 0;
-      console.log('开始计算提现费用，金额:', amount, '手续费率:', this.feeRate);
-      
       // 如果提现金额为0，重置费用为0
       if (amount <= 0) {
         this.fee = 0;
         this.totalDeduction = 0;
-        console.log('金额无效，费用和总扣款设为0');
         return;
       }
       
       // 首先进行本地计算作为初始显示（使用精确的小数计算）
       const calculatedFee = parseFloat((amount * this.feeRate).toFixed(2));
       const calculatedTotalDeduction = parseFloat((amount + calculatedFee).toFixed(2));
-      console.log('本地计算结果: 提现金额(实际到账)=', amount, '手续费=', calculatedFee, '总扣款金额=', calculatedTotalDeduction);
       
       // 设置初始值
       this.fee = calculatedFee;
@@ -288,18 +289,10 @@ export default {
             // 更新费用和总扣款金额
             this.fee = previewVO.fee !== undefined ? parseFloat(previewVO.fee.toFixed(2)) : calculatedFee;
             this.totalDeduction = parseFloat((amount + this.fee).toFixed(2));
-            console.log('API返回结果: 手续费=', this.fee, '总扣款金额=', this.totalDeduction);
-            console.log('注意: 前端提交给applyWithdraw接口的金额是提现金额:', amount, '手续费额外扣除');
-          } else {
-            console.error('获取提现预估失败:', res);
-            // 失败时使用本地计算结果
-            console.log('使用本地计算结果作为备用');
           }
         })
         .catch(error => {
-          console.error('获取提现预估异常:', error);
           // 异常时使用本地计算结果
-          console.log('使用本地计算结果作为备用');
         });
     },
     
@@ -354,14 +347,9 @@ export default {
             // 准备提现数据 - 提交实际提现金额（不包含手续费）
             const submitData = {
               amount: this.withdrawAmount,
-              accountId: selectedAccount.accountId
+              accountId: Number(selectedAccount.accountId) // 确保accountId是数字类型
             };
             
-            // 记录提交数据详情
-            console.log('提现申请提交数据:', submitData);
-            console.log('当前计算的手续费:', this.fee, '总扣款金额:', this.totalDeduction);
-            console.log('实际到账金额:', this.withdrawAmount, '（不包含手续费）');
-            console.log('注意: 后端应该扣除总金额:', this.totalDeduction, '元（提现金额+手续费）');
             
             // 调用提现API
             applyWithdraw(submitData)
@@ -389,20 +377,10 @@ export default {
               .catch(error => {
                 uni.hideLoading();
                 this.isSubmitting = false;
-                console.error('提现申请失败:', error);
-                
-                // 显示具体错误信息或通用提示
-                if (error && error.message) {
-                  uni.showToast({
-                    title: error.message,
-                    icon: 'none'
-                  });
-                } else {
-                  uni.showToast({
-                    title: '网络异常，请稍后重试',
-                    icon: 'none'
-                  });
-                }
+                uni.showToast({
+                  title: '网络异常，请稍后重试',
+                  icon: 'none'
+                });
               });
             
           }
@@ -422,16 +400,13 @@ export default {
       getWithdrawRecordList()
         .then(response => {
           uni.hideLoading();
-          console.log('查看全部提现记录数据:', response);
           
           if (response && response.data) {
             // 处理不同格式的返回值 - 可能是字符串"200"或数字200
             const isSuccess = response.data.code === 200 || response.data.code === "200";
-            console.log('API调用状态:', isSuccess);
             
             // 直接使用response.data作为记录数据
             const recordsData = response.data;
-            console.log('处理的提现记录数据:', recordsData);
             
             if (isSuccess && recordsData.rows && Array.isArray(recordsData.rows) && recordsData.rows.length > 0) {
               // 获取第一条记录
@@ -456,7 +431,6 @@ export default {
               });
             }
           } else {
-            console.error('获取提现记录列表失败:', response);
             uni.showToast({
               title: response?.data?.msg || '获取记录失败',
               icon: 'none'
@@ -465,9 +439,8 @@ export default {
         })
         .catch(error => {
           uni.hideLoading();
-          console.error('获取提现记录异常:', error);
           uni.showToast({
-            title: '网络异常，请稍后重试',
+            title: '获取记录失败',
             icon: 'none'
           });
         });
@@ -561,37 +534,32 @@ export default {
       .then(([overviewRes, accountsRes, recordsRes]) => {
         uni.hideLoading();
         
-        // 处理总览数据
-        console.log('提现页总览数据:', overviewRes);
+        // 处理财务数据
         if (overviewRes && overviewRes.data && overviewRes.data.code === 200) {
-          const overviewVO = overviewRes.data.data;
-          console.log('解析后的提现页总览数据:', overviewVO);
+          const overviewData = overviewRes.data.data;
           
-          // 更新财务数据
-          this.financialData = {
-            ...this.financialData,
-            withdrawableBalance: this.formatNumber(overviewVO.availableBalance || 0),
-            todayIncome: this.formatNumber(overviewVO.todayIncome || 0),
-            pendingSettlement: this.formatNumber(overviewVO.settlingAmount || 0),
-            pendingWithdrawal: this.formatNumber(overviewVO.withdrawingAmount || 0)
-          };
-          
-          // 更新手续费率
-          if (overviewVO.feeRate !== undefined) {
-            this.feeRate = overviewVO.feeRate;
-            this.calculateFee();
+          if (overviewData) {
+            this.financialData = {
+              withdrawableBalance: overviewData.withdrawableBalance || '0.00',
+              todayIncome: overviewData.todayIncome || '0.00',
+              pendingSettlement: overviewData.pendingSettlement || '0.00',
+              pendingWithdrawal: overviewData.pendingWithdrawal || '0.00'
+            };
+            
+            // 更新手续费率
+            if (overviewData.feeRate !== undefined) {
+              this.feeRate = overviewData.feeRate;
+            }
           }
         } else {
-          console.error('获取提现页总览数据失败:', overviewRes);
           this.setDefaultFinancialData();
         }
         
         // 处理账户列表数据
-        console.log('提现账户列表数据:', accountsRes);
         if (accountsRes && accountsRes.data && accountsRes.data.code === 200) {
           const accountsList = accountsRes.data.data;
-          console.log('解析后的提现账户列表:', accountsList);
           
+          // 如果API返回了真实账户，使用真实账户替换默认账户
           if (Array.isArray(accountsList) && accountsList.length > 0) {
             // 转换账户数据为显示格式
             const formattedAccounts = [];
@@ -629,24 +597,27 @@ export default {
             const defaultIndex = accountsData.findIndex(acc => acc.isDefault === 1);
             if (defaultIndex !== -1) {
               this.selectedAccountIndex = defaultIndex;
+            } else if (accountsData.length > 0) {
+              // 如果没有默认账户，选择第一个账户
+              this.selectedAccountIndex = 0;
+            } else {
+              // 如果没有账户，设置为-1
+              this.selectedAccountIndex = -1;
             }
+          } else {
+            // 如果账户列表为空，保持默认支付宝账户（已在onLoad中设置）
           }
         } else {
-          console.error('获取提现账户列表失败:', accountsRes);
-          // 设置默认账户列表，防止用户无法进行提现操作
-          this.setDefaultAccounts();
+          // 保持默认支付宝账户（已在onLoad中设置）
         }
         
         // 处理提现记录数据
-        console.log('提现记录列表数据:', recordsRes);
         if (recordsRes && recordsRes.data) {
           // 处理不同格式的返回值 - 可能是字符串"200"或数字200
           const isSuccess = recordsRes.data.code === 200 || recordsRes.data.code === "200";
-          console.log('API调用状态:', isSuccess);
           
           // 直接使用recordsRes.data作为记录数据
           const recordsData = recordsRes.data;
-          console.log('处理的提现记录数据:', recordsData);
           
           if (isSuccess && recordsData.rows && Array.isArray(recordsData.rows) && recordsData.rows.length > 0) {
             // 将后端返回的数据转换为前端需要的格式
@@ -677,21 +648,14 @@ export default {
               };
             });
             
-            console.log('格式化后的记录数据:', formattedRecords);
-            // 更新最近提现记录
-            this.recentRecords = formattedRecords;
-          } else {
-            console.log('没有找到有效提现记录或API调用未成功');
+            this.recentRecords = formattedRecords.slice(0, 3); // 只显示最近3条
           }
-        } else {
-          console.error('获取提现记录列表失败:', recordsRes);
         }
       })
       .catch(error => {
         uni.hideLoading();
-        console.error('加载数据异常:', error);
         this.setDefaultFinancialData();
-        this.setDefaultAccounts();
+        // 保持默认支付宝账户（已在onLoad中设置）
         uni.showToast({
           title: '网络异常，请重试',
           icon: 'none'
@@ -755,6 +719,25 @@ export default {
       this.accounts = ['请添加提现账户'];
       this.accountsData = [];
       this.selectedAccountIndex = 0;
+    },
+    
+    // 设置默认支付宝账户
+    setDefaultAlipayAccount() {
+      // 创建默认支付宝账户数据
+      const defaultAlipayAccount = {
+        accountId: 999999999, // 使用数字类型的ID
+        accountType: 'alipay',
+        accountName: '商家支付宝',
+        accountNumber: '138****8888',
+        isDefault: 1,
+        bankName: null
+      };
+      
+      // 设置账户显示列表
+      this.accounts = ['支付宝 - 商家支付宝 (138****8888) [默认]'];
+      this.accountsData = [defaultAlipayAccount];
+      this.selectedAccountIndex = 0;
+      
     },
     
     // 设置默认财务数据，确保页面正常显示
@@ -962,6 +945,17 @@ export default {
   justify-content: space-between;
   font-size: 28rpx;
   color: #333;
+}
+
+.account-display.disabled {
+  background-color: #f5f5f5;
+  border-color: #d0d0d0;
+  cursor: not-allowed;
+}
+
+.no-account-text {
+  color: #999;
+  font-style: italic;
 }
 
 .arrow-icon {
