@@ -260,6 +260,15 @@
 			"navigationBarTextStyle": "black",
 			"navigationStyle": "custom"
 		}
+	},
+	{
+		"path": "pages/feedback/feedback",
+		"style": {
+			"navigationBarTitleText": "意见反馈",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
 	}
 	],
 	"globalStyle": {
