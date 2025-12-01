@@ -22,37 +22,18 @@
           <view class="errand-detail">
             <view class="errand-item">
               <text class="item-label">服务类型：</text>
-              <text class="item-value">{{ orderInfo.serviceType || '其他' }}</text>
+              <text class="item-value">{{ getServiceTypeName(orderInfo.serviceType) }}</text>
             </view>
-            <view v-if="orderInfo.remark" class="errand-item">
+            <view class="errand-item">
+              <text class="item-label">物品描述：</text>
+              <text class="item-value">{{ orderInfo.goodsName || '-' }}</text>
+            </view>
+            <view v-if="orderInfo.remark" class="errand-item remark-item">
               <text class="item-label">备注：</text>
-              <text class="item-value">{{ orderInfo.remark }}</text>
+              <view class="remark-content">
+                <text class="remark-line">{{ orderInfo.remark }}</text>
+              </view>
             </view>
-          </view>
-        </view>
-      </view>
-
-      <!-- 收货信息 -->
-      <view class="address-card">
-        <view class="card-title">
-          <text class="title-text">📦 收货信息</text>
-        </view>
-        <view class="address-info">
-          <view class="errand-item">
-            <text class="item-label">联系人：</text>
-            <text class="item-value">{{ orderInfo.contactName }}</text>
-          </view>
-          <view class="errand-item">
-            <text class="item-label">联系电话：</text>
-            <text class="item-value">{{ orderInfo.contactPhone }}</text>
-          </view>
-          <view class="errand-item">
-            <text class="item-label">取货地点：</text>
-            <text class="item-value">{{ orderInfo.pickupLocation }}</text>
-          </view>
-          <view class="errand-item">
-            <text class="item-label">送达地点：</text>
-            <text class="item-value">{{ orderInfo.deliveryLocation }}</text>
           </view>
         </view>
       </view>
@@ -82,19 +63,22 @@
 
       <!-- 价格明细 -->
       <view class="price-card">
-        <view class="price-item">
-          <text class="price-label">配送费</text>
-          <text class="price-value">¥{{ orderInfo.deliveryFee || 0 }}</text>
+        <view class="price-item" v-if="(orderInfo.goodsPrice || orderInfo.goodsAmount) > 0">
+          <text class="price-label">商品价格</text>
+          <text class="price-value">￥{{ ((orderInfo.goodsPrice || orderInfo.goodsAmount) || 0).toFixed(2) }}</text>
         </view>
-        <!-- 帮我买时显示垫付费用 -->
-        <view class="price-item" v-if="orderInfo.serviceType === '帮我买'">
-          <text class="price-label">垫付费用</text>
-          <text class="price-value">¥{{ orderInfo.advancePayment || 0 }}</text>
+        <view class="price-item">
+          <text class="price-label">服务费</text>
+          <text class="price-value">￥{{ ((orderInfo.servicePrice || orderInfo.deliveryFee) || 0).toFixed(2) }}</text>
+        </view>
+        <view class="price-item" v-if="(orderInfo.discountAmount || 0) > 0">
+          <text class="price-label">优惠金额</text>
+          <text class="price-value discount">-￥{{ (orderInfo.discountAmount || 0).toFixed(2) }}</text>
         </view>
         <view class="price-divider"></view>
         <view class="price-item total">
           <text class="price-label">合计</text>
-          <text class="price-value total">¥{{ orderInfo.price }}</text>
+          <text class="price-value total">￥{{ totalPrice.toFixed(2) }}</text>
         </view>
       </view>
 
@@ -106,7 +90,7 @@
     <view class="bottom-bar">
       <view class="total-box">
         <text class="total-label">实付款：</text>
-        <text class="total-price">¥{{ orderInfo.price }}</text>
+        <text class="total-price">¥{{ totalPrice.toFixed(2) }}</text>
       </view>
       <view class="submit-btn" @click="submitOrder">
         <text class="submit-text">提交订单</text>
@@ -167,34 +151,21 @@
 
 <script>
 import { PAY_TYPES } from '@/api/config.js'
+import { payAndCreateOrder } from '@/api/errand.js'
 
 export default {
   data() {
     return {
       statusBarHeight: 0,
       navHeight: 0,
-      orderInfo: {
-        id: '',
-        serviceType: '',
-        pickupLocation: '',
-        deliveryLocation: '',
-        contactName: '',
-        contactPhone: '',
-        remark: '',
-        price: '0',
-        deliveryFee: 0,
-        advancePayment: 0,
-        itemsTotal: 0,
-        discountAmount: 0,
-        totalAmount: 0,
-        createTime: new Date().toISOString()
-      },
-      selectedPayment: 3, // 默认选择面付（索引3，payType=4）
+      preOrderNo: '', // 预订单号
+      totalPrice: 0, // 总价
+      orderInfo: {},
+      selectedPayment: 0, // 默认选择余额支付
       paymentMethods: [],
       loading: false,
       showPasswordModal: false, // 显示密码输入框
       paymentPassword: '', // 支付密码
-      orderNo: '', // 临时保存订单号
       passwordInputFocus: false // 密码输入框聚焦状态
     };
   },
@@ -204,62 +175,33 @@ export default {
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.navHeight = this.statusBarHeight + 44;
     
-    // 初始化支付方式列表
-    this.paymentMethods = PAY_TYPES.map((item) => ({
-      icon: item.icon,
-      name: item.label,
-      payType: item.value,
-      color: this.getPaymentColor(item.value)
-    }));
+    // 初始化支付方式列表 - 只保留支付宝和面付
+    this.paymentMethods = PAY_TYPES
+      .filter(item => item.value === 3 || item.value === 4) // 3-支付宝 4-面付
+      .map((item) => ({
+        icon: item.icon,
+        name: item.label,
+        payType: item.value,
+        payTypeCode: this.getPayTypeCode(item.value),
+        color: this.getPaymentColor(item.value)
+      }));
 
     console.log('跑腿支付页面接收到的options：', options);
     
-    // 从URL参数获取订单信息
-    if (options && options.orderInfo) {
-      try {
-        const parsedOrderInfo = JSON.parse(decodeURIComponent(options.orderInfo));
-        // 更新orderInfo，确保所有字段都被正确赋值
-        this.orderInfo = {
-          ...this.orderInfo,
-          ...parsedOrderInfo,
-          // 确保价格字段为数字类型
-          price: parsedOrderInfo.price || '0',
-          deliveryFee: parsedOrderInfo.deliveryFee || 0,
-          advancePayment: parsedOrderInfo.advancePayment || 0,
-          totalAmount: parsedOrderInfo.price || 0
-        };
-        console.log('解析成功的订单信息：', this.orderInfo);
-      } catch (error) {
-        console.error('解析订单信息失败：', error);
-        // 如果解析失败，尝试从options中直接获取
-        this.orderInfo = {
-          ...this.orderInfo,
-          serviceType: options.serviceType || '',
-          pickupLocation: options.pickupLocation || '',
-          deliveryLocation: options.deliveryLocation || '',
-          contactName: options.contactName || '',
-          contactPhone: options.contactPhone || '',
-          remark: options.remark || '',
-          price: options.price || '0',
-          deliveryFee: options.deliveryFee || 0,
-          advancePayment: options.advancePayment || 0,
-          totalAmount: options.price || '0'
-        };
-      }
-    }
-    // 同时尝试从本地存储获取currentOrder，如果URL参数中没有或解析失败
-    else {
-      const savedOrder = uni.getStorageSync('currentOrder');
-      if (savedOrder) {
-        this.orderInfo = {
-          ...this.orderInfo,
-          ...savedOrder
-        };
-        console.log('从本地存储获取的订单信息：', this.orderInfo);
-      }
+    // 从URL参数获取预订单号和总价
+    if (options.preOrderNo) {
+      this.preOrderNo = options.preOrderNo;
+      this.totalPrice = parseFloat(options.totalPrice) || 0;
     }
     
-    console.log('最终订单信息：', this.orderInfo);
+    // 从本地存储获取订单信息
+    const savedOrder = uni.getStorageSync('errandPrepayOrder');
+    if (savedOrder) {
+      this.orderInfo = savedOrder.orderInfo || {};
+      console.log('从本地存储获取的订单信息：', this.orderInfo);
+    }
+    
+    console.log('预订单号：', this.preOrderNo, '总价：', this.totalPrice);
   },
   methods: {
     // 获取支付方式颜色
@@ -271,6 +213,28 @@ export default {
         4: '#FF6B47'  // 面付
       };
       return colors[payType] || '#999999';
+    },
+    
+    // 获取支付方式代码
+    getPayTypeCode(payType) {
+      const codes = {
+        1: 'BALANCE',
+        2: 'WECHAT',
+        3: 'ALIPAY',
+        4: 'CASH'
+      };
+      return codes[payType] || 'BALANCE';
+    },
+    
+    // 获取服务类型名称
+    getServiceTypeName(type) {
+      const typeNames = {
+        'EXPRESS': '取快递',
+        'FOOD': '买食物',
+        'SHOPPING': '代买物品',
+        'OTHER': '其他'
+      };
+      return typeNames[type] || type || '其他';
     },
     
     // 返回
@@ -291,7 +255,7 @@ export default {
       
       uni.showModal({
         title: '确认订单',
-        content: `确认使用${paymentMethod.name}支付${this.orderInfo.price}元吗？`,
+        content: `确认使用${paymentMethod.name}支付${this.totalPrice}元吗？`,
         confirmText: '确认',
         cancelText: '取消',
         success: (res) => {
@@ -307,40 +271,109 @@ export default {
       try {
         this.loading = true;
         uni.showLoading({
-          title: '提交中...'
+          title: '支付中...'
         });
         
         const paymentMethod = this.paymentMethods[this.selectedPayment];
         
-        // TODO: 调用创建跑腿订单的API
-        // 模拟创建订单成功
-        setTimeout(() => {
-          this.loading = false;
+        // 如果是余额、微信、支付宝支付，显示密码输入框
+        if (paymentMethod.payType !== 4) {
           uni.hideLoading();
-          
-          if (paymentMethod.payType === 4) {
-            // 面付，直接跳转到订单详情
-            uni.showToast({
-              title: '订单创建成功',
-              icon: 'success'
-            });
-            
-            setTimeout(() => {
-              uni.navigateBack();
-            }, 1500);
-          } else {
-            // 其他支付方式，显示支付密码输入框
-            this.showPasswordModal = true;
-          }
-        }, 1500);
+          this.showPasswordModal = true;
+          this.loading = false;
+          // 延迟聚焦输入框
+          setTimeout(() => {
+            this.focusPasswordInput();
+          }, 300);
+          return;
+        }
+        
+        // 面付直接创建订单
+        await this.payOrder(paymentMethod.payType, '');
         
       } catch (error) {
-        console.error('创建订单失败：', error);
+        console.error('支付失败：', error);
         this.loading = false;
         uni.hideLoading();
         uni.showToast({
-          title: '提交失败，请重试',
+          title: '支付失败，请重试',
           icon: 'none'
+        });
+      }
+    },
+    
+    // 执行支付
+    async payOrder(payType, payNo) {
+      try {
+        // 从本地存储获取地址ID
+        const prepayOrder = uni.getStorageSync('errandPrepayOrder');
+        
+        console.log('=== 支付调试信息 ===');
+        console.log('本地存储的预订单信息：', prepayOrder);
+        console.log('地址ID：', prepayOrder?.deliverAddressId);
+        
+        const payData = {
+          preOrderNo: this.preOrderNo,
+          payType: payType, // 数字类型：1-余额 2-微信 3-支付宝 4-面付
+          payAmount: this.totalPrice, // 支付金额（必填）
+          payNo: payNo || 'PAY' + Date.now(),
+          userAddressId: prepayOrder?.deliverAddressId, // 传递地址ID
+          deliverAddressId: prepayOrder?.deliverAddressId // 同时传递deliverAddressId
+        };
+        
+        console.log('完整支付数据：', payData);
+        console.log('支付方式：', payType === 4 ? '面付' : payType === 3 ? '支付宝' : '其他');
+        console.log('==================');
+        
+        const res = await payAndCreateOrder(payData);
+        
+        console.log('支付响应：', res);
+        
+        uni.hideLoading();
+        this.loading = false;
+        
+        if (res.code === 200) {
+          // 清除本地存储的预订单信息
+          uni.removeStorageSync('errandPrepayOrder');
+          
+          uni.showToast({
+            title: '支付成功',
+            icon: 'success'
+          });
+          
+          setTimeout(() => {
+            uni.navigateBack();
+          }, 1500);
+        } else {
+          // 根据不同错误显示不同提示
+          let errorMsg = res.msg || '支付失败';
+          if (errorMsg.includes('余额不足')) {
+            if (payType === 4) {
+              // 面付也提示余额不足，说明后端要求账户有余额
+              errorMsg = '订单创建失败：账户余额不足。面付方式也需要账户有足够余额作为保证金';
+            } else {
+              errorMsg = '账户余额不足，请充值后重试或选择面付';
+            }
+          }
+          uni.showToast({
+            title: errorMsg,
+            icon: 'none',
+            duration: 3000
+          });
+        }
+      } catch (error) {
+        console.error('支付失败：', error);
+        uni.hideLoading();
+        this.loading = false;
+        
+        let errorMsg = '支付失败，请重试';
+        if (error.msg && error.msg.includes('余额不足')) {
+          errorMsg = '账户余额不足，请选择其他支付方式';
+        }
+        uni.showToast({
+          title: errorMsg,
+          icon: 'none',
+          duration: 2000
         });
       }
     },
@@ -371,7 +404,7 @@ export default {
     },
     
     // 确认支付密码
-    confirmPaymentPassword() {
+    async confirmPaymentPassword() {
       if (this.paymentPassword.length !== 6) {
         uni.showToast({
           title: '请输入6位支付密码',
@@ -385,21 +418,12 @@ export default {
           title: '支付中...'
         });
         
-        // TODO: 调用支付API
-        // 模拟支付成功
-        setTimeout(() => {
-          uni.hideLoading();
-          this.closePasswordModal();
-          
-          uni.showToast({
-            title: '支付成功',
-            icon: 'success'
-          });
-          
-          setTimeout(() => {
-            uni.navigateBack();
-          }, 1500);
-        }, 1500);
+        const paymentMethod = this.paymentMethods[this.selectedPayment];
+        
+        // 执行支付
+        await this.payOrder(paymentMethod.payType, this.paymentPassword);
+        
+        this.closePasswordModal();
         
       } catch (error) {
         console.error('支付失败：', error);
@@ -534,6 +558,24 @@ export default {
   word-break: break-word;
 }
 
+.remark-item {
+  align-items: flex-start;
+}
+
+.remark-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.remark-line {
+  font-size: 28rpx;
+  color: #333;
+  line-height: 40rpx;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* 支付方式样式 */
 .payment-item {
   display: flex;
@@ -615,6 +657,11 @@ export default {
 .price-value {
   font-size: 28rpx;
   color: #333;
+}
+
+.price-value.discount {
+  color: #52c41a;
+  font-weight: 500;
 }
 
 .price-value.total {
@@ -740,6 +787,7 @@ export default {
 }
 
 .password-input-box {
+  position: relative;
   display: flex;
   justify-content: space-between;
   margin-bottom: 40rpx;
@@ -768,11 +816,12 @@ export default {
 
 .password-input-hidden {
   position: absolute;
-  left: -9999rpx;
-  top: -9999rpx;
-  width: 100rpx;
-  height: 100rpx;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
+  z-index: 10;
 }
 
 .password-actions {
