@@ -93,6 +93,9 @@
 </template>
 
 <script>
+import foodApi from '../../api/food.js';
+import addressApi from '../../api/address.js';
+
 export default {
   data() {
     return {
@@ -116,6 +119,8 @@ export default {
     totalAmount() {
       // 计算总价 = 商品总价 + 配送费 - 优惠金额
       let total = this.itemsTotal + this.restaurant.deliveryFee - this.discountAmount;
+      // 确保总价保留两位小数，与支付页面保持一致
+      total = parseFloat(total.toFixed(2));
       return total < 0 ? 0 : total;
     }
   },
@@ -128,38 +133,18 @@ export default {
     const cartData = uni.getStorageSync('foodCart');
     if (cartData) {
       this.restaurant = cartData.restaurant || {};
+      // 确保配送费正确，防止旧数据影响
+      if (this.restaurant.deliveryFee === 5) {
+        this.restaurant.deliveryFee = 3;
+        console.log('修正配送费从5元为3元');
+      }
       this.cartItems = cartData.items || [];
       // 模拟优惠计算
       this.calculateDiscount();
     }
     
-    // 尝试从本地存储恢复上次选择的地址（优先检查从地址选择页保存的selectedAddress）
-    let savedAddress = uni.getStorageSync('selectedAddress');
-    
-    // 如果没有找到selectedAddress，再检查selectedOrderAddress
-    if (!savedAddress || !savedAddress.name) {
-      savedAddress = uni.getStorageSync('selectedOrderAddress');
-    }
-    
-    if (savedAddress && savedAddress.name) {
-      console.log('从本地存储恢复地址:', savedAddress);
-      
-      // 适配地址格式，确保address字段正确拼接
-      const addressData = {
-        name: savedAddress.name,
-        phone: savedAddress.phone,
-        address: savedAddress.address || 
-                `${savedAddress.province || ''}${savedAddress.city || ''}${savedAddress.district || ''}${savedAddress.detail || ''}`
-      };
-      
-      this.selectedAddress = addressData;
-      
-      // 清除临时存储的selectedAddress，避免下次重复加载
-      uni.removeStorageSync('selectedAddress');
-    } else {
-      // 如果没有保存的地址，才加载默认地址
-      this.loadDefaultAddress();
-    }
+    // 从后端API加载默认地址，不再从本地存储获取
+    this.loadDefaultAddress();
   },
   methods: {
     // 返回上一页
@@ -233,24 +218,32 @@ export default {
           fullAddress = address.address || '未知地址';
         }
         
+        // 构建最终的选中地址对象，保存完整的地址信息
         const newAddress = {
           name: receiverName,
           phone: receiverPhone,
           address: fullAddress,
-          // 保留原始地址信息，便于调试和后续使用
-          originalAddress: address
+          fullAddress: fullAddress,
+          // 保存结构化地址字段
+          province: province,
+          city: city,
+          district: district,
+          detail: detail,
+          // 保存原始的originalAddress对象（如果存在），否则构建一个
+          originalAddress: address.originalAddress || {
+            province: province,
+            city: city,
+            district: district,
+            detail: detail
+          },
+          // 保留原始地址对象的所有其他字段
+          ...address
         };
         
         console.log('新地址对象:', newAddress);
         
         // 使用Vue的响应式更新机制设置地址
         this.$set(this, 'selectedAddress', newAddress);
-        
-        // 保存到本地存储
-        uni.setStorageSync('selectedOrderAddress', newAddress);
-        // 同时清除临时存储的selectedAddress（如果存在）
-        uni.removeStorageSync('selectedAddress');
-        console.log('地址已保存到本地存储');
         
         // 显示成功提示
         uni.showToast({
@@ -300,29 +293,55 @@ export default {
     
     // 计算优惠金额
     calculateDiscount() {
-      // 模拟优惠逻辑
-      const totalBeforeDiscount = this.itemsTotal;
-      if (totalBeforeDiscount >= 20) {
-        this.discountAmount = 5;
-      } else if (totalBeforeDiscount >= 10) {
-        this.discountAmount = 2;
+      // 暂时不用优惠，优惠金额设为0
+      this.discountAmount = 0;
+    },
+    
+    // 从后端API加载默认地址
+    async loadDefaultAddress() {
+      try {
+        // 调用后端API获取地址列表
+        const addressRes = await addressApi.getAddressList();
+        if (addressRes.code === 200 && addressRes.data && addressRes.data.length > 0) {
+          // 从地址列表中找到默认地址
+          const defaultAddress = addressRes.data.find(address => address.isDefault);
+          if (defaultAddress) {
+            // 确保地址字段完整
+            const fullAddress = [
+              defaultAddress.province,
+              defaultAddress.city,
+              defaultAddress.district,
+              defaultAddress.detail
+            ].filter(Boolean).join('');
+            
+            // 增强地址字段适配，支持更多可能的字段名
+            // 优先使用name，其次尝试receiver、consignee等字段
+            const receiverName = defaultAddress.name || defaultAddress.receiver || defaultAddress.consignee || defaultAddress.contactName || defaultAddress.receiverName || '';
+            const receiverPhone = defaultAddress.phone || defaultAddress.tel || defaultAddress.mobile || defaultAddress.contactPhone || defaultAddress.receiverPhone || '';
+            
+            // 构建完整的地址对象，确保name和phone字段存在
+            this.selectedAddress = {
+              ...defaultAddress,
+              name: receiverName,
+              phone: receiverPhone,
+              address: fullAddress,
+              fullAddress: fullAddress
+            };
+          }
+        }
+      } catch (error) {
+        console.error('获取默认地址失败:', error);
+        uni.showToast({
+          title: '获取地址失败，请稍后重试',
+          icon: 'none'
+        });
       }
     },
     
-    // 加载默认地址
-    loadDefaultAddress() {
-      // 模拟数据，实际应从API获取
-      this.selectedAddress = {
-        name: '张三',
-        phone: '138****1234',
-        address: '学生公寓A栋101室'
-      };
-    },
-    
     // 提交订单
-    submitOrder() {
-      // 简化地址验证逻辑
-      if (!this.selectedAddress || !this.selectedAddress.name || this.selectedAddress.name === '请选择收货地址') {
+    async submitOrder() {
+      // 严格的地址验证逻辑，确保所有必要的地址字段都不为空
+      if (!this.selectedAddress) {
         uni.showToast({
           title: '请选择收货地址',
           icon: 'none'
@@ -330,33 +349,270 @@ export default {
         return;
       }
       
-      // 构建订单数据
-      const order = {
-        id: Date.now(), // 模拟订单ID
-        restaurantId: this.restaurant.id,
-        restaurantName: this.restaurant.name,
-        items: this.cartItems,
-        address: this.selectedAddress,
-        deliveryTime: this.selectedDeliveryTime || '尽快送达',
-        remark: this.orderRemark,
+      // 验证收货人姓名
+      if (!this.selectedAddress.name || this.selectedAddress.name === '请选择收货地址') {
+        uni.showToast({
+          title: '请填写收货人姓名',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 验证收货人电话
+      if (!this.selectedAddress.phone) {
+        uni.showToast({
+          title: '请填写收货人电话',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 验证收货地址
+      if (!this.selectedAddress.address && !this.selectedAddress.fullAddress) {
+        uni.showToast({
+          title: '请填写收货地址',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      console.log('提交订单时的地址信息:', this.selectedAddress);
+      
+      // 构建订单数据 - 使用新API格式
+      const address = this.selectedAddress;
+      
+      // 确保fullAddress始终有值
+      const fullAddress = address.fullAddress || address.address || `${address.province || ''}${address.city || ''}${address.district || ''}${address.detail || ''}`;
+      
+      // 确保结构化地址字段始终存在，适配不同的地址数据格式
+      // 优先从originalAddress提取，其次尝试从address对象直接提取，最后使用空字符串
+      const province = address.originalAddress?.province || address.province || '';
+      const city = address.originalAddress?.city || address.city || '';
+      const district = address.originalAddress?.district || address.district || '';
+      const detail = address.originalAddress?.detail || address.detail || '';
+      
+      // 从本地存储获取用户ID，优先使用user_base_id
+      let userId = uni.getStorageSync('user_base_id');
+      // 如果没有user_base_id，再尝试从userId获取
+      if (!userId) {
+        userId = uni.getStorageSync('userId');
+      }
+      // 确保userId是字符串类型
+      userId = String(userId);
+      console.log('创建预支付订单时的用户ID:', userId);
+      
+      // 明确修正配送费，确保发送给后端的是3元
+        const correctedDeliveryFee = 3;
+        
+        // 根据后端CreateOrderDTO验证要求，构建完全符合规范的订单数据
+        const orderData = {
+          // 订单类型：1-外卖单 2-跑腿单 3-二手交易单
+          orderType: 1,
+          
+          // 用户信息
+          userId: userId,
+          // 同时传递user_base_id字段，确保后端能获取到正确的用户标识
+          user_base_id: userId,
+          
+          // 商家信息
+          merchantId: this.restaurant.id,
+          merchantName: this.restaurant.name,
+          restaurantId: this.restaurant.id,
+          restaurantName: this.restaurant.name,
+          // 确保发送给后端的restaurant对象中的配送费也是修正后的3元
+          restaurant: {
+            ...this.restaurant,
+            deliveryFee: correctedDeliveryFee
+          },
+          
+          // 地址信息 - 包含所有后端可能需要的字段，确保字段有值
+          deliverAddressId: address.id || address.addressId || 0, // 使用0代替null，避免后端验证失败
+          deliverAddress: fullAddress,
+          deliverContact: address.name || '',
+          deliverPhone: address.phone || '',
+          deliverLongitude: address.longitude || address.lng || 0, // 使用0代替null，避免后端验证失败
+          deliverLatitude: address.latitude || address.lat || 0, // 使用0代替null，避免后端验证失败
+          
+          // 添加结构化地址字段，确保后端能获取到完整的地址结构
+          province: province,
+          city: city,
+          district: district,
+          detail: detail,
+          
+          // 订单备注
+          remark: this.orderRemark,
+          
+          // 订单商品明细列表 - 完全按照后端OrderItemDTO格式构建
+          items: this.cartItems.map(item => {
+            // 确保商品ID存在，优先使用merchantGoodsId，其次使用id，避免null
+            const goodsId = item.merchantGoodsId || item.id || 0;
+            // 确保数量字段存在，前端使用count，后端期望quantity，且不为null
+            const quantity = item.count || item.quantity || 1;
+            return {
+              // 仅包含后端OrderItemDTO要求的字段，确保字段名称完全匹配
+              goodsId: goodsId,
+              goodsName: item.name || item.goodsName || item.foodName || '未知商品',
+              goodsPrice: item.price || 0,
+              quantity: quantity,
+              goodsSpec: item.spec || item.goodsSpec || '',
+              goodsTags: item.tags || item.goodsTags || ''
+            };
+          }),
+          
+          // 添加前端计算的金额字段，确保支付页面使用一致的金额
+          // 确保所有金额都保留两位小数，与支付页面保持一致
+          itemsTotal: parseFloat(this.itemsTotal.toFixed(2)),
+          // 明确使用修正后的配送费3元
+          deliveryFee: parseFloat(correctedDeliveryFee.toFixed(2)),
+          discountAmount: parseFloat(this.discountAmount.toFixed(2)),
+          // 重新计算总金额，确保使用修正后的配送费
+          totalAmount: parseFloat((this.itemsTotal + correctedDeliveryFee - this.discountAmount).toFixed(2))
+        };
+        
+        console.log('明确修正配送费为3元，发送给后端的订单数据:', {
+          '修正后的配送费': correctedDeliveryFee,
+          '修正后的总金额': orderData.totalAmount,
+          '商品总价': orderData.itemsTotal,
+          '优惠金额': orderData.discountAmount
+        });
+      
+      console.log('前端计算的金额:', {
         itemsTotal: this.itemsTotal,
-        deliveryFee: this.restaurant.deliveryFee,
+        deliveryFee: this.restaurant.deliveryFee || 0,
         discountAmount: this.discountAmount,
-        totalAmount: this.totalAmount,
-        status: 'pending',
-        createTime: new Date().toISOString()
-      };
-      
-      // 保存订单到本地存储（实际应该调用API）
-      uni.setStorageSync('currentOrder', order);
-      
-      // 清空购物车
-      uni.removeStorageSync('foodCart');
-      
-      // 跳转到food目录下的支付页面
-      uni.navigateTo({
-        url: `/pages/food/food-payment?orderId=${order.id}&amount=${order.totalAmount}&type=food&title=${encodeURIComponent(order.restaurantName)}`
+        totalAmount: this.totalAmount
       });
+      
+      console.log('构建的完整订单数据:', orderData);
+      console.log('订单数据中的总金额:', orderData.totalAmount);
+      console.log('订单数据中的配送费:', orderData.deliveryFee);
+      console.log('订单数据中的商品总价:', orderData.itemsTotal);
+      console.log('订单数据中的优惠金额:', orderData.discountAmount);
+      
+      try {
+        // 显示加载提示
+        uni.showLoading({
+          title: '创建订单中...',
+          mask: true
+        });
+        
+        // 调用预支付订单API，创建预支付订单
+        console.log('开始发送预支付订单请求...');
+        const prepayRes = await foodApi.createPrepayOrder(orderData);
+        console.log('预支付订单API完整响应:', JSON.stringify(prepayRes));
+        console.log('预支付订单响应中的金额:', prepayRes.data?.amount || prepayRes.data?.totalAmount);
+        console.log('预支付订单响应中的订单号:', prepayRes.data?.preOrderNo || prepayRes.data?.prepayOrderId);
+        console.log('前端发送的订单数据:', JSON.stringify(orderData));
+        
+        // 隐藏加载提示
+        uni.hideLoading();
+        
+        if (prepayRes.code !== 200 || !prepayRes.data) {
+          throw new Error(prepayRes.msg || prepayRes.message || '创建预支付订单失败');
+        }
+        
+        // 生成临时订单ID（使用时间戳或后端返回的ID）
+        const orderId = prepayRes.data.orderId || prepayRes.data.prepayOrderId || prepayRes.data.preOrderNo || Date.now();
+        
+        // 检查orderData.restaurant是否包含完整的商家地址信息
+        console.log('orderData.restaurant包含的商家地址信息:', {
+          address: orderData.restaurant?.address,
+          addressInfo: orderData.restaurant?.addressInfo,
+          province: orderData.restaurant?.province,
+          city: orderData.restaurant?.city,
+          district: orderData.restaurant?.district,
+          detail: orderData.restaurant?.detail
+        });
+        
+        // 保存订单到本地存储，包含预支付信息
+        // 先合并预支付信息，保留后端返回的关键金额字段
+        const order = {
+          id: orderId,
+          ...orderData,
+          ...prepayRes.data,
+          // 确保保存预订单号，兼容不同字段名
+          prepayOrderId: prepayRes.data.prepayOrderId || prepayRes.data.orderNo || prepayRes.data.preOrderNo || prepayRes.data.orderId,
+          preOrderNo: prepayRes.data.preOrderNo || prepayRes.data.prepayOrderId || prepayRes.data.orderNo || prepayRes.data.orderId,
+          // 优先保存后端返回的amount字段，这是最可靠的金额来源
+          // 确保amount字段存在且值正确
+          amount: prepayRes.data.amount !== undefined ? prepayRes.data.amount : prepayRes.data.totalAmount !== undefined ? prepayRes.data.totalAmount : orderData.totalAmount,
+          // 保留前端计算的金额字段，用于展示
+          totalAmount: orderData.totalAmount,
+          itemsTotal: orderData.itemsTotal,
+          deliveryFee: orderData.deliveryFee,
+          discountAmount: orderData.discountAmount,
+          // 确保restaurant对象中的配送费也是修正后的值，并包含完整的商家地址信息
+          restaurant: {
+            ...orderData.restaurant,
+            // 确保商家地址信息完整，优先使用this.restaurant中的地址
+            address: orderData.restaurant?.address || this.restaurant?.address || '',
+            addressInfo: orderData.restaurant?.addressInfo || this.restaurant?.addressInfo || '',
+            province: orderData.restaurant?.province || this.restaurant?.province || '',
+            city: orderData.restaurant?.city || this.restaurant?.city || '',
+            district: orderData.restaurant?.district || this.restaurant?.district || '',
+            detail: orderData.restaurant?.detail || this.restaurant?.detail || '',
+            deliveryFee: orderData.deliveryFee
+          },
+          // 保存地址信息到订单中，确保支付页面能获取到
+          address: {
+            name: orderData.deliverContact || this.selectedAddress.name,
+            phone: orderData.deliverPhone || this.selectedAddress.phone,
+            address: orderData.deliverAddress || this.selectedAddress.fullAddress || this.selectedAddress.address,
+            fullAddress: orderData.deliverAddress || this.selectedAddress.fullAddress || this.selectedAddress.address
+          },
+          // 确保创建时间存在
+          createTime: new Date().toISOString()
+        };
+        
+        // 检查最终保存的order.restaurant是否包含完整的商家地址信息
+        console.log('保存到本地存储的order.restaurant包含的商家地址信息:', {
+          address: order.restaurant?.address,
+          addressInfo: order.restaurant?.addressInfo,
+          province: order.restaurant?.province,
+          city: order.restaurant?.city,
+          district: order.restaurant?.district,
+          detail: order.restaurant?.detail
+        });
+        
+        // 再次确认订单金额信息，确保支付时使用正确的金额
+        console.log('保存到本地存储的订单金额最终确认:', {
+          '后端返回的amount': prepayRes.data.amount,
+          '后端返回的totalAmount': prepayRes.data.totalAmount,
+          '前端计算的totalAmount': orderData.totalAmount,
+          '最终保存的amount': order.amount,
+          '最终保存的totalAmount': order.totalAmount
+        });
+        
+        console.log('保存到本地存储的订单金额字段:', {
+          '前端计算的totalAmount': orderData.totalAmount,
+          '保存到订单的amount': order.amount,
+          '保存到订单的totalAmount': order.totalAmount,
+          '保存到订单的deliveryFee': order.deliveryFee,
+          '预支付响应中的amount': prepayRes.data?.amount,
+          '预支付响应中的totalAmount': prepayRes.data?.totalAmount
+        });
+        
+        console.log('保存到本地存储的订单地址信息:', order.address);
+        
+        // 将订单保存到本地存储，供支付页面使用
+        uni.setStorageSync('currentOrder', order);
+        
+        // 清空购物车
+        uni.removeStorageSync('foodCart');
+        
+        // 跳转到food目录下的支付页面
+        uni.navigateTo({
+          url: `/pages/food/food-payment?orderId=${orderId}&amount=${order.totalAmount}&type=food&title=${encodeURIComponent(order.restaurantName || order.merchantName || this.restaurant.name)}&restaurantId=${this.restaurant.id}`
+        });
+      } catch (error) {
+        // 隐藏加载提示
+        uni.hideLoading();
+        console.error('订单处理失败:', error);
+        uni.showToast({
+          title: error.message || '网络异常，订单处理失败',
+          icon: 'none'
+        });
+      }
     }
   }
 };
@@ -375,7 +631,7 @@ export default {
   top: 0;
   left: 0;
   right: 0;
-  background: linear-gradient(135deg, #FF8A65 0%, #FF6B47 100%);
+  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
   z-index: 999;
 }
 
@@ -454,7 +710,7 @@ export default {
 
 .address-arrow {
   font-size: 36rpx;
-  color: #999999;
+  color: #4AA9FF;
   margin-left: 20rpx;
 }
 
@@ -504,8 +760,152 @@ export default {
 
 .delivery-arrow {
   font-size: 36rpx;
-  color: #999999;
+  color: #4AA9FF;
   margin-left: 20rpx;
+}
+
+/* 订单商品列表 */
+.order-list {
+  border-top: 1px solid #F0F0F0;
+}
+
+.order-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 20rpx 0;
+  border-bottom: 1px solid #F0F0F0;
+  transition: all 0.2s ease;
+}
+
+.order-item:hover {
+  background-color: #FAFAFA;
+}
+
+.order-item:last-child {
+  border-bottom: none;
+}
+
+.order-item-info {
+  flex: 1;
+}
+
+.order-item-name {
+  font-size: 30rpx;
+  color: #333333;
+  margin-bottom: 8rpx;
+  display: block;
+  font-weight: 500;
+}
+
+.order-item-desc {
+  font-size: 26rpx;
+  color: #999999;
+  display: block;
+  line-height: 1.3;
+}
+
+.order-item-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.price {
+  font-size: 32rpx;
+  color: #FF6B6B;
+  font-weight: bold;
+}
+
+.count {
+  font-size: 26rpx;
+  color: #999999;
+  margin-top: 4rpx;
+}
+
+/* 订单备注 */
+.remark-input {
+  border: 1px solid #E0E0E0;
+  border-radius: 10rpx;
+  padding: 20rpx;
+  font-size: 28rpx;
+  color: #333333;
+  min-height: 120rpx;
+  background-color: #F8F9FA;
+  transition: all 0.3s ease;
+}
+
+.remark-input:focus {
+  border-color: #5DCDFF;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 2rpx rgba(93, 205, 255, 0.1);
+}
+
+/* 价格明细 */
+.price-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12rpx 0;
+  transition: all 0.2s ease;
+}
+
+.price-item:hover {
+  background-color: #FAFAFA;
+}
+
+.price-label {
+  font-size: 28rpx;
+  color: #666666;
+}
+
+.price-value {
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.discount {
+  color: #FF6B6B;
+  font-weight: 500;
+}
+
+/* 底部结算栏 */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20rpx 30rpx;
+  background-color: #FFFFFF;
+  border-top: 1px solid #E0E0E0;
+  box-shadow: 0 -2rpx 15rpx rgba(0, 0, 0, 0.08);
+}
+
+.total-info {
+  display: flex;
+  align-items: center;
+}
+
+.total-label {
+  font-size: 28rpx;
+  color: #666666;
+}
+
+.total-price {
+  font-size: 36rpx;
+  color: #FF6B6B;
+  font-weight: bold;
+  margin-left: 8rpx;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
+  padding: 20rpx 40rpx;
+  border-radius: 40rpx;
+  color: #FFFFFF;
+  font-size: 32rpx;
+  font-weight: bold;
 }
 
 /* 订单商品列表 */
@@ -621,7 +1021,7 @@ export default {
 }
 
 .submit-btn {
-  background: linear-gradient(135deg, #FF8A65 0%, #FF6B47 100%);
+  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
   padding: 20rpx 40rpx;
   border-radius: 40rpx;
   color: #FFFFFF;
