@@ -58,10 +58,9 @@ export default {
     async loadOrders() {
       this.loading = true;
       try {
-        // 调用订单API，不传orderType参数或传数字类型
-        // 根据后端错误信息，orderType应该是Long类型，不是字符串
+        // 调用订单API，传递orderType=1获取外卖订单
         const res = await orderApi.getOrderList({
-          // 暂时不传orderType，获取所有订单，或者后端需要确认外卖订单的类型编码
+          orderType: 1  // 1表示外卖订单
         });
         
         console.log('=== 外卖订单列表API响应 ===');
