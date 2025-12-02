@@ -15,13 +15,36 @@
     <scroll-view class="content" scroll-y :style="{ top: navHeight + 'px' }">
       <!-- 商品图片 -->
       <view class="goods-image-box">
-        <image class="goods-image" :src="goodsInfo.image" mode="widthFix"></image>
+        <image class="goods-image" :src="getValidImageUrl(goodsInfo.mainImageUrl)" mode="aspectFill" @error="handleImageError"></image>
       </view>
 
       <!-- 商品信息卡片 -->
       <view class="info-card">
-        <text class="goods-name">{{ goodsInfo.name }}</text>
-        <text class="goods-price">¥{{ goodsInfo.price }}</text>
+        <text class="goods-name">{{ goodsInfo.goodsName }}</text>
+        <view class="price-container">
+          <text class="goods-price">¥{{ goodsInfo.price }}</text>
+          <text v-if="goodsInfo.originalPrice && goodsInfo.originalPrice > goodsInfo.price" class="original-price">¥{{ goodsInfo.originalPrice }}</text>
+        </view>
+        <view class="goods-stats">
+          <view class="rating-box">
+            <text class="rating-score">{{ goodsInfo.avgRating }}</text>
+            <text class="rating-desc">{{ goodsInfo.ratingCount > 0 ? `${goodsInfo.ratingCount}条评价` : '暂无评价' }}</text>
+          </view>
+          <view class="sales-stock">
+            <text class="sales-text">月售{{ goodsInfo.salesCount }}</text>
+            <text class="stock-text">库存{{ goodsInfo.stock }}</text>
+          </view>
+        </view>
+        <view class="goods-meta">
+          <text class="meta-item">👁️ {{ goodsInfo.viewCount }}人浏览</text>
+          <text class="meta-item">❤️ {{ goodsInfo.favoriteCount }}人收藏</text>
+          <text class="meta-item">📤 {{ goodsInfo.shareCount }}人分享</text>
+        </view>
+        <view class="category-tags">
+          <text class="category-tag">{{ goodsInfo.category }}</text>
+          <text class="subcategory-tag">{{ goodsInfo.subCategory }}</text>
+          <text v-for="(tag, index) in getTagNames()" :key="index" class="feature-tag">{{ tag }}</text>
+        </view>
       </view>
 
       <!-- 标签页 -->
@@ -42,9 +65,55 @@
         <text class="description-text">{{ goodsInfo.description || '暂无描述' }}</text>
       </view>
 
-      <!-- 卖家评价 -->
+      <!-- 商品评价 -->
       <view v-if="currentTab === 1" class="review-box">
-        <view class="empty-box">
+        <view v-if="goodsInfo.ratingCount > 0" class="rating-overview">
+          <view class="rating-summary">
+            <text class="rating-score-large">{{ goodsInfo.avgRating }}</text>
+            <view class="rating-stars">
+              <text v-for="i in 5" :key="i" class="star" :class="{ active: i <= Math.round(goodsInfo.avgRating) }">★</text>
+            </view>
+            <text class="rating-count">{{ goodsInfo.ratingCount }}条评价</text>
+          </view>
+          <view class="rating-distribution">
+            <view class="rating-item">
+              <text class="rating-label">5星</text>
+              <view class="rating-bar">
+                <view class="rating-progress" :style="{ width: goodsInfo.fiveStarRate + '%' }"></view>
+              </view>
+              <text class="rating-percent">{{ goodsInfo.fiveStarRate }}%</text>
+            </view>
+            <view class="rating-item">
+              <text class="rating-label">4星</text>
+              <view class="rating-bar">
+                <view class="rating-progress" :style="{ width: goodsInfo.fourStarRate + '%' }"></view>
+              </view>
+              <text class="rating-percent">{{ goodsInfo.fourStarRate }}%</text>
+            </view>
+            <view class="rating-item">
+              <text class="rating-label">3星</text>
+              <view class="rating-bar">
+                <view class="rating-progress" :style="{ width: goodsInfo.threeStarRate + '%' }"></view>
+              </view>
+              <text class="rating-percent">{{ goodsInfo.threeStarRate }}%</text>
+            </view>
+            <view class="rating-item">
+              <text class="rating-label">2星</text>
+              <view class="rating-bar">
+                <view class="rating-progress" :style="{ width: goodsInfo.twoStarRate + '%' }"></view>
+              </view>
+              <text class="rating-percent">{{ goodsInfo.twoStarRate }}%</text>
+            </view>
+            <view class="rating-item">
+              <text class="rating-label">1星</text>
+              <view class="rating-bar">
+                <view class="rating-progress" :style="{ width: goodsInfo.oneStarRate + '%' }"></view>
+              </view>
+              <text class="rating-percent">{{ goodsInfo.oneStarRate }}%</text>
+            </view>
+          </view>
+        </view>
+        <view v-else class="empty-box">
           <text class="empty-icon">⭐</text>
           <text class="empty-text">暂无评价</text>
         </view>
@@ -92,16 +161,51 @@ export default {
       statusBarHeight: 0,
       navHeight: 0,
       currentTab: 0,
-      tabs: ['商品描述', '卖家评价', '交易须知'],
+      tabs: ['商品描述', '商品评价', '交易须知'],
       goodsInfo: {
+        // 基础信息
+        goodsId: '',
         id: '',
-        name: '外星人笔记本',
-        price: '1200',
-        image: 'https://picsum.photos/750/600?random=30',
+        goodsName: '',
+        price: '',
+        originalPrice: '',
+        mainImageUrl: '',
+        imageUrls: null,
+        imageList: null,
         description: '',
-        contact: '',
+        // 分类信息
+        category: '',
+        subCategory: '',
+        tagCodes: '',
+        // 评分信息
+        avgRating: 0,
+        ratingCount: 0,
+        oneStarRate: 0,
+        twoStarRate: 0,
+        threeStarRate: 0,
+        fourStarRate: 0,
+        fiveStarRate: 0,
+        // 销售信息
+        salesCount: 0,
+        stock: 0,
+        status: 0,
+        // 时间信息
+        createTime: '',
+        updateTime: '',
+        // 统计信息
+        viewCount: 0,
+        favoriteCount: 0,
+        shareCount: 0,
+        // 卖家信息
         sellerId: '',
-        sellerName: ''
+        sellerName: '',
+        sellerNickname: '',
+        sellerAvatar: '',
+        sellerPhone: '',
+        contact: '',
+        // 商家信息
+        merchantBaseId: '',
+        merchantGoodsId: ''
       }
     };
   },
@@ -131,6 +235,23 @@ export default {
     }
   },
   methods: {
+    // 获取标签名称
+    getTagNames() {
+      const tagMap = {
+        'FOOD_NOODLE': '面食',
+        'SOUP': '汤面',
+        'HOT': '热销',
+        'DISCOUNT': '优惠',
+        'RECOMMEND': '推荐'
+      };
+      
+      if (!this.goodsInfo.tagCodes) return [];
+      
+      return this.goodsInfo.tagCodes.split(',').map(tag => {
+        return tagMap[tag] || tag;
+      }).filter(tag => tag);
+    },
+    
     // 加载商品详情
     async loadGoodsDetail(goodsId) {
       try {
@@ -138,32 +259,77 @@ export default {
           title: '加载中...'
         });
         
+        // 调用实际API获取商品详情
         const result = await getGoodsDetail(goodsId);
-        
         console.log('商品详情：', result);
         
         // 更新商品信息
         if (result.data) {
           const goods = result.data;
-          this.goodsInfo.name = goods.goodsName || goods.name || this.goodsInfo.name;
+          
+          // 基础信息
+          this.goodsInfo.goodsId = goods.goodsId || this.goodsInfo.id || '';
+          this.goodsInfo.id = goods.goodsId || this.goodsInfo.id || '';
+          this.goodsInfo.goodsName = goods.goodsName || this.goodsInfo.goodsName;
           this.goodsInfo.price = goods.price || this.goodsInfo.price;
-          this.goodsInfo.description = goods.description || goods.desc || '';
-          this.goodsInfo.contact = goods.contact || '';
+          this.goodsInfo.originalPrice = goods.originalPrice || this.goodsInfo.originalPrice;
+          this.goodsInfo.description = goods.description || '';
+          
+          // 分类信息
+          this.goodsInfo.category = goods.category || '';
+          this.goodsInfo.subCategory = goods.subCategory || '';
+          this.goodsInfo.tagCodes = goods.tagCodes || '';
+          
+          // 评分信息
+          this.goodsInfo.avgRating = goods.avgRating || 0;
+          this.goodsInfo.ratingCount = goods.ratingCount || 0;
+          this.goodsInfo.oneStarRate = goods.oneStarRate || 0;
+          this.goodsInfo.twoStarRate = goods.twoStarRate || 0;
+          this.goodsInfo.threeStarRate = goods.threeStarRate || 0;
+          this.goodsInfo.fourStarRate = goods.fourStarRate || 0;
+          this.goodsInfo.fiveStarRate = goods.fiveStarRate || 0;
+          
+          // 销售信息
+          this.goodsInfo.salesCount = goods.salesCount || 0;
+          this.goodsInfo.stock = goods.stock || 0;
+          this.goodsInfo.status = goods.status || 1;
+          
+          // 时间信息
+          this.goodsInfo.createTime = goods.createTime || '';
+          this.goodsInfo.updateTime = goods.updateTime || '';
+          
+          // 统计信息
+          this.goodsInfo.viewCount = goods.viewCount || 0;
+          this.goodsInfo.favoriteCount = goods.favoriteCount || 0;
+          this.goodsInfo.shareCount = goods.shareCount || 0;
+          
+          // 卖家信息
           this.goodsInfo.sellerId = goods.userId || goods.sellerId || '';
-          this.goodsInfo.sellerName = goods.userName || goods.sellerName || '卖家';
+          this.goodsInfo.sellerName = goods.userName || goods.sellerName || goods.sellerNickname || '卖家';
+          this.goodsInfo.sellerNickname = goods.sellerNickname || '';
+          this.goodsInfo.sellerAvatar = goods.sellerAvatar || '';
+          this.goodsInfo.sellerPhone = goods.sellerPhone || '';
+          this.goodsInfo.contact = goods.contact || goods.sellerPhone || '';
+          
+          // 商家信息
+          this.goodsInfo.merchantBaseId = goods.merchantBaseId || '';
+          this.goodsInfo.merchantGoodsId = goods.merchantGoodsId || '';
           
           // 处理图片
-          if (goods.imageUrls && Array.isArray(goods.imageUrls) && goods.imageUrls.length > 0) {
-            let imageUrl = goods.imageUrls[0];
-            // 处理图片URL前面可能存在的 @ 符号
-            if (imageUrl && imageUrl.startsWith('@')) {
-              imageUrl = imageUrl.substring(1);
-            }
-            this.goodsInfo.image = imageUrl;
-          } else if (goods.mainImageUrl) {
-            this.goodsInfo.image = goods.mainImageUrl;
+          this.goodsInfo.imageUrls = goods.imageUrls || null;
+          this.goodsInfo.imageList = goods.imageList || goods.imageUrls || null;
+          
+          // 设置主图
+          if (goods.mainImageUrl) {
+            this.goodsInfo.mainImageUrl = goods.mainImageUrl;
+          } else if (goods.imageUrls && Array.isArray(goods.imageUrls) && goods.imageUrls.length > 0) {
+            this.goodsInfo.mainImageUrl = goods.imageUrls[0];
           } else if (goods.image) {
-            this.goodsInfo.image = goods.image;
+            this.goodsInfo.mainImageUrl = goods.image;
+          } else if (goods.imageUrl) {
+            this.goodsInfo.mainImageUrl = goods.imageUrl;
+          } else if (goods.mainImage) {
+            this.goodsInfo.mainImageUrl = goods.mainImage;
           }
         }
         
@@ -180,20 +346,50 @@ export default {
       }
     },
     
+    // 获取有效图片URL
+    getValidImageUrl(url) {
+      // 如果URL为空，返回占位图
+      if (!url || url.trim() === '') {
+        return 'https://picsum.photos/750/500';
+      }
+      
+      // 清理URL中的额外字符
+      let cleanedUrl = String(url).replace(/[`'"\s]/g, '');
+      
+      // 检查URL是否以@开头（有些后端可能会返回这种格式）
+      if (cleanedUrl.startsWith('@')) {
+        cleanedUrl = cleanedUrl.substring(1);
+      }
+      
+      // 检查URL是否为完整的HTTP/HTTPS URL
+      if (cleanedUrl.startsWith('http://') || cleanedUrl.startsWith('https://')) {
+        return cleanedUrl;
+      }
+      
+      // 检查是否为相对路径
+      if (cleanedUrl.startsWith('/')) {
+        // 如果是相对路径，尝试添加API基础URL
+        return `${this.baseUrl}${cleanedUrl}`;
+      }
+      
+      // 检查是否为静态资源路径
+      if (cleanedUrl.startsWith('static/')) {
+        return `/${cleanedUrl}`;
+      }
+      
+      // 如果都不是，尝试作为相对路径处理或返回占位图
+      return 'https://picsum.photos/750/500';
+    },
+    
+    // 处理图片加载失败
+    handleImageError() {
+      console.warn('商品图片加载失败，使用占位图');
+      this.goodsInfo.mainImageUrl = 'https://picsum.photos/750/500?random=' + Math.floor(Math.random() * 100);
+    },
+    
     // 返回
     goBack() {
-      // 获取当前页面栈
-      const pages = getCurrentPages();
-      
-      // 如果页面栈只有一个页面（刷新后的情况），则跳转到二手交易市场
-      if (pages.length <= 1) {
-        uni.redirectTo({
-          url: '/pages/market/market'
-        });
-      } else {
-        // 否则正常返回上一页
-        uni.navigateBack();
-      }
+      uni.navigateBack();
     },
     // 切换标签
     switchTab(index) {
@@ -227,7 +423,7 @@ export default {
       
       // 跳转到聊天页面
       uni.navigateTo({
-        url: `/pages/chat/chat?userId=${this.goodsInfo.sellerId}&userName=${encodeURIComponent(this.goodsInfo.sellerName)}&goodsId=${this.goodsInfo.id}&goodsName=${encodeURIComponent(this.goodsInfo.name)}`
+        url: `/pages/chat/chat?userId=${this.goodsInfo.sellerId}&userName=${encodeURIComponent(this.goodsInfo.sellerName)}&goodsId=${this.goodsInfo.id || this.goodsInfo.merchantGoodsId}&goodsName=${encodeURIComponent(this.goodsInfo.goodsName)}`
       });
     },
     
@@ -265,7 +461,7 @@ export default {
     // 立即购买
     buyNow() {
       uni.navigateTo({
-        url: `/pages/payment/payment?id=${this.goodsInfo.id}&name=${encodeURIComponent(this.goodsInfo.name)}&price=${this.goodsInfo.price}&image=${encodeURIComponent(this.goodsInfo.image)}`
+        url: `/pages/payment/payment?id=${this.goodsInfo.id || this.goodsInfo.merchantGoodsId}&name=${encodeURIComponent(this.goodsInfo.goodsName)}&price=${this.goodsInfo.price}&image=${encodeURIComponent(this.goodsInfo.mainImageUrl)}`
       });
     }
   }
@@ -326,16 +522,11 @@ export default {
 .goods-image-box {
   width: 100%;
   background-color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
 }
 
 .goods-image {
   width: 100%;
-  height: auto;
-  display: block;
+  height: 600rpx;
 }
 
 /* 商品信息卡片 */
@@ -350,14 +541,115 @@ export default {
   font-size: 36rpx;
   color: #333333;
   font-weight: 500;
+  margin-bottom: 15rpx;
+  line-height: 1.5;
+}
+
+.price-container {
+  display: flex;
+  align-items: baseline;
   margin-bottom: 20rpx;
 }
 
 .goods-price {
-  display: block;
+  display: inline-block;
   font-size: 48rpx;
   color: #FF6B47;
   font-weight: bold;
+  margin-right: 20rpx;
+}
+
+.original-price {
+  display: inline-block;
+  font-size: 28rpx;
+  color: #999999;
+  text-decoration: line-through;
+}
+
+.goods-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.rating-box {
+  display: flex;
+  align-items: center;
+}
+
+.rating-score {
+  font-size: 32rpx;
+  color: #FF6B47;
+  font-weight: bold;
+  margin-right: 8rpx;
+}
+
+.rating-desc {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+.sales-stock {
+  display: flex;
+  align-items: center;
+}
+
+.sales-text,
+.stock-text {
+  font-size: 26rpx;
+  color: #666666;
+  margin-left: 30rpx;
+}
+
+/* 商品元数据 */
+.goods-meta {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 16rpx 0;
+  margin-bottom: 16rpx;
+  border-top: 1rpx solid #EEEEEE;
+  border-bottom: 1rpx solid #EEEEEE;
+  font-size: 22rpx;
+  color: #999999;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4rpx;
+}
+
+.category-tags {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.category-tag,
+.subcategory-tag,
+.feature-tag {
+  display: inline-block;
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 16rpx;
+  margin-right: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.category-tag {
+  background-color: #E3F2FD;
+  color: #1976D2;
+}
+
+.subcategory-tag {
+  background-color: #E8F5E8;
+  color: #388E3C;
+}
+
+.feature-tag {
+  background-color: #FFF3E0;
+  color: #F57C00;
 }
 
 /* 标签页 */
@@ -416,8 +708,84 @@ export default {
 /* 评价区域 */
 .review-box {
   background-color: #FFFFFF;
-  padding: 60rpx 30rpx;
+  padding: 30rpx;
   margin-bottom: 20rpx;
+}
+
+.rating-overview {
+  padding: 30rpx 0;
+}
+
+.rating-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 40rpx;
+}
+
+.rating-score-large {
+  font-size: 64rpx;
+  color: #FF6B47;
+  font-weight: bold;
+  margin-bottom: 10rpx;
+}
+
+.rating-stars {
+  display: flex;
+  margin-bottom: 10rpx;
+}
+
+.star {
+  font-size: 32rpx;
+  color: #DDDDDD;
+  margin-right: 4rpx;
+}
+
+.star.active {
+  color: #FF6B47;
+}
+
+.rating-count {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+.rating-distribution {
+  padding: 0 20rpx;
+}
+
+.rating-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20rpx;
+}
+
+.rating-label {
+  font-size: 26rpx;
+  color: #666666;
+  width: 60rpx;
+}
+
+.rating-bar {
+  flex: 1;
+  height: 12rpx;
+  background-color: #F5F5F5;
+  border-radius: 6rpx;
+  margin: 0 20rpx;
+  overflow: hidden;
+}
+
+.rating-progress {
+  height: 100%;
+  background: linear-gradient(90deg, #FF6B47 0%, #FFA726 100%);
+  border-radius: 6rpx;
+}
+
+.rating-percent {
+  font-size: 26rpx;
+  color: #666666;
+  width: 60rpx;
+  text-align: right;
 }
 
 .empty-box {
