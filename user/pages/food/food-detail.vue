@@ -386,7 +386,7 @@ export default {
               id: uniqueId,
               categoryId: categoryId,
               name: good.goodsName || good.name || '未命名商品',
-              image: good.goodsImage || good.image || '/static/images/default-food.svg',
+              image: good.mainImageUrl || good.goodsImage || good.image || '/static/images/default-food.svg',
               price: good.price || 0,
               description: good.description || ''
             };
@@ -487,7 +487,7 @@ export default {
                   id: uniqueId,
                   categoryId: categoryId,
                   name: good.goodsName || good.name || '未命名商品',
-                  image: good.goodsImage || good.image || '/static/images/default-food.svg',
+                  image: good.mainImageUrl || good.goodsImage || good.image || '/static/images/default-food.svg',
                   price: good.price || 0,
                   description: good.description || ''
                 };
