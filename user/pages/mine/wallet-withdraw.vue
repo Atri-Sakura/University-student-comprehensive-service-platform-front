@@ -66,6 +66,21 @@
       </view>
     </view>
 
+    <!-- 支付密码 -->
+    <view class="password-section">
+      <view class="section-title">支付密码</view>
+      <view class="password-input-wrapper">
+        <input
+          class="password-input"
+          type="password"
+          placeholder="请输入支付密码"
+          v-model="payPassword"
+          maxlength="6"
+        />
+      </view>
+      <view class="password-tips">注：目前支付密码校验功能暂时停用，可以不填</view>
+    </view>
+
     <!-- 底部确认按钮 -->
     <view class="bottom-actions">
       <view class="confirm-button" @click="confirmWithdraw">
@@ -76,15 +91,19 @@
 </template>
 
 <script>
+import { withdrawWallet, getWalletBalance } from '@/api/wallet.js';
+
 export default {
   data() {
     return {
-      balance: 888.88,
+      balance: 0,
       withdrawAmount: '',
+      payPassword: '',
       selectedMethod: 'alipay',
       withdrawMethods: [
-        { value: 'alipay', name: '支付宝', desc: '2小时内到账', icon: '💙' },
-        { value: 'bank', name: '银行卡', desc: '1-3个工作日到账', icon: '💳' }
+        { value: 'alipay', name: '支付宝', desc: '2小时内到账', icon: '💙' }
+        // 暂时只支持支付宝，根据后端接口文档
+        // { value: 'bank', name: '银行卡', desc: '1-3个工作日到账', icon: '💳' }
       ]
     };
   },
@@ -95,15 +114,27 @@ export default {
     goBack() {
       uni.navigateBack();
     },
-    loadBalance() {
-      // 从本地存储加载余额
-      const walletData = uni.getStorageSync('walletData');
-      if (walletData && walletData.balance) {
-        this.balance = walletData.balance;
+    async loadBalance() {
+      try {
+        // 调用API获取钱包余额
+        const response = await getWalletBalance();
+        if (response.code === 200 && response.data) {
+          this.balance = parseFloat(response.data.balance) || 0;
+        } else {
+          // 如果API调用失败，从本地存储加载余额
+          const walletData = uni.getStorageSync('walletData');
+          if (walletData && walletData.balance) {
+            this.balance = parseFloat(walletData.balance);
+          }
+        }
+      } catch (error) {
+        console.error('获取余额失败:', error);
+        // 从本地存储加载余额作为备用
+        const walletData = uni.getStorageSync('walletData');
+        if (walletData && walletData.balance) {
+          this.balance = walletData.balance;
+        }
       }
-      
-      // 这里应该调用API获取余额
-      // this.fetchBalanceFromAPI();
     },
     onAmountInput(e) {
       const value = parseFloat(e.detail.value);
@@ -164,72 +195,63 @@ export default {
         }
       });
     },
-    processWithdraw(amount) {
+    async processWithdraw(amount) {
       uni.showLoading({
         title: '提现中...'
       });
 
-      // 模拟提现流程
-      setTimeout(() => {
+      try {
+        // 调用后端提现接口
+        const response = await withdrawWallet({
+          amount: amount,
+          payChannel: this.getPayChannelCode(this.selectedMethod),
+          payPassword: this.payPassword
+        });
+
         uni.hideLoading();
-        
-        // 更新余额
-        this.balance -= amount;
-        const walletData = uni.getStorageSync('walletData') || {};
-        walletData.balance = this.balance;
-        uni.setStorageSync('walletData', walletData);
-        
+
+        if (response.code === 200) {
+          // 提现成功，更新本地余额
+          this.balance -= amount;
+          const walletData = uni.getStorageSync('walletData') || {};
+          walletData.balance = this.balance;
+          uni.setStorageSync('walletData', walletData);
+          
+          uni.showToast({
+            title: '提现申请已提交',
+            icon: 'success',
+            duration: 2000
+          });
+
+          setTimeout(() => {
+            uni.navigateBack();
+          }, 2000);
+        } else {
+          uni.showToast({
+            title: response.msg || '提现失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('提现失败:', error);
         uni.showToast({
-          title: '提现申请已提交',
-          icon: 'success',
-          duration: 2000
+          title: '网络错误，请重试',
+          icon: 'none'
         });
-
-        setTimeout(() => {
-          uni.navigateBack();
-        }, 2000);
-
-        // 实际提现流程：
-        /*
-        uni.request({
-          url: 'https://your-api.com/wallet/withdraw',
-          method: 'POST',
-          header: {
-            'Authorization': 'Bearer ' + uni.getStorageSync('token'),
-            'Content-Type': 'application/json'
-          },
-          data: {
-            amount: amount,
-            method: this.selectedMethod
-          },
-          success: (res) => {
-            uni.hideLoading();
-            if (res.data.code === 200) {
-              this.balance -= amount;
-              uni.showToast({
-                title: '提现申请已提交',
-                icon: 'success'
-              });
-              setTimeout(() => {
-                uni.navigateBack();
-              }, 2000);
-            } else {
-              uni.showToast({
-                title: res.data.message || '提现失败',
-                icon: 'none'
-              });
-            }
-          },
-          fail: (err) => {
-            uni.hideLoading();
-            uni.showToast({
-              title: '网络错误，请重试',
-              icon: 'none'
-            });
-          }
-        });
-        */
-      }, 2000);
+      }
+    },
+    
+    /**
+     * 获取支付渠道代码
+     */
+    getPayChannelCode(method) {
+      const channelMap = {
+        'alipay': 1,
+        'wechat': 2,
+        'bank': 3
+      };
+      return channelMap[method] || 1;
     }
   }
 };
@@ -500,6 +522,35 @@ export default {
 
 .confirm-button:active {
   opacity: 0.8;
+}
+
+/* 支付密码 */
+.password-section {
+  background-color: white;
+  margin: 20rpx 30rpx;
+  padding: 40rpx 30rpx;
+  border-radius: 20rpx;
+}
+
+.password-input-wrapper {
+  margin-top: 20rpx;
+}
+
+.password-input {
+  width: 100%;
+  height: 88rpx;
+  padding: 0 20rpx;
+  background-color: #F8F8F8;
+  border-radius: 12rpx;
+  font-size: 36rpx;
+  color: #333333;
+  margin-bottom: 16rpx;
+}
+
+.password-tips {
+  font-size: 24rpx;
+  color: #999999;
+  margin-top: 16rpx;
 }
 </style>
 

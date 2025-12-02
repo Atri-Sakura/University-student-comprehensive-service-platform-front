@@ -60,32 +60,35 @@ export const getWalletRecords = (params = {}) => {
 };
 
 /**
- * 钱包充值
+ * 钱包充值（支付宝）
  * @param {Object} data 充值数据
  * @param {Number} data.amount 充值金额
- * @param {String} data.paymentMethod 支付方式
+ * @param {Number} data.payChannel 支付渠道（1-支付宝）
  */
 export const rechargeWallet = (data) => {
-  const processedData = processApiRequestIds(data, ['userWalletId']);
+  console.log('API层 - 钱包充值:', data);
   
-  console.log('API层 - 钱包充值:', processedData);
-  
-  return http.post('/user/wallet/recharge', processedData);
+  return http.post('/user/finance/recharge/alipay', {
+    amount: data.amount,
+    payChannel: data.payChannel || 1
+  });
 };
 
 /**
- * 钱包提现
+ * 钱包提现（支付宝）
  * @param {Object} data 提现数据
  * @param {Number} data.amount 提现金额
- * @param {String} data.bankCard 银行卡号
- * @param {String} data.paymentPassword 支付密码
+ * @param {Number} data.payChannel 支付渠道（1-支付宝）
+ * @param {String} data.payPassword 支付密码
  */
 export const withdrawWallet = (data) => {
-  const processedData = processApiRequestIds(data, ['userWalletId']);
+  console.log('API层 - 钱包提现:', data);
   
-  console.log('API层 - 钱包提现:', processedData);
-  
-  return http.post('/user/wallet/withdraw', processedData);
+  return http.post('/user/finance/withdraw/alipay', {
+    amount: data.amount,
+    payChannel: data.payChannel || 1,
+    passWord: data.payPassword || ''
+  });
 };
 
 /**
