@@ -236,18 +236,7 @@ export default {
   methods: {
     // 返回上一页
     navBack() {
-      // 检查当前页面栈
-      const pages = getCurrentPages();
-      console.log('当前页面栈长度:', pages.length);
-      
-      // 如果页面栈长度小于2，说明是刷新后进入或直接访问，跳转到外卖列表页
-      if (pages.length < 2) {
-        uni.reLaunch({
-          url: '/pages/food/food'
-        });
-      } else {
-        uni.navigateBack();
-      }
+      uni.navigateBack();
     },
     
     // 联系餐厅
