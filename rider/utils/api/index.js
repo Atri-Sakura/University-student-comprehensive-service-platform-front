@@ -11,6 +11,7 @@ import * as authApi from './auth.js';
 import * as riderApi from './rider.js';
 import * as paymentApi from './payment.js';
 import * as orderApi from './order.js';
+import * as orderFlowApi from './orderFlow.js';
 import * as chatApi from './chat.js';
 import * as evaluationApi from './evaluation.js';
 import feedbackApi from './feedback.js';
@@ -53,6 +54,19 @@ export const {
 	getOrderStatistics
 } = orderApi;
 
+// 订单流转相关（骑手接单、取货、送达）
+export const {
+	// 订单查询
+	getAvailableOrders,
+	getMyOrders,
+	getOrderDetail: getRiderOrderDetail,
+	getOrderStatistics: getRiderOrderStatistics,
+	// 订单流转
+	acceptOrder: riderAcceptOrder,
+	pickupOrder: riderPickupOrder,
+	deliverOrder: riderDeliverOrder
+} = orderFlowApi;
+
 // 评价相关
 export const {
 	getMyEvaluationList
@@ -92,6 +106,9 @@ export default {
 	
 	// 订单相关
 	...orderApi,
+	
+	// 订单流转相关
+	...orderFlowApi,
 
 	// 反馈相关
 	...feedbackApi
