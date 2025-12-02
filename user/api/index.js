@@ -9,7 +9,8 @@ export default {
 	secondhandGoods: secondhandGoodsApi,
 	user: userApi,
 	indexPage: indexPageApi,
-	order:orderApi,
+	order: orderApi,
 	food: foodApi
 }
+
 
