@@ -80,8 +80,8 @@ export default {
       try {
         // 同时获取外卖订单和跑腿订单
         const [foodOrderRes, errandOrderRes] = await Promise.all([
-          orderApi.getOrderList({}),  // 外卖订单
-          getErrandOrderList({})       // 跑腿订单
+          orderApi.getOrderList({ orderType: 1 }),  // 外卖订单 - orderType: 1 表示外卖
+          getErrandOrderList({ orderType: 2 })      // 跑腿订单 - orderType: 2 表示跑腿
         ]);
         
         console.log('外卖订单响应:', foodOrderRes);
