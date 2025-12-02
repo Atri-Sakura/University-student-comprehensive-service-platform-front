@@ -86,7 +86,7 @@
 </template>
 
 <script>
-	import { API, request } from '@/utils/api.js';
+	import { getAvailableOrders, getMyOrders, riderAcceptOrder, riderPickupOrder, riderDeliverOrder } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -98,53 +98,8 @@
 					{ key: 'pickup', name: '待取货' },
 					{ key: 'delivery', name: '待送达' }
 				],
-				orders: [
-					{
-						id: 'ORD2024123456',
-						merchant: '星巴克咖啡（人民广场店）',
-						address: '上海市黄浦区南京东路123号',
-						deliveryTime: '30分钟内',
-						type: 'takeout',
-						typeText: '外卖',
-						status: 'new'
-					},
-					{
-						id: 'ORD2024123459',
-						merchant: '必胜客（陆家嘴店）',
-						address: '上海市浦东新区陆家嘴环路1000号',
-						deliveryTime: '45分钟内',
-						type: 'takeout',
-						typeText: '外卖',
-						status: 'new'
-					},
-					{
-						id: 'RUN2024123001',
-						merchant: '文件取送服务',
-						address: '上海市浦东新区世纪大道88号金茂大厦',
-						deliveryTime: '1小时内',
-						type: 'express',
-						typeText: '跑腿',
-						status: 'new'
-					},
-					{
-						id: 'ORD2024123450',
-						merchant: '麦当劳（淮海路店）',
-						address: '上海市徐汇区淮海中路456号',
-						deliveryTime: '25分钟内',
-						type: 'takeout',
-						typeText: '外卖',
-						status: 'pickup'
-					},
-					{
-						id: 'ORD2024123448',
-						merchant: '肯德基（静安寺店）',
-						address: '上海市静安区南京西路789号',
-						deliveryTime: '20分钟内',
-						type: 'takeout',
-						typeText: '外卖',
-						status: 'delivery'
-					}
-				]
+				orders: [],
+				loading: false
 			}
 		},
 		onLoad() {
@@ -153,6 +108,12 @@
 			if (cachedStatus !== '') {
 				this.isReceiving = cachedStatus;
 			}
+			// 加载订单列表
+			this.loadOrders();
+		},
+		onShow() {
+			// 页面显示时刷新订单列表
+			this.loadOrders();
 		},
 		computed: {
 			filteredOrders() {
@@ -209,11 +170,101 @@
 			},
 			switchTab(tabKey) {
 				this.activeTab = tabKey;
+				// 切换标签时重新加载订单
+				this.loadOrders();
+			},
+			// 加载订单列表
+			async loadOrders() {
+				if (this.loading) return;
+				
+				this.loading = true;
+				try {
+					let response;
+					let isAvailableList = false;
+					
+					// 根据当前标签页调用不同的接口
+					if (this.activeTab === 'new') {
+						// 新任务：调用可接单列表接口
+						response = await getAvailableOrders({
+							pageNum: 1,
+							pageSize: 50
+						});
+						isAvailableList = true;
+					} else {
+						// 待取货/配送中：调用我的订单列表接口
+						let orderStatus;
+						if (this.activeTab === 'pickup') {
+							orderStatus = 2; // 待取货
+						} else if (this.activeTab === 'delivery') {
+							orderStatus = 3; // 配送中
+						}
+						
+						response = await getMyOrders({
+							orderStatus,
+							pageNum: 1,
+							pageSize: 50
+						});
+					}
+					
+					if (response.code === 200) {
+					// 转换后端数据格式为前端格式
+					// 后端直接返回 {code, msg, total, rows}，没有 data 包装
+					const rows = response.rows || [];
+					this.orders = rows.map(item => this.convertOrderData(item, isAvailableList));
+				}
+				} catch (error) {
+					console.error('加载订单失败:', error);
+					uni.showToast({
+						title: '加载订单失败',
+						icon: 'none'
+					});
+				} finally {
+					this.loading = false;
+				}
+			},
+			// 转换后端订单数据为前端格式
+			convertOrderData(item, isAvailableList = false) {
+				const orderTypeMap = {
+					1: { type: 'takeout', typeText: '外卖' },
+					2: { type: 'express', typeText: '跑腿' },
+					3: { type: 'secondhand', typeText: '二手交易' }
+				};
+				
+				const statusMap = {
+					1: 'new',      // 待接单
+					2: 'pickup',   // 待取货
+					3: 'delivery', // 配送中
+					4: 'completed', // 已完成
+					5: 'cancelled', // 已取消
+					6: 'rejected'  // 已拒单
+				};
+				
+				const typeInfo = orderTypeMap[item.orderType] || { type: 'takeout', typeText: '外卖' };
+				
+				// 如果是可接单列表，强制状态为 'new'（因为这些订单对骑手来说就是新任务）
+				let status;
+				if (isAvailableList) {
+					status = 'new';
+				} else {
+					status = statusMap[item.orderStatus] || 'new';
+				}
+				
+				return {
+					id: item.orderNo || item.orderMainId,
+					merchant: item.pickAddress || '取货地址',
+					address: item.deliverAddress || '配送地址',
+					deliveryTime: item.createTime || '尽快送达',
+					type: typeInfo.type,
+					typeText: typeInfo.typeText,
+					status: status,
+					// 后端已返回字符串格式的 orderMainId，直接使用
+					orderMainId: item.orderMainId
+				};
 			},
 			viewDetail(order) {
-				// 跳转到订单详情页面
+				// 跳转到订单详情页面（使用 orderMainId）
 				uni.navigateTo({
-					url: `/pages/order/order-detail?orderId=${order.id}`
+					url: `/pages/order/order-detail?orderId=${order.orderMainId}`
 				});
 			},
 			contactMerchant(order) {
@@ -248,49 +299,66 @@
 					}
 				});
 			},
-			acceptOrder(order) {
+			async acceptOrder(order) {
 				let title = '';
 				let content = '';
 				let successMsg = '';
-				let nextStatus = '';
+				let apiFunction = null;
 				
 				// 根据当前标签页确定操作类型
 				if (this.activeTab === 'new') {
 					title = '确认接单';
 					content = `确定要接受订单 ${order.id} 吗？`;
 					successMsg = '接单成功';
-					nextStatus = 'pickup';
+					apiFunction = riderAcceptOrder;
 				} else if (this.activeTab === 'pickup') {
 					title = '确认取货';
 					content = `确定已取到订单 ${order.id} 的货物吗？`;
 					successMsg = '取货成功，请尽快送达';
-					nextStatus = 'delivery';
+					apiFunction = riderPickupOrder;
 				} else if (this.activeTab === 'delivery') {
 					title = '确认送达';
 					content = `确定订单 ${order.id} 已送达吗？`;
 					successMsg = '订单已完成';
-					nextStatus = 'completed';
+					apiFunction = riderDeliverOrder;
 				}
 				
 				uni.showModal({
 					title: title,
 					content: content,
-					success: (res) => {
+					success: async (res) => {
 						if (res.confirm) {
-							uni.showToast({
-								title: successMsg,
-								icon: 'success'
-							});
-							// 更新订单状态
-							const orderIndex = this.orders.findIndex(o => o.id === order.id);
-							if (orderIndex !== -1) {
-								this.orders[orderIndex].status = nextStatus;
+						try {
+							// 调用后端 API（orderMainId 为字符串格式，避免大数字精度丢失）
+							const response = await apiFunction(order.orderMainId);
+								
+								if (response.code === 200) {
+									uni.showToast({
+										title: successMsg,
+										icon: 'success'
+									});
+									
+									// 刷新订单列表
+									setTimeout(() => {
+										this.loadOrders();
+									}, 1000);
+								} else {
+									uni.showToast({
+										title: response.msg || '操作失败',
+										icon: 'none'
+									});
+								}
+							} catch (error) {
+								console.error('操作失败:', error);
+								uni.showToast({
+									title: error.message || '操作失败',
+									icon: 'none'
+								});
 							}
 						}
 					}
 				});
 			},
-			
 			reportException(order) {
 				// 跳转到异常报备页面
 				uni.navigateTo({
