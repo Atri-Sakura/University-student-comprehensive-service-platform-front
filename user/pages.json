@@ -43,13 +43,6 @@
       }
     },
     {
-      "path": "pages/payment/alipay-payment",
-      "style": {
-        "navigationBarTitleText": "支付宝支付",
-        "navigationStyle": "custom"
-      }
-    },
-    {
       "path": "pages/message/message",
       "style": {
         "navigationBarTitleText": "消息",
