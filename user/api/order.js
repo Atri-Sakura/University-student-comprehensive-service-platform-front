@@ -13,11 +13,11 @@ const orderApi = {
   
   /**
    * 获取订单详情
-   * @param {String} orderId - 订单ID
+   * @param {String} orderNo - 订单ID
    * @returns {Promise} - 返回订单详情数据
    */
-  getOrderDetail: (orderId) => {
-    return request.get(`/user/order/detail/${orderId}`)
+  getOrderDetail: (orderNo) => {
+    return request.get(`/user/order/${orderNo}`)
   },
   
   /**
@@ -26,6 +26,25 @@ const orderApi = {
    */
   getOrderStats: () => {
     return request.get('/user/order/stats')
+  },
+  
+  /**
+   * 取消订单
+   * @param {String|Number} orderMainId - 订单主表ID
+   * @param {String} cancelReason - 取消原因
+   * @returns {Promise} - 返回取消订单结果
+   */
+  cancelOrder: (orderMainId, cancelReason) => {
+    return request.put(`/user/order/cancel/${orderMainId}?cancelReason=${encodeURIComponent(cancelReason)}`)
+  },
+  
+  /**
+   * 获取二手交易订单详情
+   * @param {String} orderNo - 订单号
+   * @returns {Promise} - 返回订单详情数据
+   */
+  getSecondHandOrderDetail: (orderNo) => {
+    return request.get(`/user/order/secondHandOrder/${orderNo}`)
   }
 }
 
