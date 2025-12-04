@@ -4,7 +4,7 @@
  */
 
 // 导入基础请求
-import 请求, { API_BASE_URL } from './request.js';
+import { request as 请求, API_BASE_URL } from '../api.js';
 
 // 导入各模块API
 import * as authApi from './auth.js';

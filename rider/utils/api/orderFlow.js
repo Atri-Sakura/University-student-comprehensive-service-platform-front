@@ -3,7 +3,7 @@
  * 包含接单、取货、送达等功能
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 
 // API路径
 const ORDER_API = {

@@ -1,4 +1,4 @@
-import request from './request.js'
+import { request } from '../api.js'
 
 /**
  * 获取反馈详情

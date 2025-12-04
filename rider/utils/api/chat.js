@@ -1,7 +1,7 @@
 /**
  * 聊天消息相关 API
  */
-import request from './request.js';
+import { request } from '../api.js';
 
 const API = {
   // 消息相关

@@ -3,7 +3,7 @@
  * 包含查询、修改个人信息、修改密码等功能
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 import { API_BASE_URL } from '../config.js';
 
 // API路径

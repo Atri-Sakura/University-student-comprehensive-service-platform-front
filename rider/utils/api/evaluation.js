@@ -3,7 +3,7 @@
  * 包含查询评价列表等功能
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 
 // API路径
 const EVALUATION_API = {

@@ -4,7 +4,7 @@
  * 待后端接口完成后实现
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 
 // API路径（待后端提供）
 const ORDER_API = {

@@ -37,6 +37,7 @@ const API = {
  * @param {Object} options.data 请求数据
  * @param {Object} options.headers 额外的请求头
  * @param {Boolean} options.needAuth 是否需要token认证，默认true
+ * @param {Boolean} options.showLoading 是否显示加载提示，默认true
  */
 async function request(options) {
 	const {
@@ -44,7 +45,8 @@ async function request(options) {
 		method = 'GET',
 		data = {},
 		headers = {},
-		needAuth = true
+		needAuth = true,
+		showLoading = true
 	} = options;
 	
 	// 构建完整URL
@@ -68,10 +70,17 @@ async function request(options) {
 	
 	try {
 		// 显示加载提示
-		uni.showLoading({
-			title: '加载中...',
-			mask: true
-		});
+		if (showLoading) {
+			uni.showLoading({
+				title: '加载中...',
+				mask: true
+			});
+		}
+		
+		// 尝试使用原生 XMLHttpRequest 作为备选方案
+		if (false) { // 暂时禁用，用于测试
+			return requestWithXHR(fullUrl, method, data, requestHeaders);
+		}
 		
 		// 使用 uni.request 发送请求
 		const response = await new Promise((resolve, reject) => {
@@ -80,7 +89,16 @@ async function request(options) {
 				method: method.toUpperCase(),
 				data: method.toUpperCase() === 'GET' ? {} : data,
 				header: requestHeaders,
+				dataType: 'text', // 获取原始文本，避免自动JSON解析
 				success: (res) => {
+					// 手动解析JSON，处理大整数
+					try {
+						if (typeof res.data === 'string') {
+							res.data = parseJsonWithLargeIntegers(res.data);
+						}
+					} catch (e) {
+						console.warn('JSON解析失败，使用原始数据:', e);
+					}
 					resolve(res);
 				},
 				fail: (error) => {
@@ -90,13 +108,17 @@ async function request(options) {
 		});
 		
 		// 隐藏加载提示
-		uni.hideLoading();
+		if (showLoading) {
+			uni.hideLoading();
+		}
 		
-		// 处理响应
+		// 处理响应（大整数已在JSON解析阶段处理）
 		return handleResponse(response.data);
 		
 	} catch (error) {
-		uni.hideLoading();
+		if (showLoading) {
+			uni.hideLoading();
+		}
 		
 		// 钱包相关错误只记录日志，不显示错误提示
 		if (error.message && error.message.includes('未找到钱包信息')) {
@@ -115,6 +137,89 @@ async function request(options) {
 	}
 }
 
+
+/**
+ * 使用自定义 reviver 解析 JSON，将大整数ID字段转换为字符串
+ * @param {string} jsonString JSON字符串
+ * @returns {*} 解析后的对象
+ */
+function parseJsonWithLargeIntegers(jsonString) {
+	// ID类字段列表
+	const idFields = [
+		'orderMainId',
+		'orderId', 
+		'id',
+		'userId',
+		'riderId',
+		'merchantId',
+		'userBaseId',
+		'riderBaseId',
+		'merchantBaseId'
+	];
+	
+	// 先用正则表达式预处理，将大整数ID字段转换为字符串
+	let processedJson = jsonString;
+	
+	idFields.forEach(field => {
+		// 匹配 "fieldName":数字 的模式
+		const regex = new RegExp(`"${field}":(\\d+)`, 'g');
+		processedJson = processedJson.replace(regex, (match, number) => {
+			return `"${field}":"${number}"`;
+		});
+	});
+	
+	// 然后正常解析JSON
+	return JSON.parse(processedJson);
+}
+
+/**
+ * 处理大整数字段，将可能超出JavaScript精度的Long类型转换为字符串
+ * @param {*} data 要处理的数据
+ * @returns {*} 处理后的数据
+ */
+function processLargeIntegers(data) {
+	if (!data) return data;
+	
+	// 需要转换为字符串的字段列表（ID类字段）
+	const largeIntegerFields = [
+		'orderMainId',
+		'orderId', 
+		'id',
+		'userId',
+		'riderId',
+		'merchantId',
+		'userBaseId',
+		'riderBaseId',
+		'merchantBaseId'
+	];
+	
+	// 递归处理对象
+	function processObject(obj) {
+		if (obj === null || typeof obj !== 'object') {
+			return obj;
+		}
+		
+		if (Array.isArray(obj)) {
+			return obj.map(item => processObject(item));
+		}
+		
+		const processed = {};
+		for (const [key, value] of Object.entries(obj)) {
+			if (largeIntegerFields.includes(key) && typeof value === 'number') {
+				// 对于ID类字段，直接转换为字符串（避免精度丢失）
+				processed[key] = value.toString();
+				console.log(`转换ID字段 ${key}: ${value} -> "${value}"`);
+			} else if (typeof value === 'object') {
+				processed[key] = processObject(value);
+			} else {
+				processed[key] = value;
+			}
+		}
+		return processed;
+	}
+	
+	return processObject(data);
+}
 
 /**
  * 处理响应数据

@@ -3,7 +3,7 @@
  * 包含登录、注册、退出等功能
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 
 // API路径
 const AUTH_API = {

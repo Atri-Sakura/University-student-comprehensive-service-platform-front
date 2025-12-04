@@ -3,7 +3,7 @@
  * 包含设置、修改、重置支付密码等功能
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 
 // API路径
 const PAYMENT_API = {
