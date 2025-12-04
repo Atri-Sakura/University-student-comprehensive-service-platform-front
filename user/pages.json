@@ -359,6 +359,13 @@
         "navigationStyle": "custom"
       }
     },
+	  {    "path": "pages/orders/second-hand-order-detail",
+		  "style": {        
+			  "navigationBarTitleText": "二手交易订单详情",        
+			  "navigationBarBackgroundColor": "#5DCDFF",        
+			  "navigationBarTextStyle": "white" 
+		} 
+	},
     {
       "path": "pages/shedule/shedule",
       "style": {
