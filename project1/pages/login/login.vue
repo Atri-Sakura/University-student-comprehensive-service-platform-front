@@ -10,21 +10,6 @@
 			
 			<!-- 表单区域 -->
 			<view class="form-container">
-				<!-- 身份选择 -->
-				<view class="input-group">
-					<text class="input-label">请选择登录身份</text>
-					<picker 
-						:value="identityIndex" 
-						:range="identityOptions" 
-						@change="onIdentityChange"
-						class="picker-field"
-					>
-						<view class="picker-display">
-							<text class="picker-text">{{ identityOptions[identityIndex] || '请选择登录身份' }}</text>
-							<text class="picker-arrow">▼</text>
-						</view>
-					</picker>
-				</view>
 				
 				<!-- 手机号输入 -->
 				<view class="input-group">
@@ -105,15 +90,7 @@ export default {
 				showPassword: false,
 				verificationCode: '', // 验证码
 				captchaImage: '/static/c1.png', // 验证码图片URL（设置默认值确保页面加载时可见）
-				uuid: '', // 验证码UUID
-			identityIndex: 0,
-			identityOptions: ['学生', '骑手', '商家'],
-			// 身份映射，用于匹配API配置中的key
-			identityMap: {
-				'学生': 'student',
-				'骑手': 'rider',
-				'商家': 'merchant'
-			}
+				uuid: '' // 验证码UUID
 		}
 	},
 	// 页面创建时获取验证码
@@ -133,11 +110,6 @@ export default {
 			// 切换密码显示
 			togglePassword() {
 				this.showPassword = !this.showPassword
-			},
-			
-			// 身份选择变化
-			onIdentityChange(e) {
-				this.identityIndex = e.detail.value
 			},
 		
 		// 显示消息
@@ -161,22 +133,9 @@ export default {
 				title: '登录中...'
 			})
 			
-			// 根据身份选择不同的登录接口
-			const identityName = this.identityOptions[this.identityIndex];
-			const identityKey = this.identityMap[identityName];
-			
-			let loginUrl = '';
-			switch(identityKey) {
-				case 'student':
-					loginUrl = `${API_BASE_URL}/platform/auth/user/login`;
-					break;
-				case 'rider':
-					loginUrl = `${API_BASE_URL}/platform/auth/rider/login`;
-					break;
-				case 'merchant':
-					loginUrl = `${API_BASE_URL}/platform/auth/merchant/login`;
-					break;
-			}
+			// 直接使用商家登录接口
+			const identityKey = 'merchant';
+			const loginUrl = `${API_BASE_URL}/platform/auth/merchant/login`;
 			
 			try {
 				const response = await fetch(loginUrl, {
@@ -201,7 +160,7 @@ export default {
 					// 保存token（必须先保存token，后续请求需要）
 					uni.setStorageSync('token', result.token);
 					uni.setStorageSync('userType', identityKey);
-					uni.setStorageSync('identity', identityName);
+					uni.setStorageSync('identity', '商家');
 					uni.setStorageSync('identityKey', identityKey);
 					
 					// 🔥 重要：获取并保存商户信息（用于聊天功能）
@@ -408,15 +367,6 @@ export default {
 		
 		// 表单验证
 		validateForm() {
-			// 验证身份选择
-			if (this.identityIndex === undefined || this.identityIndex === null || this.identityIndex < 0) {
-				uni.showToast({
-					title: '请选择登录身份',
-					icon: 'none'
-				})
-				return false
-			}
-			
 			if (!this.phoneNumber) {
 				uni.showToast({
 					title: '请输入手机号',
