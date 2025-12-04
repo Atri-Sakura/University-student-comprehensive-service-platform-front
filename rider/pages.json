@@ -217,6 +217,15 @@
 		}
 	},
 	{
+		"path": "pages/wallet/withdraw",
+		"style": {
+			"navigationBarTitleText": "提现",
+			"navigationBarBackgroundColor": "#ffffff",
+			"navigationBarTextStyle": "black",
+			"navigationStyle": "custom"
+		}
+	},
+	{
 		"path": "pages/orders/orders",
 		"style": {
 			"navigationBarTitleText": "历史订单",

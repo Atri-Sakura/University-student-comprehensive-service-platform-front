@@ -22,7 +22,10 @@ const API = {
 	
 	// 支付密码
 	PAY_PASSWORD_SET: '/api/rider/pay/password/set',     // 设置支付密码
-	PAY_PASSWORD_UPDATE: '/api/rider/pay/password/update' // 修改支付密码
+	PAY_PASSWORD_UPDATE: '/api/rider/pay/password/update', // 修改支付密码
+	
+	// 钱包相关
+	WITHDRAW_ALIPAY: '/rider/finance/withdraw/alipay'    // 支付宝提现
 };
 
 // ========== 请求封装 ==========
@@ -94,14 +97,19 @@ async function request(options) {
 		
 	} catch (error) {
 		uni.hideLoading();
-		console.error('请求失败:', error);
 		
-		// 显示错误提示
-		uni.showToast({
-			title: '网络请求失败',
-			icon: 'none',
-			duration: 2000
-		});
+		// 钱包相关错误只记录日志，不显示错误提示
+		if (error.message && error.message.includes('未找到钱包信息')) {
+			console.log('钱包查询:', error.message);
+		} else {
+			console.error('请求失败:', error);
+			// 显示错误提示
+			uni.showToast({
+				title: '网络请求失败',
+				icon: 'none',
+				duration: 2000
+			});
+		}
 		
 		throw error;
 	}
@@ -124,11 +132,14 @@ function handleResponse(result) {
 	}
 	
 	// 其他错误
-	uni.showToast({
-		title: result.msg || '请求失败',
-		icon: 'none',
-		duration: 2000
-	});
+	// 钱包相关错误不显示通用错误提示，让具体页面处理
+	if (!(result.msg && result.msg.includes('未找到钱包信息'))) {
+		uni.showToast({
+			title: result.msg || '请求失败',
+			icon: 'none',
+			duration: 2000
+		});
+	}
 	
 	throw new Error(result.msg || '请求失败');
 }

@@ -14,17 +14,14 @@
 			<text class="balance-label">总余额</text>
 			<text class="balance-amount">¥{{ balance }}</text>
 			<text class="balance-tip">可提现金额：¥{{ withdrawable }}</text>
+			<text v-if="balance === '0.00'" class="wallet-init-tip">钱包将在您获得第一笔收入时自动创建</text>
 		</view>
 
 		<!-- 操作按钮 -->
 		<view class="action-buttons">
-			<view class="action-btn withdraw-btn" @tap="handleWithdraw">
+			<view class="action-btn withdraw-btn single-btn" @tap="handleWithdraw">
 				<text class="btn-icon">💵</text>
 				<text class="btn-text">提现</text>
-			</view>
-			<view class="action-btn recharge-btn" @tap="handleRecharge">
-				<text class="btn-icon">➕</text>
-				<text class="btn-text">充值</text>
 			</view>
 		</view>
 
@@ -56,12 +53,16 @@
 </template>
 
 <script>
+	import { getWalletBalance } from '../../utils/api/wallet.js';
+	
 	export default {
 		data() {
 			return {
-				balance: '556.80',
-				withdrawable: '556.80',
+				balance: '0.00',
+				withdrawable: '0.00',
 				todayIncome: '256.80',
+				loading: false,
+				walletCreated: false, // 标记钱包是否已创建，避免无限循环
 				transactions: [
 					{
 						title: '订单配送收入',
@@ -90,7 +91,60 @@
 				]
 			}
 		},
+		onLoad() {
+			// 检查本地存储的钱包创建状态
+			const walletCreatedFlag = uni.getStorageSync('rider_wallet_created');
+			this.walletCreated = walletCreatedFlag === 'true';
+			this.loadWalletBalance();
+		},
+		onShow() {
+			// 页面显示时重新加载余额（从其他页面返回时）
+			// 总是尝试刷新余额，确保数据最新
+			this.loadWalletBalance();
+		},
 		methods: {
+			async loadWalletBalance() {
+				try {
+					this.loading = true;
+					const result = await getWalletBalance();
+					
+					if (result.code === 200) {
+						// 后端返回的数据结构：{ code: 200, msg: "操作成功", balance: 200.00 }
+						const balance = result.balance || 0;
+						this.balance = balance.toFixed(2);
+						this.withdrawable = balance.toFixed(2);
+						
+						// 余额查询成功，说明钱包已正常工作，清除创建标记
+						if (this.walletCreated) {
+							this.walletCreated = false;
+							uni.removeStorageSync('rider_wallet_created');
+						}
+					}
+				} catch (error) {
+					console.error('获取钱包余额失败:', error);
+					
+					// 如果是钱包不存在的错误，显示0余额并提示用户
+					if (error.message && error.message.includes('未找到钱包信息')) {
+						console.log('钱包未初始化，显示默认余额0.00');
+						this.balance = '0.00';
+						this.withdrawable = '0.00';
+						// 只有在钱包未创建时才弹窗提示，避免无限循环
+						if (!this.walletCreated) {
+							this.showWalletInitTip();
+						}
+					} else {
+						// 其他网络错误或系统错误才显示错误提示
+						uni.showToast({
+							title: '网络异常，请稍后重试',
+							icon: 'none'
+						});
+					}
+				} finally {
+					this.loading = false;
+				}
+			},
+			
+			
 			goBack() {
 				const pages = getCurrentPages();
 				if (pages.length > 1) {
@@ -100,15 +154,18 @@
 				}
 			},
 			handleWithdraw() {
-				uni.showToast({
-					title: '提现功能开发中',
-					icon: 'none'
+				uni.navigateTo({
+					url: `/pages/wallet/withdraw?balance=${this.withdrawable}`
 				});
 			},
-			handleRecharge() {
-				uni.showToast({
-					title: '充值功能开发中',
-					icon: 'none'
+			
+			// 显示钱包初始化提示
+			showWalletInitTip() {
+				uni.showModal({
+					title: '钱包未激活',
+					content: '检测到您还没有钱包，钱包将在您获得第一笔收入时自动创建。',
+					confirmText: '我知道了',
+					showCancel: false
 				});
 			}
 		}
@@ -203,6 +260,14 @@
 		display: block;
 	}
 
+	.wallet-init-tip {
+		font-size: 24rpx;
+		color: rgba(255, 255, 255, 0.7);
+		display: block;
+		margin-top: 8rpx;
+		font-style: italic;
+	}
+
 	/* 操作按钮 */
 	.action-buttons {
 		display: flex;
@@ -220,14 +285,16 @@
 		gap: 12rpx;
 		box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
 	}
+	
+	.action-btn.single-btn {
+		max-width: 400rpx;
+		margin: 0 auto;
+	}
 
 	.withdraw-btn {
 		background: linear-gradient(135deg, #fa8c16 0%, #ff9800 100%);
 	}
 
-	.recharge-btn {
-		background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
-	}
 
 	.action-btn:active {
 		transform: translateY(2rpx);
