@@ -144,7 +144,8 @@
 </template>
 
 <script>
-import { merchantOrderAPI, request } from '../../utils/order.js'
+// 使用api.js中的request函数，它包含大整数处理逻辑
+import { request, merchantOrderAPI } from '../../utils/api.js'
 
 export default {
   name: 'OrderPage',
@@ -211,13 +212,10 @@ export default {
       // 设置加载状态为true
       this.isLoading = true
       try {
-        console.log('开始获取订单列表...', new Date().toLocaleTimeString(), '调用堆栈:', new Error().stack)
         const res = await request(merchantOrderAPI.list, {
           method: 'GET'
         })
         
-        // 打印完整响应数据，用于调试
-        console.log('API响应数据:', res)
         
         // 检查响应是否有效
         if (!res) {
@@ -231,7 +229,7 @@ export default {
         if (res.statusCode === 200 && res.data) {
           // 后端返回的标准格式：{code: 200, msg: "", total: 0, rows: []}
           if (res.data.code === 200 || res.data.code === 1) {
-            console.log('后端返回成功状态码:', res.data.code)
+            // 后端返回成功状态码
             orderData = res.data.rows || []
           } else {
             // 后端返回错误状态码
@@ -244,20 +242,11 @@ export default {
         
         // 处理获取到的数据
         if (orderData.length > 0) {
-          console.log(`成功获取到 ${orderData.length} 条原始订单数据`)
-          // 打印原始数据详情（前几个）以便分析
-          console.log('原始订单数据示例:', orderData.slice(0, 3))
           // 将后端返回的数据转换为前端所需的格式
           const transformedOrders = this.transformOrderData(orderData)
-          console.log(`转换后得到 ${transformedOrders.length} 条订单数据`)
           this.allOrders = transformedOrders
-          // 打印不同状态订单的数量
-          console.log('待处理订单数量:', this.pendingOrders.length)
-          console.log('配送中订单数量:', this.deliveringOrders.length)
-          console.log('已完成订单数量:', this.completedOrders.length)
           this.updateOrderCount()
         } else {
-          console.log('获取订单成功，但暂无数据')
           this.allOrders = []
           this.updateOrderCount()
         }
@@ -275,7 +264,8 @@ export default {
     
     // 转换后端订单数据格式为前端所需格式
     transformOrderData(backendOrders) {
-      return backendOrders.map(order => {
+      return backendOrders.map((order, index) => {
+        
         // 根据后端返回的订单状态进行完整映射
         const statusMap = {
           1: '待接单',
@@ -292,11 +282,6 @@ export default {
         // 使用后端实际的商品数据，检查多个可能的字段
         let items = [];
         try {
-          // 详细记录商品数据结构
-          console.log('订单中的商品数据字段情况:');
-          console.log('orderTakeoutDetailList:', order.orderTakeoutDetailList);
-          console.log('orderItems:', order.orderItems);
-          console.log('products:', order.products);
           
           // 检查多个可能包含商品数据的字段
           let productList = null;
@@ -330,10 +315,7 @@ export default {
               price: order.payAmount || 0
             }];
           }
-          
-          console.log('商品数据处理结果:', items);
         } catch (error) {
-          console.error('处理商品数据失败:', error);
           // 错误情况下提供默认商品信息
           items = [{
             name: '商品',
@@ -357,7 +339,7 @@ export default {
           riderPhone: order.riderPhone,
           riderAcceptTime: order.riderAcceptTime,
           review: order.review
-        }
+        };
       })
     },
     
@@ -383,12 +365,13 @@ export default {
         success: async (res) => {
           if (res.confirm) {
             try {
-              // 使用orderMainId作为后端API的订单ID参数
-              const orderId = Number(item.id) // 由于我们在transformOrderData中已经将orderMainId赋给了id，这里仍然使用item.id
+              // 使用orderMainId作为后端API的订单ID参数（保持字符串类型，避免大整数精度丢失）
+              const orderId = item.id // orderMainId已经被正确处理为字符串类型
+              
               // 调用后端接单接口
               const response = await request(merchantOrderAPI.accept(orderId), {
                 method: 'PUT'
-              })
+              });
               
               // 适配后端AjaxResult格式
               if (response.statusCode === 200) {
@@ -414,7 +397,6 @@ export default {
                 })
               }
             } catch (error) {
-              console.error('接单失败:', error)
               uni.showToast({
                 title: '网络错误，请重试',
                 icon: 'none'
@@ -435,8 +417,8 @@ export default {
         success: async (res) => {
           if (res.confirm) {
             try {
-              // 确保订单ID为数字类型
-              const orderId = Number(item.id)
+              // 使用orderMainId作为后端API的订单ID参数（保持字符串类型，避免大整数精度丢失）
+              const orderId = item.id // orderMainId已经被正确处理为字符串类型
               try {
                 // 调用后端接口
                 const response = await request(merchantOrderAPI.notifyRider(orderId), {
@@ -580,8 +562,8 @@ export default {
         success: async (res) => {
           if (res.confirm) {
             try {
-              // 使用orderMainId作为后端API的订单ID参数
-              const orderId = Number(item.id) // 由于我们在transformOrderData中已经将orderMainId赋给了id，这里仍然使用item.id
+              // 使用orderMainId作为后端API的订单ID参数（保持字符串类型，避免大整数精度丢失）
+              const orderId = item.id // orderMainId已经被正确处理为字符串类型
               // 调用后端拒单接口
               const response = await request(merchantOrderAPI.reject(orderId), {
                 method: 'PUT'

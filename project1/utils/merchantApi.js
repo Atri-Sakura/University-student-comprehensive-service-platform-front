@@ -47,12 +47,12 @@ export const updateMerchantBase = (data) => {
  * @returns {Promise}
  */
 export const checkMerchantName = (merchantName) => {
-  // 暂时返回模拟数据，避免后端路由错误
+  // 返回模拟数据，表示名称可用
   return Promise.resolve({
+    code: 200,
+    msg: '名称可用',
     data: {
-      code: 200,
-      msg: '名称可用',
-      data: true
+      exists: false  // false表示名称可用
     }
   });
 };

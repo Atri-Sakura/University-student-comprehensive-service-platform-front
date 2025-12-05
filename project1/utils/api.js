@@ -42,13 +42,13 @@ export const merchantAPI = {
   // getReviews: `${baseUrl}/merchant/reviews/list`          // 获取评价列表
 };
 
-// 商家订单相关接口
+// 商家订单相关接口（匹配后端MerchantOrderController）
 export const merchantOrderAPI = {
-  list: `${baseUrl}/merchant/takeoutorder/list`,                    // 获取订单列表
-  accept: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`, // 接受订单
-  reject: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`, // 拒绝订单
-  notifyRider: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`, // 通知骑手
-  detail: (orderId) => `${baseUrl}/merchant/takeoutorder/${orderId}`  // 订单详情
+  list: `${baseUrl}/merchant/order/list`,                    // 获取订单列表
+  accept: (orderId) => `${baseUrl}/merchant/order/accept/${orderId}`, // 接受订单（PUT方法）
+  reject: (orderId) => `${baseUrl}/merchant/order/reject/${orderId}`, // 拒绝订单（PUT方法）
+  notifyRider: (orderId) => `${baseUrl}/merchant/order/notifyRider/${orderId}`, // 通知骑手
+  detail: (orderId) => `${baseUrl}/merchant/order/${orderId}`  // 订单详情（GET方法）
 };
 
 // 通用请求方法（Promise 封装）
@@ -66,7 +66,8 @@ export const request = (url, options = {}) => {
       const idFields = [
         'merchantBaseId', 'merchant_base_id', 'merchantId', 'merchant_id',
         'id', 'userId', 'user_id', 'goodsId', 'goods_id',
-        'sessionId', 'messageId', 'fromId', 'toId', 'merchantActivityId'
+        'sessionId', 'messageId', 'fromId', 'toId', 'merchantActivityId',
+        'orderMainId', 'order_main_id', 'orderId', 'order_id'
       ];
       
       idFields.forEach(field => {
@@ -121,9 +122,6 @@ export const request = (url, options = {}) => {
         try {
           // 手动解析响应数据
           if (typeof res.data === 'string') {
-            // 记录原始数据用于调试
-            const originalData = res.data;
-            
             // 使用正则表达式将所有数字ID字段转换为字符串
             let processedData = res.data
               // 商家相关的ID字段
@@ -134,6 +132,11 @@ export const request = (url, options = {}) => {
               // 活动相关的ID字段
               .replace(/"merchantActivityId":\s*(\d{15,})/g, '"merchantActivityId":"$1"')
               .replace(/"merchant_activity_id":\s*(\d{15,})/g, '"merchant_activity_id":"$1"')
+              // 订单相关的ID字段（关键修复）
+              .replace(/"orderMainId":\s*(\d{15,})/g, '"orderMainId":"$1"')
+              .replace(/"order_main_id":\s*(\d{15,})/g, '"order_main_id":"$1"')
+              .replace(/"orderId":\s*(\d{15,})/g, '"orderId":"$1"')
+              .replace(/"order_id":\s*(\d{15,})/g, '"order_id":"$1"')
               // 通用ID字段
               .replace(/"id":\s*(\d{15,})/g, '"id":"$1"')
               .replace(/"userId":\s*(\d{15,})/g, '"userId":"$1"')
@@ -143,7 +146,6 @@ export const request = (url, options = {}) => {
               .replace(/"messageId":\s*(\d{15,})/g, '"messageId":"$1"')
               .replace(/"fromId":\s*(\d{15,})/g, '"fromId":"$1"')
               .replace(/"toId":\s*(\d{15,})/g, '"toId":"$1"');
-            
             
             res.data = JSON.parse(processedData);
             

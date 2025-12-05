@@ -127,7 +127,8 @@
 </template>
 
 <script>
-import { merchantOrderAPI, request } from '../../utils/order.js'
+// 使用api.js中的request函数，它包含大整数处理逻辑
+import { request, merchantOrderAPI } from '../../utils/api.js'
 
 export default {
   name: 'OrderDetailPage',
@@ -140,17 +141,13 @@ export default {
     };
   },
   onLoad(options) {
-    // 接受传递的id参数并保存，确保转换为数字类型
+    // 接受传递的id参数并保存（保持字符串类型，避免大整数精度丢失）
     if (options.id) {
-      // 保存原始ID，并将数字类型ID用于API调用
+      // 保存订单ID（字符串类型）
       this.orderId = options.id;
-      const numOrderId = Number(options.id);
-      
-      console.log('加载订单ID:', numOrderId);
-      console.log('订单号:', options.orderNo);
       
       // 调用加载方法
-      this.loadOrderDetail(numOrderId);
+      this.loadOrderDetail(this.orderId);
     } else {
         this.error = '未找到订单ID';
         this.loading = false;
@@ -172,10 +169,9 @@ export default {
     },
     // 重新加载订单详情
     retryLoad() {
-      // 确保使用数字类型的订单ID
+      // 使用字符串类型的订单ID（避免大整数精度丢失）
       if (this.orderId) {
-        const numOrderId = Number(this.orderId);
-        this.loadOrderDetail(numOrderId);
+        this.loadOrderDetail(this.orderId);
       }
     },
 
@@ -183,16 +179,11 @@ export default {
       this.loading = true;
       this.error = '';
       try {
-        // 确保orderId是数字类型，正确处理Long类型ID
-        const numOrderId = Number(orderId);
-        console.log('调用订单详情API:', numOrderId);
-        
+        // orderId保持字符串类型，正确处理Long类型ID
         // 调用实际的订单详情接口，匹配后端@GetMapping("/{orderMainId}")
-        const res = await request(merchantOrderAPI.detail(numOrderId), {
+        const res = await request(merchantOrderAPI.detail(orderId), {
           method: 'GET'
         });
-        
-        console.log('订单详情API响应:', res);
         
         // 检查响应是否有效
         if (res.statusCode === 200 && res.data) {
@@ -201,12 +192,6 @@ export default {
             // 后端返回的是OrderMain对象
             const orderDetail = res.data.data;
             if (orderDetail) {
-              console.log('获取到订单详情:', orderDetail);
-              // 详细记录商品数据结构
-              console.log('订单中的商品数据字段情况:');
-              console.log('orderTakeoutDetailList:', orderDetail.orderTakeoutDetailList);
-              console.log('orderItems:', orderDetail.orderItems);
-              console.log('products:', orderDetail.products);
               
               // 严格按照后端OrderMain对象结构进行数据映射
               this.orderData = {
@@ -237,8 +222,6 @@ export default {
                 mealDetails: orderDetail.mealDetails || orderDetail.packageDetails || '',
                 notes: orderDetail.notes || orderDetail.remarks || ''
               };
-              
-              console.log('订单数据处理完成:', this.orderData);
             } else {
               this.error = '订单数据为空';
               uni.showToast({
@@ -263,8 +246,7 @@ export default {
       } catch (error) {
         // 确保重置loading状态
         this.loading = false;
-        this.error = '加载订单详情失败';
-        console.error('获取订单详情失败:', error);
+        this.error = '加载失败，请点击重试';
         uni.showToast({
           title: this.error,
           icon: 'none'
@@ -277,19 +259,15 @@ export default {
     transformProducts(items) {
       // 确保items是数组
       if (!Array.isArray(items)) {
-        console.error('transformProducts: items参数不是数组', items);
         return [];
       }
       
-      const result = items.map(item => ({
+      return items.map(item => ({
         name: item.goodsName || item.productName || item.name || '商品',
         spec: item.goodsSpec || item.productOption || item.options || item.spec || '',
         quantity: item.quantity || item.productCount || 1,
         price: item.goodsPrice || item.price || 0
       }));
-      
-      console.log('订单详情商品数据处理结果:', result);
-      return result;
     },
     // 转换订单状态文本
     getStatusText(status) {

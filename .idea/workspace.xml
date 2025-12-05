@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="新增“我的”页面退出登录功能，商品管理图片上传问题修复，消息中心对接成功（待定）" />
+    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="充值提现功能实现，创建商家钱包实现">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -87,6 +89,8 @@
       <workItem from="1764214088114" duration="1957000" />
       <workItem from="1764313101533" duration="185000" />
       <workItem from="1764320077639" duration="151000" />
+      <workItem from="1764581914424" duration="135000" />
+      <workItem from="1764916957444" duration="38000" />
     </task>
     <task id="LOCAL-00001" summary="Update list.vue">
       <option name="closed" value="true" />
@@ -224,7 +228,15 @@
       <option name="project" value="LOCAL" />
       <updated>1764320218338</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="充值提现功能实现，创建商家钱包实现">
+      <option name="closed" value="true" />
+      <created>1764582012286</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1764582012287</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -249,6 +261,7 @@
     <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant&#10;&#10;# Conflicts:&#10;#&#9;project1/utils/chatApi.js" />
     <MESSAGE value="解决了店铺头像问题，改名问题" />
     <MESSAGE value="新增“我的”页面退出登录功能，商品管理图片上传问题修复，消息中心对接成功（待定）" />
-    <option name="LAST_COMMIT_MESSAGE" value="新增“我的”页面退出登录功能，商品管理图片上传问题修复，消息中心对接成功（待定）" />
+    <MESSAGE value="充值提现功能实现，创建商家钱包实现" />
+    <option name="LAST_COMMIT_MESSAGE" value="充值提现功能实现，创建商家钱包实现" />
   </component>
 </project>
