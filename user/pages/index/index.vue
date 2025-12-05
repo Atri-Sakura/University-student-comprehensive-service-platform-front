@@ -72,7 +72,7 @@
           <text class="section-more" @click="viewAllFood">查看全部</text>
         </view>
         <view class="recommend-grid">
-          <view class="recommend-item" v-for="(item, index) in recommendList" :key="item.id || index" @click="viewFoodDetail(item)">
+          <view class="recommend-item" v-for="(item, index) in recommendList" :key="`food_${item.id}_${index}`" @click="viewFoodDetail(item)">
             <image class="recommend-image" :src="item.image" mode="aspectFill" @error="handleImageError($event, index, 'food')"></image>
             <!-- 商品信息 -->
             <view class="recommend-info">
@@ -103,7 +103,7 @@
           <text class="section-more" @click="viewAllSecondHand">查看全部</text>
         </view>
         <view class="recommend-grid">
-          <view class="secondhand-item" v-for="(item, index) in secondHandList" :key="item.id || index" @click="viewSecondHandDetail(item)">
+          <view class="secondhand-item" v-for="(item, index) in secondHandList" :key="`secondhand_${item.id}_${index}`" @click="viewSecondHandDetail(item)">
             <image class="secondhand-image" :src="getValidImageUrl(item.image)" mode="aspectFill" @error="handleImageError($event, index, 'secondHand')"></image>
             <text class="secondhand-name">{{ item.goodsName }}</text>
             <text class="secondhand-price">¥{{ item.price }}</text>
@@ -147,7 +147,6 @@ export default {
   methods: {
     // 加载所有数据
     async loadAllData() {
-      console.log('开始加载首页数据...');
       try {
         // 并行加载所有数据
         await Promise.all([
@@ -156,8 +155,6 @@ export default {
           this.getTakeoutRecommendations(),
           this.getSecondhandRecommendations()
         ]);
-        
-        console.log('首页数据加载完成');
       } catch (error) {
         console.error('首页数据加载失败:', error);
         uni.showToast({
@@ -193,21 +190,6 @@ export default {
     async getTodayCourses() {
       try {
         const res = await api.indexPage.getTodayCourses();
-        
-        // 添加详细的响应日志
-        console.log('=== 今日课程API响应详情 ===');
-        console.log('完整响应对象:', res);
-        console.log('响应code:', res.code);
-        console.log('响应message:', res.message || res.msg);
-        console.log('响应data:', res.data);
-        console.log('响应data类型:', typeof res.data);
-        console.log('响应data是否为数组:', Array.isArray(res.data));
-        if (Array.isArray(res.data)) {
-          console.log('响应data长度:', res.data.length);
-          if (res.data.length > 0) {
-            console.log('响应data前1项:', res.data[0]);
-          }
-        }
         
         if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
           // 转换今日课程数据格式
@@ -256,8 +238,6 @@ export default {
           });
           
           this.courseList = transformedCourses;
-          console.log('今日课程数据转换成功，共', this.courseList.length, '门课程');
-          console.log('转换后的数据:', this.courseList);
         } else if (res && res.code === 500 && res.message === '用户未登录') {
           console.warn('用户未登录，无法获取今日课程');
           this.courseList = [];
@@ -278,7 +258,6 @@ export default {
       if (!url) return '';
       
       let cleaned = String(url);
-      console.log('cleanUrl输入:', cleaned);
       
       // 改进的反引号移除逻辑
       // 方法1: 增强的逐字符过滤，检查多种可能的反引号编码
@@ -304,39 +283,21 @@ export default {
       // 去除前后空白
       filtered = filtered.trim();
       
-      console.log('cleanUrl输出:', filtered);
       return filtered;
     },
     
     // 获取有效图片URL
     getValidImageUrl(url) {
-      console.log('原始URL输入:', url);
-      
       // 如果URL为空，直接返回默认占位图而不是空字符串
       if (!url) {
-        console.log('URL为空，返回默认占位图');
         return '/static/images/default-food.svg';
       }
       
-      // 先进行trim去除前后空白
-      let cleanedUrl = String(url).trim();
-      console.log('trim后URL:', cleanedUrl);
-      
-      // 加强反引号清理，使用更严格的正则表达式
-      cleanedUrl = cleanedUrl.replace(/[`\u0060]/g, '');
-      console.log('第一次移除反引号后URL:', cleanedUrl);
-      
-      // 再次尝试移除可能的转义反引号
-      cleanedUrl = cleanedUrl.replace(/[`\u0060]/g, '');
-      console.log('第二次移除反引号后URL:', cleanedUrl);
-      
-      // 再次trim确保去除反引号后的空白
-      cleanedUrl = cleanedUrl.trim();
-      console.log('最终清理后URL:', cleanedUrl);
+      // 先进行trim去除前后空白，加强反引号清理
+      let cleanedUrl = String(url).trim().replace(/[`\u0060]/g, '').trim();
       
       // 如果清理后URL为空，返回默认占位图
       if (!cleanedUrl) {
-        console.log('清理后URL为空，返回默认占位图');
         return '/static/images/default-food.svg';
       }
       
@@ -363,8 +324,6 @@ export default {
       }
       
       // 如果都不是，返回默认占位图
-      console.log('处理后URL不满足任何条件，返回默认占位图');
-      // 使用本地静态资源作为占位图
       return '/static/images/default-food.svg';
     },
     
@@ -382,31 +341,24 @@ export default {
         if (event && event.target) {
           // 获取当前失败的URL
           let failedUrl = event.target.src;
-          console.log('失败的DOM图片URL:', failedUrl);
           
-          // 强制移除所有可能的反引号（确保failedUrl存在）
+          // 强制移除所有可能的反引号
           if (failedUrl) {
             let fixedUrl = failedUrl.replace(/[`\u0060]/g, '');
-            console.log('强制修复后的URL:', fixedUrl);
-            
-            // 如果URL确实发生了变化，尝试重新加载
             if (fixedUrl !== failedUrl) {
-              console.log('尝试重新加载修复后的URL');
               event.target.src = fixedUrl;
-              return; // 尝试修复后返回，避免立即设置默认图片
+              return;
             }
           }
           
-          // 如果修复失败或failedUrl不存在，尝试使用cleanUrl处理后的mainImageUrl
+          // 尝试使用清理后的mainImageUrl
           if (this.recommendList[index].mainImageUrl) {
             let cleanMainImageUrl = this.cleanUrl(this.recommendList[index].mainImageUrl);
-            console.log('使用清理后的mainImageUrl:', cleanMainImageUrl);
             event.target.src = cleanMainImageUrl;
-            return; // 尝试使用mainImageUrl后返回
+            return;
           }
           
-          // 所有尝试失败后，使用默认占位图
-          console.log('所有修复尝试失败，使用默认占位图');
+          // 使用默认占位图
           event.target.src = '/static/images/default-food.svg';
         }
       } 
@@ -421,7 +373,6 @@ export default {
     
     // 获取推荐外卖
     async getTakeoutRecommendations() {
-      console.log('开始获取推荐外卖数据');
       try {
         // 使用indexPage.js中的推荐外卖接口
         const res = await api.indexPage.getTakeoutRecommendations();
@@ -429,7 +380,6 @@ export default {
         if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
           // 完整映射后端返回的所有字段，确保前端能正确显示所有信息
           this.recommendList = res.data.map(item => {
-            console.log('单个外卖项数据:', item);
             // 处理图片URL，优先使用mainImageUrl，否则使用默认图片
             let imageUrl = item.mainImageUrl;
             // 如果有imageList且是数组，也可以考虑使用第一张图片
@@ -439,7 +389,7 @@ export default {
             // 使用getValidImageUrl函数处理图片URL
             const finalImageUrl = this.getValidImageUrl(imageUrl);
             
-            return {
+            const processedItem = {
               ...item,
               // 确保基础字段存在并处理
               goodsName: item.goodsName || item.name || '未命名商品',
@@ -453,11 +403,11 @@ export default {
               ratingCount: item.ratingCount || 0,
               // 销量信息
               salesCount: item.salesCount || 0,
-              // 导航所需字段
-              id: item.id || item.merchantGoodsId || Math.floor(Math.random() * 10000),
-              restaurantId: item.restaurantId || item.merchantBaseId || Math.floor(Math.random() * 100),
-              merchantBaseId: item.merchantBaseId || null,
+              // 导航所需字段 - 确保merchantBaseId是主要字段，使用字符串避免精度丢失
+              id: String(item.merchantGoodsId || item.id || `temp_${Date.now()}_${Math.random()}`),
               merchantGoodsId: item.merchantGoodsId || null,
+              merchantBaseId: item.merchantBaseId || null,
+              restaurantId: item.merchantBaseId || item.restaurantId || null,
               // 分类信息
               category: item.category || '',
               subCategory: item.subCategory || '',
@@ -467,8 +417,9 @@ export default {
               status: item.status || 1,
               tagCodes: item.tagCodes || ''
             };
+            
+            return processedItem;
           });
-          console.log('处理后的推荐外卖列表:', this.recommendList);
         } else if (res && res.code === 500 && res.message === '用户未登录') {
           console.warn('用户未登录，无法获取推荐外卖');
           this.recommendList = [];
@@ -510,8 +461,8 @@ export default {
               goodsName: item.goodsName || item.name || '未命名商品',
               // 使用处理后的有效图片URL
               image: validImage,
-              // 确保id字段存在，优先使用goodsId
-              id: item.goodsId || item.id || item.secondhandId || `secondhand_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+              // 确保id字段存在，优先使用goodsId，转为字符串避免精度丢失
+              id: String(item.goodsId || item.id || item.secondhandId || `secondhand_${Date.now()}_${Math.random()}`),
               // 确保基础字段存在
               price: item.price || 0,
               status: item.status || 1,
@@ -541,12 +492,8 @@ export default {
     },
     // 导航到个人课表
     navToSchedule() {
-      console.log('开始导航到个人课表...');
       uni.navigateTo({
         url: '/pages/shedule/shedule',
-        success: () => {
-          console.log('导航到个人课表成功');
-        },
         fail: (err) => {
           console.error('导航到个人课表失败:', err);
           uni.showToast({
@@ -558,12 +505,8 @@ export default {
     },
     // 导航到跑腿服务
     navToErrand() {
-      console.log('开始导航到跑腿服务...');
       uni.navigateTo({
         url: '/pages/errand/errand',
-        success: () => {
-          console.log('成功导航到跑腿服务');
-        },
         fail: (err) => {
           console.error('导航到跑腿服务失败:', err);
           uni.showToast({
@@ -626,12 +569,20 @@ export default {
     },
     // 查看外卖详情 - 直接跳转到商家页面并选择对应套餐
     viewFoodDetail(item) {
+      // 获取商家ID，优先使用merchantBaseId
+      const merchantId = item.merchantBaseId || item.restaurantId;
+      const goodsId = item.merchantGoodsId || item.id;
+      
       console.log('开始导航到外卖详情...', {
+        merchantBaseId: item.merchantBaseId,
         restaurantId: item.restaurantId,
-        foodId: item.id
+        使用的商家ID: merchantId,
+        商品ID: goodsId,
+        完整item: item
       });
+      
       // 验证参数有效性
-      if (!item.restaurantId || !item.id) {
+      if (!merchantId || !goodsId) {
         console.error('外卖详情参数不完整:', item);
         uni.showToast({
           title: '商品信息不完整',
@@ -639,8 +590,9 @@ export default {
         });
         return;
       }
+      
       uni.navigateTo({
-        url: `/pages/food/food-detail?restaurantId=${item.restaurantId}&selectedFoodId=${item.id}`,
+        url: `/pages/food/food-detail?restaurantId=${merchantId}&selectedFoodId=${goodsId}`,
         success: () => {
           console.log('成功导航到外卖详情');
         },

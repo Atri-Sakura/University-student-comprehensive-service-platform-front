@@ -11,7 +11,7 @@ import { fixAddressIdPrecision } from '@/utils/address-id-fix.js';
  * @returns {any} 解析后的对象
  */
 function safeParseBigInt(jsonString) {
-	if (!jsonString || typeof jsonString !== 'string') {
+	if (typeof jsonString !== 'string') {
 		return jsonString;
 	}
 	
@@ -20,6 +20,29 @@ function safeParseBigInt(jsonString) {
 	if (jsonString.includes('userAddressId') || jsonString.includes('address')) {
 		processed = fixAddressIdPrecision(jsonString);
 	}
+	
+	// 定义需要特别处理的ID字段列表
+	const idFields = [
+		'merchantBaseId',
+		'merchantGoodsId', 
+		'merchantId',
+		'goodsId',
+		'restaurantId',
+		'userAddressId',
+		'orderId',
+		'userId',
+		'userBaseId',
+		'id'
+	];
+	
+	// 特别处理所有ID字段 - 将大整数转换为字符串
+	idFields.forEach(field => {
+		// 匹配 "字段名": 数字（15位及以上）
+		const pattern = new RegExp(`"${field}"\\s*:\\s*(\\d{15,})`, 'g');
+		processed = processed.replace(pattern, (match, number) => {
+			return `"${field}":"${number}"`;
+		});
+	});
 	
 	// 使用正则表达式将大整数转换为字符串
 	// 匹配不在引号内的数字，且长度超过15位（可能超出安全范围）
@@ -38,14 +61,6 @@ function safeParseBigInt(jsonString) {
 		}
 	);
 	
-	// 特别处理userAddressId字段 - 更严格的匹配
-	processed = processed.replace(
-		/"userAddressId"\s*:\s*(\d{15,})/g,
-		(match, number) => {
-			return '"userAddressId":"' + number + '"';
-		}
-	);
-	
 	// 处理数组中的大整数ID
 	processed = processed.replace(
 		/(\[\s*|\,\s*)(\d{15,})(\s*[\,\]])/g,
@@ -58,9 +73,9 @@ function safeParseBigInt(jsonString) {
 	);
 	
 	try {
-		const result = JSON.parse(processed);
-		return result;
+		return JSON.parse(processed);
 	} catch (e) {
+		console.error('JSON解析失败:', e);
 		// 如果自定义解析失败，回退到原始JSON.parse
 		return JSON.parse(jsonString);
 	}
@@ -106,7 +121,6 @@ const request = (options) => {
 			dataType: 'text', // 获取原始文本，避免自动JSON.parse导致大整数精度丢失
 			timeout: options.timeout || 10000,
 			success: (res) => {
-				
 				if (res.statusCode === 200) {
 					// 使用大整数安全的JSON解析
 					let parsedData;

@@ -8,6 +8,18 @@ export const getUserInfo = () => {
 };
 
 /**
+ * 上传用户头像
+ * @param {String} filePath 本地文件路径
+ */
+export const uploadAvatar = (filePath) => {
+  return http.uploadFile({
+    url: '/common/upload',
+    filePath: filePath,
+    name: 'file'
+  });
+};
+
+/**
  * 更新用户信息
  * @param {Object} data 用户信息
  */
@@ -46,5 +58,6 @@ export const updateUserInfo = (data = {}) => {
 
 export default {
   getUserInfo,
-  updateUserInfo
+  updateUserInfo,
+  uploadAvatar
 };

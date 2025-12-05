@@ -168,16 +168,26 @@ export default {
 							const tokenParts = result.token.split('.');
 							if (tokenParts.length === 3) {
 								// 解码payload部分（Base64）
-								const payload = JSON.parse(atob(tokenParts[1]));
-								console.log('JWT payload:', payload);
+								const payloadBase64 = tokenParts[1];
+								const payloadString = atob(payloadBase64);
 								
-								// 从JWT中获取用户ID
+								// 使用大整数安全的JSON解析
+								// 将超过15位的整数转换为字符串
+								const processedPayload = payloadString.replace(
+									/"(user_base_id|userBaseId|userId|sub)"\s*:\s*(\d{15,})/g,
+									(match, key, number) => {
+										return `"${key}":"${number}"`;
+									}
+								);
+								
+								const payload = JSON.parse(processedPayload);
+								
+								// 从JWT中获取用户ID（已经是字符串格式）
 								userId = payload.user_base_id || payload.userBaseId || payload.userId || payload.sub;
 								
 								if (userId) {
-									// 转换为字符串避免大整数精度丢失
+									// 确保是字符串
 									userId = String(userId);
-									console.log('从JWT token中解析到用户ID:', userId);
 								}
 							}
 						} catch (error) {
@@ -187,9 +197,6 @@ export default {
 					
 					if (userId) {
 						uni.setStorageSync('userId', userId);
-						console.log('保存用户ID:', userId);
-					} else {
-						console.warn('登录响应中未找到用户ID，完整响应:', result);
 					}
 					
 					this.showMessage(result.msg || '登录成功！', 'success');

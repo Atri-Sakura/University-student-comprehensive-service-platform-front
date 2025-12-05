@@ -229,14 +229,39 @@ export default {
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.navHeight = this.statusBarHeight + 44;
     
-    console.log('onLoad options:', options);
     // 使用food.js中的API获取餐厅数据，同时传递selectedFoodId
     this.loadRestaurantData(options.restaurantId, options.selectedFoodId);
   },
   methods: {
     // 返回上一页
     navBack() {
-      uni.navigateBack();
+      // 获取当前页面栈
+      const pages = getCurrentPages();
+      
+      // 如果页面栈只有1页（刷新后的情况）或没有上一页，跳转到外卖列表
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/food/food',
+          fail: (err) => {
+            console.error('跳转到外卖列表失败:', err);
+            // 如果跳转外卖列表失败，跳转到首页
+            uni.reLaunch({
+              url: '/pages/index/index'
+            });
+          }
+        });
+      } else {
+        // 有上一页，正常返回
+        uni.navigateBack({
+          fail: (err) => {
+            console.error('返回上一页失败:', err);
+            // 如果返回失败，跳转到外卖列表
+            uni.reLaunch({
+              url: '/pages/food/food'
+            });
+          }
+        });
+      }
     },
     
     // 联系餐厅
@@ -264,34 +289,51 @@ export default {
     // 关闭商品详情
     // 使用food.js中的API获取餐厅数据
     async loadRestaurantData(id, selectedFoodId) {
-      console.log('loadRestaurantData called with id:', id, 'selectedFoodId:', selectedFoodId);
+      
+      // 验证商家ID是否有效
+      if (!id || id === 'undefined' || id === 'null') {
+        console.error('❌ 商家ID无效:', id);
+        uni.showToast({
+          title: '商家信息缺失，请重试',
+          icon: 'none',
+          duration: 2000
+        });
+        return;
+      }
+      
       try {
         // 先获取商家详细信息
         const merchantRes = await foodApi.getMerchantDetail(id);
-        console.log('merchantRes:', merchantRes);
         // 再获取商品列表
         const goodsRes = await foodApi.getMerchantGoodsList(id);
-        console.log('goodsRes:', goodsRes);
         
         // 处理商家信息
         let merchantInfo = null;
         if (merchantRes && merchantRes.code === 200) {
           // 兼容不同的API返回结构：直接在data中、在data.rows中、或在rows中
           if (merchantRes.data && typeof merchantRes.data === 'object' && !Array.isArray(merchantRes.data)) {
-            // 如果data是对象，直接使用
             merchantInfo = merchantRes.data;
           } else if (merchantRes.data && Array.isArray(merchantRes.data.rows) && merchantRes.data.rows.length > 0) {
-            // 如果data.rows是数组且有数据，使用第一个元素
             merchantInfo = merchantRes.data.rows[0];
           } else if (Array.isArray(merchantRes.rows) && merchantRes.rows.length > 0) {
-            // 如果rows是数组且有数据，使用第一个元素
             merchantInfo = merchantRes.rows[0];
           } else if (Array.isArray(merchantRes.data) && merchantRes.data.length > 0) {
-            // 如果data是数组且有数据，使用第一个元素
             merchantInfo = merchantRes.data[0];
+          } else {
+            console.warn('无法从API响应中提取商家信息');
           }
+        } else {
+          console.error('❌ 商家详情API调用失败');
+          console.error('错误码:', merchantRes?.code);
+          console.error('错误信息:', merchantRes?.message || merchantRes?.msg);
+          
+          // 显示友好的错误提示
+          uni.showToast({
+            title: merchantRes?.message || merchantRes?.msg || '获取商家信息失败',
+            icon: 'none',
+            duration: 2000
+          });
         }
-        console.log('merchantInfo:', merchantInfo);
         
         // 处理商品列表
         let goodsList = [];
@@ -305,7 +347,6 @@ export default {
             goodsList = goodsRes.rows;
           }
         }
-        console.log('processed goodsList:', goodsList);
         
         // 构建餐厅信息
         this.restaurant = {
@@ -336,10 +377,12 @@ export default {
           district: merchantInfo?.district || '',
           detail: merchantInfo?.detail || ''
         };
-        console.log('Final restaurant info:', this.restaurant);
-        console.log('配送费设置为:', this.restaurant.deliveryFee);
         
-        console.log('restaurant after setting:', this.restaurant);
+        // 如果商家名称仍然是"未知商家"，给出警告
+        if (this.restaurant.name === '未知商家') {
+          console.error('⚠️⚠️⚠️ 商家名称为"未知商家"，可能是数据获取失败');
+          console.error('请检查：1. 传入的商家ID是否正确 2. 后端商家数据是否存在 3. 商家是否已审核通过并营业中');
+        }
         
         // 设置当前餐厅ID
         this.currentRestaurantId = this.restaurant.id;
@@ -412,9 +455,20 @@ export default {
             }
           }
       } catch (error) {
-        console.error('加载餐厅数据失败:', error);
+        console.error('❌❌❌ 加载餐厅数据异常:', error);
+        console.error('错误堆栈:', error.stack);
+        
+        // 显示错误提示
+        uni.showToast({
+          title: '加载失败，请重试',
+          icon: 'none',
+          duration: 2000
+        });
+        
         // 不使用任何模拟数据，只显示空状态
-        this.restaurant = {};
+        this.restaurant = {
+          name: '加载失败'
+        };
         this.foodCategories = [];
         this.allFoods = [];
         this.originalFoods = [];
@@ -465,7 +519,6 @@ export default {
         try {
           // 调用后端搜索接口，传递正确的keyword参数
           const searchResponse = await foodApi.searchMerchantGoods(this.restaurant.id, this.searchKeyword);
-          console.log('searchMerchantGoods response:', searchResponse);
           
           if (searchResponse && searchResponse.code === 200 && searchResponse.data && Array.isArray(searchResponse.data)) {
             // 处理搜索结果

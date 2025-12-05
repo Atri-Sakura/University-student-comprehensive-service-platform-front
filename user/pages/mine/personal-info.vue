@@ -16,7 +16,7 @@
     <!-- 头像区域 -->
     <view class="avatar-section">
       <view class="avatar-wrapper" @click="changeAvatar">
-        <image v-if="userInfo.avatar" :src="userInfo.avatar" class="avatar-image" mode="aspectFill"></image>
+        <image v-if="userInfo.avatar" :src="userInfo.avatar" class="avatar-image" mode="aspectFill" @error="handleAvatarError"></image>
         <view v-else class="avatar-placeholder">
           <text class="avatar-text">待上传</text>
         </view>
@@ -108,7 +108,7 @@
 </template>
 
 <script>
-import { getUserInfo, updateUserInfo } from '@/api/user.js';
+import { getUserInfo, updateUserInfo, uploadAvatar } from '@/api/user.js';
 
 export default {
   data() {
@@ -140,6 +140,12 @@ export default {
     this.loadUserInfo();
   },
   methods: {
+    handleAvatarError(e) {
+      console.error('头像加载失败:', e);
+      // 静默处理图片加载错误，避免控制台污染
+      // 可以在这里设置默认头像
+      // this.userInfo.avatar = '/static/images/default-avatar.png';
+    },
     goBack() {
       // 获取当前页面栈信息
       const pages = getCurrentPages();
@@ -322,11 +328,71 @@ export default {
         sourceType: ['album', 'camera'],
         success: async (res) => {
           const tempFilePath = res.tempFilePaths[0];
-          this.userInfo.avatar = tempFilePath;
+          
+          // 显示上传中
+          uni.showLoading({
+            title: '上传中...',
+            mask: true
+          });
+          
           try {
+            // 先上传图片到服务器
+            const uploadRes = await uploadAvatar(tempFilePath);
+            
+            console.log('上传响应完整数据:', uploadRes);
+            console.log('uploadRes.data:', uploadRes.data);
+            
+            // 检查上传结果
+            if (!uploadRes || uploadRes.code !== 200) {
+              throw new Error(uploadRes?.msg || uploadRes?.message || '上传失败');
+            }
+            
+            // 获取服务器返回的图片URL
+            // 后端返回格式：{ code: 200, msg: "操作成功", data: { url: "...", fileName: "...", ... } }
+            let avatarUrl = null;
+            
+            // 尝试多种可能的数据结构
+            if (uploadRes.data) {
+              if (typeof uploadRes.data === 'string') {
+                // data 直接是字符串URL
+                avatarUrl = uploadRes.data;
+              } else if (uploadRes.data.url) {
+                // data 是对象，包含url字段
+                avatarUrl = uploadRes.data.url;
+              } else if (uploadRes.data.avatar) {
+                // data 是对象，包含avatar字段
+                avatarUrl = uploadRes.data.avatar;
+              } else if (uploadRes.data.fileName) {
+                // data 包含fileName，尝试使用它
+                avatarUrl = uploadRes.data.fileName;
+              }
+            } else if (uploadRes.url) {
+              // url 直接在响应根级别
+              avatarUrl = uploadRes.url;
+            }
+            
+            console.log('提取的avatarUrl:', avatarUrl);
+            
+            if (!avatarUrl) {
+              console.error('无法从响应中提取URL，完整响应:', uploadRes);
+              throw new Error('服务器未返回图片URL');
+            }
+            
+            // 更新本地头像（使用临时文件路径显示，但保存服务器URL）
+            this.userInfo.avatar = avatarUrl;
+            
+            // 保存用户信息
             await this.saveUserInfo({ toastTitle: '头像更新成功' });
+            
           } catch (error) {
+            console.error('头像上传失败:', error);
             this.userInfo.avatar = originalAvatar;
+            uni.hideLoading();
+            uni.showToast({
+              title: error.message || '头像上传失败',
+              icon: 'none',
+              duration: 2000
+            });
           }
         }
       });
