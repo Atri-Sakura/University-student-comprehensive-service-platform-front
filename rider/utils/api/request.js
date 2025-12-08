@@ -81,7 +81,7 @@ async function 请求(options) {
 		
 		// 使用 uni.request 发送请求
 		const response = await new Promise((resolve, reject) => {
-			uni.request({
+			uni.请求({
 				url: url,
 				method: method.toUpperCase(),
 				data: method.toUpperCase() === 'GET' ? {} : requestData,
@@ -125,6 +125,16 @@ function handleResponse(result) {
 		return {
 			code: 200,
 			data: result,
+			msg: '请求成功'
+		};
+	}
+
+	// 处理分页数据格式：{total: number, rows: array}
+	if (result.total !== undefined && result.rows !== undefined) {
+		return {
+			code: 200,
+			data: result.rows,
+			total: result.total,
 			msg: '请求成功'
 		};
 	}
