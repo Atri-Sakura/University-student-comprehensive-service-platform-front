@@ -12,12 +12,13 @@
 		<!-- 搜索和筛选区域 -->
 		<view class="search-section">
 			<view class="filter-dropdown" @tap="showTimeFilter">
-				<text class="filter-text">全部时间</text>
-				<text class="filter-arrow">▼</text>
-			</view>
+			<text class="filter-text">{{ selectedTimeFilter }}</text>
+			<text class="filter-arrow">▼</text>
+		</view>
 			<view class="search-bar">
 				<text class="search-icon">🔍</text>
-				<input class="search-input" placeholder="搜索订单号或地址" v-model="searchKeyword" />
+				<input class="search-input" placeholder="搜索订单号或地址" v-model="searchKeyword" @confirm="onSearch" />
+				<text class="search-btn" @tap="onSearch">搜索</text>
 			</view>
 		</view>
 
@@ -25,30 +26,30 @@
 		<view class="orders-list">
 			<view class="order-card" v-for="(order, index) in filteredOrders" :key="index">
 				<view class="order-header">
-					<text class="order-id">{{ order.id }}</text>
-					<view class="status-tags">
-						<text class="status-tag" :class="order.status === '已完成' ? 'completed' : order.status === '已取消' ? 'cancelled' : 'pending'">
-							{{ order.status }}
-						</text>
-						<text class="type-tag">{{ order.type }}</text>
+						<text class="order-id">{{ order.orderNo }}</text>
+						<view class="status-tags">
+							<text class="status-tag" :class="order.orderStatus === 4 ? 'completed' : order.orderStatus === 5 ? 'cancelled' : order.orderStatus === 3 ? 'delivering' : 'pending'">
+				{{ getOrderStatusText(order.orderStatus) }}
+			</text>
+							<text class="type-tag">{{ order.orderTypeName }}</text>
+						</view>
 					</view>
-				</view>
 				
-				<view class="order-time">{{ order.dateTime }}</view>
+				<view class="order-time">{{ order.createTime }}</view>
 				
 				<view class="order-details">
 					<view class="detail-item">
 						<text class="detail-dot green">●</text>
-						<text class="detail-text">{{ order.merchant }}</text>
+						<text class="detail-text">{{ order.pickAddress }}</text>
 					</view>
 					<view class="detail-item">
 						<text class="detail-dot red">●</text>
-						<text class="detail-text">{{ order.address }}</text>
+						<text class="detail-text">{{ order.deliverAddress }}</text>
 					</view>
 				</view>
 				
 				<view class="order-footer">
-					<text class="order-price">¥{{ order.price }}</text>
+					<text class="order-price">¥{{ order.totalAmount }}</text>
 					<button class="detail-btn" @tap="viewOrderDetail(order)">查看详情</button>
 				</view>
 			</view>
@@ -78,128 +79,172 @@
 </template>
 
 <script>
+	import api from '../../utils/api/index.js'
 	export default {
-		data() {
-			return {
-				searchKeyword: '',
-				selectedTimeFilter: '全部时间',
-				showFilter: false,
-				orders: [
-					{
-						id: 'ORD20240115001',
-						status: '已完成',
-						type: '外卖',
-						dateTime: '2024-01-15 14:30',
-						merchant: '星巴克咖啡(人民广场店)',
-						address: '上海市黄浦区南京东路123号',
-						price: '15.80'
-					},
-					{
-						id: 'ORD20240114002',
-						status: '已完成',
-						type: '外卖',
-						dateTime: '2024-01-14 18:45',
-						merchant: '麦当劳(淮海路店)',
-						address: '上海市徐汇区淮海中路456号',
-						price: '12.50'
-					},
-					{
-						id: 'ORD20240113003',
-						status: '已取消',
-						type: '外卖',
-						dateTime: '2024-01-13 12:20',
-						merchant: '肯德基(静安寺店)',
-						address: '上海市静安区南京西路789号',
-						price: '18.20'
-					},
-					{
-						id: 'ORD20240112004',
-						status: '已完成',
-						type: '外卖',
-						dateTime: '2024-01-12 19:15',
-						merchant: '必胜客(陆家嘴店)',
-						address: '上海市浦东新区陆家嘴环路1000号',
-						price: '25.60'
-					},
-					{
-						id: 'ORD20240111005',
-						status: '配送中',
-						type: '外卖',
-						dateTime: '2024-01-11 16:30',
-						merchant: '海底捞(徐家汇店)',
-						address: '上海市徐汇区漕溪北路88号',
-						price: '68.90'
-					}
-				]
+	data() {
+		return {
+			searchKeyword: '',
+			selectedTimeFilter: '全部时间',
+			showFilter: false,
+			orders: [],
+			loading: false,
+			page: 1,
+			pageSize: 10,
+			total: 0,
+			hasMore: true
+		}
+	},
+	computed: {
+		filteredOrders() {
+			return this.orders;
+		}
+	},
+	onLoad() {
+		// 页面加载时获取订单数据
+		this.getOrders();
+	},
+	methods: {
+		goBack() {
+			const pages = getCurrentPages();
+			if (pages.length > 1) {
+				uni.navigateBack({ delta: 1 });
+			} else {
+				uni.reLaunch({ url: '/pages/index/index' });
 			}
 		},
-		computed: {
-			filteredOrders() {
-				let filtered = this.orders;
+		showTimeFilter() {
+			this.showFilter = true;
+		},
+		hideTimeFilter() {
+			this.showFilter = false;
+		},
+		selectTimeFilter(time) {
+			this.selectedTimeFilter = time;
+			this.showFilter = false;
+			this.page = 1;
+			this.orders = [];
+			this.hasMore = true;
+			this.getOrders();
+		},
+		// 根据前端时间筛选转换为后端timeRange参数
+		getTimeRange() {
+			switch (this.selectedTimeFilter) {
+				case '今天':
+					return 'today';
+				case '昨天':
+					return 'yesterday';
+				case '本周':
+					return 'week';
+				case '本月':
+					return 'month';
+				case '全部时间':
+					return null;
+				default:
+					return null;
+			}
+		},
+		// 获取订单数据
+			async getOrders() {
+				if (this.loading || !this.hasMore) return;
 				
-				// 按搜索关键词筛选
-				if (this.searchKeyword) {
-					filtered = filtered.filter(order => 
-						order.id.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
-						order.address.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
-						order.merchant.toLowerCase().includes(this.searchKeyword.toLowerCase())
-					);
-				}
+				this.loading = true;
 				
-				// 按时间筛选
-				if (this.selectedTimeFilter !== '全部时间') {
-					const today = new Date();
-					filtered = filtered.filter(order => {
-						const orderDate = new Date(order.dateTime);
-						switch (this.selectedTimeFilter) {
-							case '今天':
-								return orderDate.toDateString() === today.toDateString();
-							case '昨天':
-								const yesterday = new Date(today);
-								yesterday.setDate(yesterday.getDate() - 1);
-								return orderDate.toDateString() === yesterday.toDateString();
-							case '本周':
-								const weekStart = new Date(today);
-								weekStart.setDate(today.getDate() - today.getDay());
-								return orderDate >= weekStart;
-							case '本月':
-								return orderDate.getMonth() === today.getMonth() && orderDate.getFullYear() === today.getFullYear();
-							default:
-								return true;
+				try {
+					// 构造查询条件
+					const orderMain = {
+						// 根据后端OrderMain对象结构添加需要的查询条件
+						orderNo: this.searchKeyword, // 搜索订单号
+						address: this.searchKeyword    // 搜索地址
+					};
+					
+					// 获取时间范围
+					const timeRange = this.getTimeRange();
+					
+					// 调用API获取订单数据
+					const result = await api.getHistoryOrders(orderMain, timeRange, this.page, this.pageSize);
+					
+					if (result.code === 200) {
+						// 处理返回的订单数据
+						const newOrders = result.data || [];
+						
+						
+						
+						// 如果是第一页，直接替换订单数组
+						if (this.page === 1) {
+							this.orders = newOrders;
+						} else {
+							// 否则追加到订单数组
+							this.orders = [...this.orders, ...newOrders];
 						}
+						
+						// 更新分页信息
+						this.total = result.total || 0;
+						this.hasMore = this.orders.length < this.total;
+						
+						// 页码加1
+						this.page++;
+					} else {
+						uni.showToast({
+							title: result.msg || '获取订单失败',
+							icon: 'none'
+						});
+					}
+				} catch (error) {
+					console.error('获取订单失败:', error);
+					uni.showToast({
+						title: '网络请求失败',
+						icon: 'none'
 					});
+				} finally {
+					this.loading = false;
 				}
-				
-				return filtered;
+			},
+			
+		// 订单状态文本转换
+		getOrderStatusText(status) {
+			switch (status) {
+				case 1:
+					return '待接单';
+				case 2:
+					return '待取货';
+				case 3:
+					return '配送中';
+				case 4:
+					return '已完成';
+				case 5:
+					return '已取消';
+				default:
+					return '未知状态';
 			}
 		},
-		methods: {
-			goBack() {
-				const pages = getCurrentPages();
-				if (pages.length > 1) {
-					uni.navigateBack({ delta: 1 });
-				} else {
-					uni.reLaunch({ url: '/pages/index/index' });
-				}
-			},
-			showTimeFilter() {
-				this.showFilter = true;
-			},
-			hideTimeFilter() {
-				this.showFilter = false;
-			},
-			selectTimeFilter(time) {
-				this.selectedTimeFilter = time;
-				this.showFilter = false;
-			},
-			viewOrderDetail(order) {
-				uni.showToast({
-					title: '查看订单详情',
-					icon: 'none'
-				});
-			}
+		// 搜索订单
+		onSearch() {
+			this.page = 1;
+			this.orders = [];
+			this.hasMore = true;
+			this.getOrders();
+		},
+		// 查看订单详情
+		viewOrderDetail(order) {
+			uni.navigateTo({
+				url: `/pages/order/order-detail?orderId=${order.orderMainId || order.id || order.orderNo}`
+			});
+		},
+		// 下拉刷新
+		onPullDownRefresh() {
+			this.page = 1;
+			this.orders = [];
+			this.hasMore = true;
+			this.getOrders().then(() => {
+				uni.stopPullDownRefresh();
+			});
+		},
+		// 上拉加载更多
+		onReachBottom() {
+			this.getOrders();
 		}
 	}
+}
 </script>
 
 <style scoped>
@@ -317,6 +362,19 @@
 		color: #999;
 	}
 
+	.search-btn {
+		font-size: 28rpx;
+		color: #2e7d32;
+		font-weight: 500;
+		padding: 8rpx 16rpx;
+		border-radius: 6rpx;
+		background-color: rgba(46, 125, 50, 0.1);
+	}
+
+	.search-btn:active {
+		background-color: rgba(46, 125, 50, 0.2);
+	}
+
 	/* 订单列表 */
 	.orders-list {
 		padding: 20rpx 30rpx;
@@ -368,6 +426,11 @@
 	.status-tag.pending {
 		background-color: #fff7e6;
 		color: #fa8c16;
+	}
+	
+	.status-tag.delivering {
+		background-color: #e6f7ff;
+		color: #1890ff;
 	}
 
 	.type-tag {
