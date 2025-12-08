@@ -4,17 +4,17 @@
  * 待后端接口完成后实现
  */
 
-import { request } from '../api.js';
+import request from './request.js';
 
-// API路径（待后端提供）
+// API路径
 const ORDER_API = {
 	NEW_ORDERS: '/api/rider/order/new',           // 获取新订单列表
-	ORDER_DETAIL: '/api/rider/order/detail',      // 订单详情
+	ORDER_DETAIL: '/rider/order',                 // 订单详情
 	ACCEPT_ORDER: '/api/rider/order/accept',      // 接单
 	PICKUP_ORDER: '/api/rider/order/pickup',      // 取货
 	DELIVER_ORDER: '/api/rider/order/deliver',    // 配送中
 	COMPLETE_ORDER: '/api/rider/order/complete',  // 完成配送
-	HISTORY_ORDERS: '/api/rider/order/history',   // 历史订单
+	HISTORY_ORDERS: '/rider/order/myOrders',      // 历史订单
 	ORDER_STATISTICS: '/api/rider/order/stats'    // 订单统计
 };
 
@@ -93,15 +93,16 @@ export async function completeOrder(orderId, deliveryCode) {
 
 /**
  * 获取历史订单
+ * @param {Object} orderMain 查询条件
+ * @param {String} timeRange 时间范围: today-今日, yesterday-昨日, week-本周, month-本月
  * @param {Number} page 页码
  * @param {Number} pageSize 每页数量
- * @param {String} status 订单状态（可选）
  */
-export async function getHistoryOrders(page = 1, pageSize = 10, status = '') {
+export async function getHistoryOrders(orderMain = {}, timeRange = null, page = 1, pageSize = 10) {
 	return request({
 		url: ORDER_API.HISTORY_ORDERS,
 		method: 'GET',
-		data: { page, pageSize, status }
+		data: { ...orderMain, timeRange, page, pageSize }
 	});
 }
 

@@ -33,7 +33,7 @@
 				<view class="info-list">
 					<view class="info-item">
 						<text class="info-label">订单编号</text>
-						<text class="info-value">{{ orderInfo.id }}</text>
+						<text class="info-value">{{ orderInfo.orderNo }}</text>
 					</view>
 					<view class="info-item">
 						<text class="info-label">下单时间</text>
@@ -149,16 +149,7 @@
 					</view>
 				</view>
 				
-				<view class="route-stats">
-					<view class="stat-item">
-						<text class="stat-label">预计距离</text>
-						<text class="stat-value">{{ orderInfo.estimatedDistance }}</text>
-					</view>
-					<view class="stat-item">
-						<text class="stat-label">预计时间</text>
-						<text class="stat-value">{{ orderInfo.estimatedTime }}</text>
-					</view>
-				</view>
+				
 			</view>
 
 			<!-- 操作按钮 -->
@@ -194,15 +185,46 @@
 </template>
 
 <script>
-import { getRiderOrderDetail, riderAcceptOrder, riderPickupOrder, riderDeliverOrder } from '@/utils/api/index.js';
+import { getOrderDetail } from '@/utils/api/order.js';
 
 export default {
 	data() {
 		return {
 			orderId: '',
 			orderStatus: 'new', // new, pickup, delivery, completed
-			orderInfo: {},
-			loading: false
+			orderInfo: {
+				id: 'ORD2024123456',
+				type: 'takeout',
+				typeText: '外卖',
+				createTime: '2024-01-15 14:30',
+				deliveryTime: '15:00-15:30',
+				deliveryFee: '8.00',
+				merchant: '星巴克咖啡（人民广场店）',
+				merchantAddress: '上海市黄浦区南京东路123号星巴克咖啡店',
+				merchantDistance: '500米',
+				customerName: '张先生',
+				customerAddress: '上海市黄浦区南京东路456号办公楼A座1201室',
+				customerNote: '请送到前台，谢谢',
+				estimatedDistance: '2.3公里',
+				estimatedTime: '12分钟',
+				completedTime: '2024-01-15 15:25',
+				goods: [
+					{
+						name: '美式咖啡',
+						spec: '大杯/热饮',
+						price: '28.00',
+						quantity: 2,
+						image: '/static/coffee1.jpg'
+					},
+					{
+						name: '拿铁咖啡',
+						spec: '中杯/热饮',
+						price: '32.00',
+						quantity: 1,
+						image: '/static/coffee2.jpg'
+					}
+				]
+			}
 		}
 	},
 	
@@ -218,100 +240,107 @@ export default {
 			uni.navigateBack({ delta: 1 });
 		},
 		
-		async loadOrderDetail() {
-			if (this.loading) return;
+		loadOrderDetail() {
+			// 根据订单ID加载订单详情
 			
-			this.loading = true;
-			try {
-				const response = await getRiderOrderDetail(this.orderId);
-				
-				if (response.code === 200 && response.data) {
-					const data = response.data;
-					
-					// 转换后端数据为前端格式
-					this.orderInfo = this.convertOrderDetail(data);
-					
-					// 设置订单状态
-					const statusMap = {
-						1: 'new',      // 待接单
-						2: 'pickup',   // 待取货
-						3: 'delivery', // 配送中
-						4: 'completed' // 已完成
-					};
-					this.orderStatus = statusMap[data.orderStatus] || 'new';
+			// 处理订单ID类型不匹配的问题
+			let orderMainId = this.orderId;
+			
+			// 如果是字符串类型，尝试从中提取数字
+			if (typeof orderMainId === 'string') {
+				// 提取所有数字
+				const numericId = orderMainId.replace(/[^\d]/g, '');
+				if (numericId) {
+					orderMainId = parseInt(numericId, 10);
 				} else {
-					uni.showToast({
-						title: response.msg || '加载订单失败',
-						icon: 'none'
-					});
+					// 如果没有数字，尝试直接转换
+					orderMainId = parseInt(orderMainId, 10);
 				}
-			} catch (error) {
-				console.error('加载订单详情失败:', error);
-				uni.showToast({
-					title: '加载订单失败',
-					icon: 'none'
+			}
+			
+			// 确保是数字类型
+			if (isNaN(orderMainId)) {
+				uni.showToast({ title: '无效的订单ID', icon: 'none' });
+				return;
+			}
+			
+			getOrderDetail(orderMainId)
+				.then(res => {
+					if (res.code === 200) {
+						const order = res.data;
+						this.orderInfo = {
+							id: order.orderMainId || order.orderId || order.id,
+							orderNo: order.orderNo || order.orderId || order.id,
+							type: order.orderType === 1 ? 'takeout' : 'errand',
+							typeText: order.orderType === 1 ? '外卖' : '跑腿',
+							createTime: order.createTime,
+							deliveryTime: this.formatDeliveryTime(order),
+							deliveryFee: order.deliveryFeeAmount?.toFixed(2) || order.deliveryFee?.toFixed(2) || '0.00',
+							merchant: order.merchantName || order.pickName || order.shopName,
+						merchantAddress: order.merchantAddress || order.pickAddress || order.shopAddress,
+							merchantDistance: this.calculateDistance(order),
+							customerName: order.userNickname || order.customerName || order.deliverName,
+							customerAddress: order.customerAddress || order.deliverAddress,
+							customerNote: order.customerNote || order.remark,
+							estimatedDistance: order.estimatedDistance,
+							estimatedTime: order.estimatedTime,
+							completedTime: order.completeTime,
+							goods: (order.orderTakeoutDetailList || order.orderGoodsList || order.orderItems || []).map(item => ({
+								name: item.goodsName || item.name,
+								spec: item.goodsSpec || item.spec,
+								price: item.goodsPrice || item.price,
+								quantity: item.goodsQuantity || item.quantity,
+								image: item.goodsImage || item.image
+							}))
+						};
+						
+						// 更新订单状态
+						this.orderStatus = this.mapOrderStatus(order.orderStatus);
+					} else {
+						uni.showToast({ title: res.msg || '加载失败', icon: 'none' });
+					}
+				})
+				.catch(err => {
+					console.error('加载订单详情失败:', err);
+					uni.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
 				});
-			} finally {
-				this.loading = false;
-			}
 		},
 		
-		// 转换后端订单详情为前端格式
-		convertOrderDetail(data) {
-			const orderTypeMap = {
-				1: { type: 'takeout', typeText: '外卖' },
-				2: { type: 'express', typeText: '跑腿' },
-				3: { type: 'secondhand', typeText: '二手交易' }
+		// 映射订单状态
+		mapOrderStatus(orderStatus) {
+			const statusMap = {
+				1: 'new',       // 待接单
+				2: 'pickup',    // 待取货
+				3: 'delivery',  // 配送中
+				4: 'completed', // 已完成
+				5: 'cancelled', // 已取消
+				6: 'completed'  // 已完成（额外状态值）
 			};
-			
-			const typeInfo = orderTypeMap[data.orderType] || { type: 'takeout', typeText: '外卖' };
-			
-			return {
-				id: data.orderMainId || data.id,
-				type: typeInfo.type,
-				typeText: typeInfo.typeText,
-				createTime: data.createTime || '',
-				deliveryTime: data.expectedDeliveryTime || '尽快送达',
-				deliveryFee: data.deliveryFee || '0.00',
-				merchant: data.merchantName || '商家',
-				merchantAddress: data.pickupAddress || '',
-				merchantDistance: data.distance || '未知',
-				customerName: data.customerName || '顾客',
-				customerAddress: data.deliveryAddress || '',
-				customerNote: data.remark || '',
-				estimatedDistance: data.estimatedDistance || '未知',
-				estimatedTime: data.estimatedTime || '未知',
-				completedTime: data.completedTime || '',
-				goods: this.convertGoods(data),
-				orderMainId: data.orderMainId || data.id
-			};
+			return statusMap[orderStatus] || 'new';
 		},
 		
-		// 转换商品信息
-		convertGoods(data) {
-			// 如果是外卖订单，从 orderTakeoutDetail 获取
-			if (data.orderType === 1 && data.takeoutDetails) {
-				return data.takeoutDetails.map(item => ({
-					name: item.productName || '',
-					spec: item.specification || '',
-					price: item.unitPrice || '0.00',
-					quantity: item.quantity || 1,
-					image: item.productImage || '/static/logo.png'
-				}));
+		// 格式化配送时间
+		formatDeliveryTime(order) {
+			if (order.deliveryTime) {
+				return order.deliveryTime;
 			}
-			
-			// 如果是跑腿订单，从 orderErrandDetail 获取
-			if (data.orderType === 2 && data.errandDetail) {
-				return [{
-					name: data.errandDetail.itemDescription || '跑腿服务',
-					spec: data.errandDetail.errandType === 1 ? '帮我送' : '帮我买',
-					price: data.totalAmount || '0.00',
-					quantity: 1,
-					image: '/static/logo.png'
-				}];
+			// 如果没有直接的配送时间，可以根据下单时间和预计送达时间计算
+			if (order.createTime && order.estimatedTime) {
+				const createDate = new Date(order.createTime);
+				const estimatedMinutes = parseInt(order.estimatedTime);
+				const deliveryDate = new Date(createDate.getTime() + estimatedMinutes * 60000);
+				return deliveryDate.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 			}
-			
-			return [];
+			return '';
+		},
+		
+		// 计算距离（这里只是示例，实际应该从后端获取）
+		calculateDistance(order) {
+			if (order.distance) {
+				return `${order.distance}米`;
+			}
+			// 模拟距离
+			return '500米';
 		},
 		
 		getStatusIcon(status) {
@@ -408,119 +437,74 @@ export default {
 			});
 		},
 		
-		async acceptOrder() {
+		rejectOrder() {
+			uni.showModal({
+				title: '拒绝订单',
+				content: '确定要拒绝这个订单吗？',
+				confirmText: '确定拒绝',
+				confirmColor: '#ff4d4f',
+				success: (res) => {
+					if (res.confirm) {
+						uni.showToast({
+							title: '已拒绝订单',
+							icon: 'success'
+						});
+						
+						setTimeout(() => {
+							uni.navigateBack({ delta: 1 });
+						}, 1500);
+					}
+				}
+			});
+		},
+		
+		acceptOrder() {
 			uni.showModal({
 				title: '确认接单',
 				content: `确定要接受订单 ${this.orderInfo.id} 吗？`,
-				success: async (res) => {
+				success: (res) => {
 					if (res.confirm) {
-						try {
-							const response = await riderAcceptOrder(this.orderInfo.orderMainId || this.orderId);
-							
-							if (response.code === 200) {
-								this.orderStatus = 'pickup';
-								
-								uni.showToast({
-									title: '接单成功',
-									icon: 'success'
-								});
-								
-								// 刷新订单详情
-								setTimeout(() => {
-									this.loadOrderDetail();
-								}, 1000);
-							} else {
-								uni.showToast({
-									title: response.msg || '接单失败',
-									icon: 'none'
-								});
-							}
-						} catch (error) {
-							console.error('接单失败:', error);
-							uni.showToast({
-								title: error.message || '接单失败',
-								icon: 'none'
-							});
-						}
+						this.orderStatus = 'pickup';
+						
+						uni.showToast({
+							title: '接单成功',
+							icon: 'success'
+						});
 					}
 				}
 			});
 		},
 		
-		async confirmPickup() {
+		confirmPickup() {
 			uni.showModal({
 				title: '确认取货',
 				content: `确定已取到订单 ${this.orderInfo.id} 的货物吗？`,
-				success: async (res) => {
+				success: (res) => {
 					if (res.confirm) {
-						try {
-							const response = await riderPickupOrder(this.orderInfo.orderMainId || this.orderId);
-							
-							if (response.code === 200) {
-								this.orderStatus = 'delivery';
-								
-								uni.showToast({
-									title: '取货成功，请尽快送达',
-									icon: 'success'
-								});
-								
-								// 刷新订单详情
-								setTimeout(() => {
-									this.loadOrderDetail();
-								}, 1000);
-							} else {
-								uni.showToast({
-									title: response.msg || '取货失败',
-									icon: 'none'
-								});
-							}
-						} catch (error) {
-							console.error('取货失败:', error);
-							uni.showToast({
-								title: error.message || '取货失败',
-								icon: 'none'
-							});
-						}
+						this.orderStatus = 'delivery';
+						
+						uni.showToast({
+							title: '取货成功，请尽快送达',
+							icon: 'success'
+						});
 					}
 				}
 			});
 		},
 		
-		async confirmDelivery() {
+		confirmDelivery() {
 			uni.showModal({
 				title: '确认送达',
 				content: `确定订单 ${this.orderInfo.id} 已送达吗？`,
-				success: async (res) => {
+				success: (res) => {
 					if (res.confirm) {
-						try {
-							const response = await riderDeliverOrder(this.orderInfo.orderMainId || this.orderId);
-							
-							if (response.code === 200) {
-								this.orderStatus = 'completed';
-								this.orderInfo.completedTime = new Date().toLocaleString();
-								
-								uni.showToast({
-									title: '订单已完成',
-									icon: 'success'
-								});
-								
-								// 刷新订单详情
-								setTimeout(() => {
-									this.loadOrderDetail();
-								}, 1000);
-							} else {
-								uni.showToast({
-									title: response.msg || '送达失败',
-									icon: 'none'
-								});
-							}
-						} catch (error) {
-							console.error('送达失败:', error);
-							uni.showToast({
-								title: error.message || '送达失败',
-								icon: 'none'
-							});
-						}
+						this.orderStatus = 'completed';
+						this.orderInfo.completedTime = new Date().toLocaleString();
+						
+						uni.showToast({
+							title: '订单已完成',
+							icon: 'success'
+						});
 					}
 				}
 			});
