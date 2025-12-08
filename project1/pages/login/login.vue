@@ -65,11 +65,6 @@
 					<button class="register-btn" @click="handleRegister">注册</button>
 				</view>
 				
-				<!-- 辅助功能 -->
-				<view class="helper-links">
-					<text class="helper-link" @click="handleSmsLogin">短信验证码登录</text>
-					<text class="helper-link" @click="handleForgotPassword">忘记密码</text>
-				</view>
 			</view>
 		</view>
 	</view>
@@ -299,23 +294,6 @@ export default {
 			})
 		},
 		
-		// 短信验证码登录
-		handleSmsLogin() {
-			uni.showToast({
-				title: '跳转到短信登录',
-				icon: 'none'
-			})
-			// 这里可以跳转到短信登录页面
-		},
-		
-		// 忘记密码
-		handleForgotPassword() {
-			uni.showToast({
-				title: '跳转到找回密码',
-				icon: 'none'
-			})
-			// 这里可以跳转到找回密码页面
-		},
 		
 		// 刷新验证码
 		async refreshCaptcha() {
@@ -597,17 +575,6 @@ export default {
     cursor: pointer;
 }
 
-.helper-links {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 20px;
-}
-
-.helper-link {
-    font-size: 13px;
-    color: #666;
-    text-decoration: none;
-}
 
 /* 响应式设计 */
 @media screen and (max-width: 480px) {
@@ -637,8 +604,5 @@ export default {
         font-size: 15px;
     }
     
-    .helper-link {
-        font-size: 12px;
-    }
 }
 </style>

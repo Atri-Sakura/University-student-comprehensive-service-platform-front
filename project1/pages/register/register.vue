@@ -10,22 +10,7 @@
 			
 			<!-- 表单区域 -->
 			<view class="form-container">
-				<!-- 身份选择 -->
-				<view class="input-group">
-					<text class="input-label">身份选择</text>
-					<picker 
-						:value="identityIndex" 
-						:range="identityOptions" 
-						@change="onIdentityChange"
-						class="picker-field"
-					>
-						<view class="picker-display">
-							<text class="picker-text">{{ identityOptions[identityIndex] }}</text>
-							<text class="picker-arrow">▼</text>
-						</view>
-					</picker>
-				</view>
-				
+		
 				<!-- 手机号输入 -->
 				<view class="input-group">
 					<text class="input-label">手机号</text>
@@ -110,14 +95,6 @@ export default {
 			verificationCode: '',
 			showPassword: false,
 			showConfirmPassword: false,
-			identityIndex: 0,
-			identityOptions: ['学生', '骑手', '商家'],
-			// 身份映射，用于匹配API配置中的key
-			identityMap: {
-				'学生': 'student',
-				'骑手': 'rider',
-				'商家': 'merchant'
-			},
 			captchaImage: '', // 验证码图片URL
 			uuid: '' // 验证码UUID
 		}
@@ -131,11 +108,6 @@ export default {
 		// 切换确认密码显示
 		toggleConfirmPassword() {
 			this.showConfirmPassword = !this.showConfirmPassword
-		},
-		
-		// 身份选择变化
-		onIdentityChange(e) {
-			this.identityIndex = e.detail.value
 		},
 		
 		// 页面加载时获取验证码
@@ -210,19 +182,8 @@ export default {
 			})
 			
 			try {
-				// 根据身份选择对应的注册接口
-				const identityName = this.identityOptions[this.identityIndex];
-				const identityKey = this.identityMap[identityName];
-				
-				// 构建注册接口URL
-				let registerUrl = '';
-				if (identityKey === 'student') {
-					registerUrl = `${API_BASE_URL}/user/register`;
-				} else if (identityKey === 'rider') {
-					registerUrl = `${API_BASE_URL}/rider/register`;
-				} else if (identityKey === 'merchant') {
-					registerUrl = `${API_BASE_URL}/merchant/register`;
-				}
+				// 固定使用商家注册接口
+				const registerUrl = `${API_BASE_URL}/merchant/register`;
 				
 				// 构建请求参数
 				const registerData = {
