@@ -22,7 +22,7 @@
 		<!-- 数据统计卡片 -->
 		<view class="stats-card">
 			<view class="stat-item" @click="goToOrders">
-				<text class="stat-number">15</text>
+				<text class="stat-number">{{ statistics.todayCompleted }}</text>
 				<text class="stat-label">今日完成</text>
 				<view class="stat-link">
 					<text>我的订单</text>
@@ -31,7 +31,7 @@
 			</view>
 			<view class="divider"></view>
 			<view class="stat-item" @click="goToWallet">
-				<text class="stat-number">256.80</text>
+				<text class="stat-number">{{ statistics.todayIncome }}</text>
 				<text class="stat-label">今日收入</text>
 				<view class="stat-link">
 					<text>我的钱包</text>
@@ -90,7 +90,8 @@
 
 <script>
 	import { getRiderBaseInfo } from '@/utils/profile-api.js';
-import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
+	import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
+	import { getOrderStatistics } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -98,9 +99,11 @@ import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 				userInfo: {
 					name: '未设置',  // 显示骑手昵称
 					rating: 4.8,
-					todayOrders: 15,
-					todayIncome: 256.80,
 					avatar: '/static/logo.png'
+				},
+				statistics: {
+					todayCompleted: 0,
+					todayIncome: '0.00'
 				},
 				loading: false
 			}
@@ -120,10 +123,11 @@ import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 				
 				this.loading = true;
 				try {
-					// 并行请求获取骑手基本信息和评价统计信息
-					const [baseInfoResponse, statisticsResponse] = await Promise.all([
+					// 并行请求获取骑手基本信息、评价统计信息和订单统计信息
+					const [baseInfoResponse, evaluationResponse, orderStatsResponse] = await Promise.all([
 						getRiderBaseInfo(),
-						getMyEvaluationStatistics()
+						getMyEvaluationStatistics(),
+						getOrderStatistics()
 					]);
 					
 					// 更新骑手基本信息
@@ -155,18 +159,31 @@ import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 					}
 					
 					// 更新评价统计信息
-					if (statisticsResponse.code === 200 && statisticsResponse.data) {
-						const statistics = statisticsResponse.data;
-						console.log('⭐ 个人中心获取到的评价统计:', statistics);
+					if (evaluationResponse.code === 200 && evaluationResponse.data) {
+						const evalStats = evaluationResponse.data;
+						console.log('⭐ 个人中心获取到的评价统计:', evalStats);
 						
 						// 更新综合评分，只有当avgRating为null或undefined时才使用默认值，0是有效的评分
 						this.userInfo = {
 							...this.userInfo,
-							rating: statistics.avgRating !== null && statistics.avgRating !== undefined ? statistics.avgRating : this.userInfo.rating
+							rating: evalStats.avgRating !== null && evalStats.avgRating !== undefined ? evalStats.avgRating : this.userInfo.rating
+						};
+					}
+					
+					// 更新订单统计信息
+					if (orderStatsResponse.code === 200 && orderStatsResponse.data) {
+						const orderStats = orderStatsResponse.data;
+						console.log('📊 个人中心获取到的订单统计:', orderStats);
+						
+						// 更新今日完成订单数和今日收入
+						this.statistics = {
+							todayCompleted: orderStats.todayCount || 0,
+							todayIncome: orderStats.todayIncome || '0.00'
 						};
 					}
 					
 					console.log('📱 个人中心更新后的用户信息:', this.userInfo);
+					console.log('📊 个人中心订单统计:', this.statistics);
 				} catch (error) {
 					console.error('个人中心获取骑手信息失败:', error);
 					// 网络错误时从本地缓存获取

@@ -78,66 +78,31 @@
 </template>
 
 <script>
+	import { getMyOrders } from '@/utils/api/index.js';
+	
 	export default {
 		data() {
 			return {
 				searchKeyword: '',
 				selectedTimeFilter: '全部时间',
 				showFilter: false,
-				orders: [
-					{
-						id: 'ORD20240115001',
-						status: '已完成',
-						type: '外卖',
-						dateTime: '2024-01-15 14:30',
-						merchant: '星巴克咖啡(人民广场店)',
-						address: '上海市黄浦区南京东路123号',
-						price: '15.80'
-					},
-					{
-						id: 'ORD20240114002',
-						status: '已完成',
-						type: '外卖',
-						dateTime: '2024-01-14 18:45',
-						merchant: '麦当劳(淮海路店)',
-						address: '上海市徐汇区淮海中路456号',
-						price: '12.50'
-					},
-					{
-						id: 'ORD20240113003',
-						status: '已取消',
-						type: '外卖',
-						dateTime: '2024-01-13 12:20',
-						merchant: '肯德基(静安寺店)',
-						address: '上海市静安区南京西路789号',
-						price: '18.20'
-					},
-					{
-						id: 'ORD20240112004',
-						status: '已完成',
-						type: '外卖',
-						dateTime: '2024-01-12 19:15',
-						merchant: '必胜客(陆家嘴店)',
-						address: '上海市浦东新区陆家嘴环路1000号',
-						price: '25.60'
-					},
-					{
-						id: 'ORD20240111005',
-						status: '配送中',
-						type: '外卖',
-						dateTime: '2024-01-11 16:30',
-						merchant: '海底捞(徐家汇店)',
-						address: '上海市徐汇区漕溪北路88号',
-						price: '68.90'
-					}
-				]
+				orders: [],
+				loading: false
 			}
+		},
+		onLoad() {
+			// 页面加载时加载订单数据
+			this.loadOrders();
+		},
+		onShow() {
+			// 页面显示时刷新订单数据
+			this.loadOrders();
 		},
 		computed: {
 			filteredOrders() {
 				let filtered = this.orders;
 				
-				// 按搜索关键词筛选
+				// 按搜索关键词筛选（前端筛选）
 				if (this.searchKeyword) {
 					filtered = filtered.filter(order => 
 						order.id.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
@@ -146,34 +111,86 @@
 					);
 				}
 				
-				// 按时间筛选
-				if (this.selectedTimeFilter !== '全部时间') {
-					const today = new Date();
-					filtered = filtered.filter(order => {
-						const orderDate = new Date(order.dateTime);
-						switch (this.selectedTimeFilter) {
-							case '今天':
-								return orderDate.toDateString() === today.toDateString();
-							case '昨天':
-								const yesterday = new Date(today);
-								yesterday.setDate(yesterday.getDate() - 1);
-								return orderDate.toDateString() === yesterday.toDateString();
-							case '本周':
-								const weekStart = new Date(today);
-								weekStart.setDate(today.getDate() - today.getDay());
-								return orderDate >= weekStart;
-							case '本月':
-								return orderDate.getMonth() === today.getMonth() && orderDate.getFullYear() === today.getFullYear();
-							default:
-								return true;
-						}
-					});
-				}
-				
 				return filtered;
 			}
 		},
 		methods: {
+			// 加载订单列表
+			async loadOrders() {
+				if (this.loading) return;
+				
+				this.loading = true;
+				try {
+					// 构建查询参数
+					const params = {
+						pageNum: 1,
+						pageSize: 100
+					};
+					
+					// 根据时间筛选设置 timeRange 参数
+					if (this.selectedTimeFilter !== '全部时间') {
+						const timeRangeMap = {
+							'今天': 'today',
+							'昨天': 'yesterday',
+							'本周': 'week',
+							'本月': 'month'
+						};
+						params.timeRange = timeRangeMap[this.selectedTimeFilter];
+					}
+					
+					// 调用后端API
+					const response = await getMyOrders(params);
+					
+					if (response.code === 200) {
+						// 转换后端数据为前端格式
+						const rows = response.rows || [];
+						this.orders = rows.map(item => this.convertOrderData(item));
+					} else {
+						uni.showToast({
+							title: response.msg || '加载订单失败',
+							icon: 'none'
+						});
+					}
+				} catch (error) {
+					console.error('加载订单失败:', error);
+					uni.showToast({
+						title: '加载订单失败',
+						icon: 'none'
+					});
+				} finally {
+					this.loading = false;
+				}
+			},
+			// 转换后端订单数据为前端格式
+			convertOrderData(item) {
+				// 订单类型映射
+				const orderTypeMap = {
+					1: '外卖',
+					2: '跑腿',
+					3: '二手交易'
+				};
+				
+				// 订单状态映射
+				const statusMap = {
+					1: '待接单',
+					2: '待取货',
+					3: '配送中',
+					4: '已完成',
+					5: '已取消',
+					6: '已拒单'
+				};
+				
+				return {
+					id: item.orderNo || item.orderMainId,
+					orderMainId: item.orderMainId, // 保留原始ID用于详情跳转
+					status: statusMap[item.orderStatus] || '未知',
+					type: orderTypeMap[item.orderType] || '未知',
+					dateTime: item.createTime || item.updateTime || '',
+					merchant: item.pickAddress || '取货地址',
+					address: item.deliverAddress || '配送地址',
+					price: item.totalAmount || '0.00'
+				};
+			},
 			goBack() {
 				const pages = getCurrentPages();
 				if (pages.length > 1) {
@@ -191,11 +208,13 @@
 			selectTimeFilter(time) {
 				this.selectedTimeFilter = time;
 				this.showFilter = false;
+				// 切换时间筛选时重新加载订单
+				this.loadOrders();
 			},
 			viewOrderDetail(order) {
-				uni.showToast({
-					title: '查看订单详情',
-					icon: 'none'
+				// 跳转到订单详情页面
+				uni.navigateTo({
+					url: `/pages/order/order-detail?orderId=${order.orderMainId}`
 				});
 			}
 		}

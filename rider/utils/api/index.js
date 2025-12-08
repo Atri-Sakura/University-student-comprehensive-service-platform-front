@@ -45,13 +45,7 @@ export const {
 // 订单相关
 export const {
 	getNewOrders,
-	getOrderDetail,
-	acceptOrder,
-	pickupOrder,
-	deliverOrder,
-	completeOrder,
-	getHistoryOrders,
-	getOrderStatistics
+	getHistoryOrders
 } = orderApi;
 
 // 订单流转相关（骑手接单、取货、送达）
@@ -59,8 +53,8 @@ export const {
 	// 订单查询
 	getAvailableOrders,
 	getMyOrders,
-	getOrderDetail: getRiderOrderDetail,
-	getOrderStatistics: getRiderOrderStatistics,
+	getOrderDetail,
+	getOrderStatistics,
 	// 订单流转
 	acceptOrder: riderAcceptOrder,
 	pickupOrder: riderPickupOrder,
