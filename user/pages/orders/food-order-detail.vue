@@ -112,7 +112,6 @@
             </view>
             <view class="button-row">
               <button class="action-button" @click="applyAfterSale">申请售后</button>
-              <button class="action-button" @click="buyAgain">再来一单</button>
             </view>
           </view>
           
@@ -304,19 +303,7 @@ export default {
       })
     },
     
-    // 再来一单
-    buyAgain() {
-      uni.showToast({
-        title: '已添加到购物车',
-        icon: 'success'
-      })
-      // 实际项目中应该跳转到商品详情页或购物车页面
-      setTimeout(() => {
-        uni.navigateTo({
-          url: '/pages/index/index'
-        })
-      }, 1500)
-    },
+
     
     // 取消订单
     cancelOrder() {
@@ -363,8 +350,10 @@ export default {
     
     // 评价骑手
     evaluateRider() {
+      console.log('评价骑手 - 订单号:', this.order.orderNo);
+      // 跳转到评价骑手页面，并传递订单号
       uni.navigateTo({
-        url: `/pages/orders/food-order-evaluate?orderId=${this.order.orderId}&type=rider`
+        url: `/pages/orders/rate-delivery?orderNo=${this.order.orderNo}`
       })
     },
     
