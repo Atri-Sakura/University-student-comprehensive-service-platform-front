@@ -204,7 +204,18 @@ export default {
   methods: {
     // 返回上一页
     navBack() {
-      uni.navigateBack();
+      // 获取当前页面栈
+      const pages = getCurrentPages();
+      
+      // 如果页面栈中只有当前页面（比如刷新后），则跳转到首页
+      if (pages.length <= 1) {
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        // 否则正常返回上一页
+        uni.navigateBack();
+      }
     },
 
     // 查看课程详情
