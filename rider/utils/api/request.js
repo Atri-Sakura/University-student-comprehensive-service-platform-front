@@ -81,7 +81,7 @@ async function 请求(options) {
 		
 		// 使用 uni.request 发送请求
 		const response = await new Promise((resolve, reject) => {
-			uni.请求({
+			uni.request({
 				url: url,
 				method: method.toUpperCase(),
 				data: method.toUpperCase() === 'GET' ? {} : requestData,

@@ -4,7 +4,7 @@
  * 待后端接口完成后实现
  */
 
-import request from './request.js';
+import { request } from '../api.js';
 
 // API路径
 const ORDER_API = {
@@ -36,8 +36,13 @@ export async function getNewOrders(page = 1, pageSize = 10) {
  * @param {String} orderId 订单ID
  */
 export async function getOrderDetail(orderId) {
+	console.log('🔗 getOrderDetail接收到的orderId:', orderId);
+	console.log('🔗 orderId类型:', typeof orderId);
+	const url = `${ORDER_API.ORDER_DETAIL}/${orderId}`;
+	console.log('🔗 最终请求URL:', url);
+	
 	return request({
-		url: `${ORDER_API.ORDER_DETAIL}/${orderId}`,
+		url: url,
 		method: 'GET'
 	});
 }

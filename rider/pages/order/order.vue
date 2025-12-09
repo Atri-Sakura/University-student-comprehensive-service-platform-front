@@ -262,6 +262,10 @@
 				};
 			},
 			viewDetail(order) {
+				console.log('📤 准备跳转到详情页，orderMainId:', order.orderMainId);
+				console.log('📤 orderMainId类型:', typeof order.orderMainId);
+				console.log('📤 完整URL:', `/pages/order/order-detail?orderId=${order.orderMainId}`);
+				
 				// 跳转到订单详情页面（使用 orderMainId）
 				uni.navigateTo({
 					url: `/pages/order/order-detail?orderId=${order.orderMainId}`

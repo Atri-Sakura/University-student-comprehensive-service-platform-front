@@ -79,172 +79,117 @@
 </template>
 
 <script>
-	import api from '../../utils/api/index.js'
+	import { getMyOrders } from '@/utils/api/index.js';
+	
 	export default {
-	data() {
-		return {
-			searchKeyword: '',
-			selectedTimeFilter: '全部时间',
-			showFilter: false,
-			orders: [],
-			loading: false,
-			page: 1,
-			pageSize: 10,
-			total: 0,
-			hasMore: true
-		}
-	},
-	computed: {
-		filteredOrders() {
-			return this.orders;
-		}
-	},
-	onLoad() {
-		// 页面加载时获取订单数据
-		this.getOrders();
-	},
-	methods: {
-		goBack() {
-			const pages = getCurrentPages();
-			if (pages.length > 1) {
-				uni.navigateBack({ delta: 1 });
-			} else {
-				uni.reLaunch({ url: '/pages/index/index' });
+		data() {
+			return {
+				searchKeyword: '',
+				selectedTimeFilter: '全部时间',
+				showFilter: false,
+				orders: [],
+				loading: false
 			}
 		},
-		showTimeFilter() {
-			this.showFilter = true;
+		onLoad() {
+			this.loadOrders();
 		},
-		hideTimeFilter() {
-			this.showFilter = false;
+		onShow() {
+			this.loadOrders();
 		},
-		selectTimeFilter(time) {
-			this.selectedTimeFilter = time;
-			this.showFilter = false;
-			this.page = 1;
-			this.orders = [];
-			this.hasMore = true;
-			this.getOrders();
-		},
-		// 根据前端时间筛选转换为后端timeRange参数
-		getTimeRange() {
-			switch (this.selectedTimeFilter) {
-				case '今天':
-					return 'today';
-				case '昨天':
-					return 'yesterday';
-				case '本周':
-					return 'week';
-				case '本月':
-					return 'month';
-				case '全部时间':
-					return null;
-				default:
-					return null;
+		computed: {
+			filteredOrders() {
+				let filtered = this.orders;
+				if (this.searchKeyword) {
+					filtered = filtered.filter(order => 
+						order.id.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
+						order.address.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
+						order.merchant.toLowerCase().includes(this.searchKeyword.toLowerCase())
+					);
+				}
+				return filtered;
 			}
 		},
-		// 获取订单数据
-			async getOrders() {
-				if (this.loading || !this.hasMore) return;
-				
+		methods: {
+			async loadOrders() {
+				if (this.loading) return;
 				this.loading = true;
-				
 				try {
-					// 构造查询条件
-					const orderMain = {
-						// 根据后端OrderMain对象结构添加需要的查询条件
-						orderNo: this.searchKeyword, // 搜索订单号
-						address: this.searchKeyword    // 搜索地址
-					};
-					
-					// 获取时间范围
-					const timeRange = this.getTimeRange();
-					
-					// 调用API获取订单数据
-					const result = await api.getHistoryOrders(orderMain, timeRange, this.page, this.pageSize);
-					
-					if (result.code === 200) {
-						// 处理返回的订单数据
-						const newOrders = result.data || [];
-						
-						
-						
-						// 如果是第一页，直接替换订单数组
-						if (this.page === 1) {
-							this.orders = newOrders;
-						} else {
-							// 否则追加到订单数组
-							this.orders = [...this.orders, ...newOrders];
-						}
-						
-						// 更新分页信息
-						this.total = result.total || 0;
-						this.hasMore = this.orders.length < this.total;
-						
-						// 页码加1
-						this.page++;
+					const params = { pageNum: 1, pageSize: 100 };
+					if (this.selectedTimeFilter !== '全部时间') {
+						const timeRangeMap = {
+							'今天': 'today',
+							'昨天': 'yesterday',
+							'本周': 'week',
+							'本月': 'month'
+						};
+						params.timeRange = timeRangeMap[this.selectedTimeFilter];
+					}
+					const response = await getMyOrders(params);
+					if (response.code === 200) {
+						const rows = response.rows || [];
+						this.orders = rows.map(item => this.convertOrderData(item));
 					} else {
-						uni.showToast({
-							title: result.msg || '获取订单失败',
-							icon: 'none'
-						});
+						uni.showToast({ title: response.msg || '加载订单失败', icon: 'none' });
 					}
 				} catch (error) {
-					console.error('获取订单失败:', error);
-					uni.showToast({
-						title: '网络请求失败',
-						icon: 'none'
-					});
+					console.error('加载订单失败:', error);
+					uni.showToast({ title: '加载订单失败', icon: 'none' });
 				} finally {
 					this.loading = false;
 				}
 			},
-			
-		// 订单状态文本转换
-		getOrderStatusText(status) {
-			switch (status) {
-				case 1:
-					return '待接单';
-				case 2:
-					return '待取货';
-				case 3:
-					return '配送中';
-				case 4:
-					return '已完成';
-				case 5:
-					return '已取消';
-				default:
-					return '未知状态';
+			convertOrderData(item) {
+				const orderTypeMap = { 1: '外卖', 2: '跑腿', 3: '二手交易' };
+				const statusMap = { 1: '待接单', 2: '待取货', 3: '配送中', 4: '已完成', 5: '已取消', 6: '已拒单' };
+				return {
+					id: item.orderNo || item.orderMainId,
+					orderMainId: item.orderMainId,
+					status: statusMap[item.orderStatus] || '未知',
+					type: orderTypeMap[item.orderType] || '未知',
+					dateTime: item.createTime || item.updateTime || '',
+					merchant: item.pickAddress || '取货地址',
+					address: item.deliverAddress || '配送地址',
+					price: item.totalAmount || '0.00',
+					orderNo: item.orderNo,
+					orderStatus: item.orderStatus,
+					orderTypeName: orderTypeMap[item.orderType] || '未知',
+					pickAddress: item.pickAddress,
+					deliverAddress: item.deliverAddress,
+					totalAmount: item.totalAmount,
+					createTime: item.createTime
+				};
+			},
+			getOrderStatusText(status) {
+				const map = { 1: '待接单', 2: '待取货', 3: '配送中', 4: '已完成', 5: '已取消' };
+				return map[status] || '未知状态';
+			},
+			goBack() {
+				const pages = getCurrentPages();
+				if (pages.length > 1) {
+					uni.navigateBack({ delta: 1 });
+				} else {
+					uni.reLaunch({ url: '/pages/index/index' });
+				}
+			},
+			showTimeFilter() {
+				this.showFilter = true;
+			},
+			hideTimeFilter() {
+				this.showFilter = false;
+			},
+			selectTimeFilter(time) {
+				this.selectedTimeFilter = time;
+				this.showFilter = false;
+				this.loadOrders();
+			},
+			viewOrderDetail(order) {
+				uni.navigateTo({
+					url: `/pages/order/order-detail?orderId=${order.orderMainId}`
+				});
 			}
-		},
-		// 搜索订单
-		onSearch() {
-			this.page = 1;
-			this.orders = [];
-			this.hasMore = true;
-			this.getOrders();
-		},
-		// 查看订单详情
-		viewOrderDetail(order) {
-			uni.navigateTo({
-				url: `/pages/order/order-detail?orderId=${order.orderMainId || order.id || order.orderNo}`
-			});
-		},
-		// 下拉刷新
-		onPullDownRefresh() {
-			this.page = 1;
-			this.orders = [];
-			this.hasMore = true;
-			this.getOrders().then(() => {
-				uni.stopPullDownRefresh();
-			});
-		},
-		// 上拉加载更多
-		onReachBottom() {
-			this.getOrders();
 		}
 	}
-}
 </script>
 
 <style scoped>

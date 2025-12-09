@@ -242,28 +242,20 @@ export default {
 		
 		loadOrderDetail() {
 			// 根据订单ID加载订单详情
+			// 注意：orderMainId 应保持字符串类型，避免大整数精度丢失
+			const orderMainId = this.orderId;
 			
-			// 处理订单ID类型不匹配的问题
-			let orderMainId = this.orderId;
+			// 调试信息
+			console.log('📌 order-detail页面接收到的orderId:', orderMainId);
+			console.log('📌 orderId类型:', typeof orderMainId);
 			
-			// 如果是字符串类型，尝试从中提取数字
-			if (typeof orderMainId === 'string') {
-				// 提取所有数字
-				const numericId = orderMainId.replace(/[^\d]/g, '');
-				if (numericId) {
-					orderMainId = parseInt(numericId, 10);
-				} else {
-					// 如果没有数字，尝试直接转换
-					orderMainId = parseInt(orderMainId, 10);
-				}
-			}
-			
-			// 确保是数字类型
-			if (isNaN(orderMainId)) {
+			// 验证订单ID是否存在
+			if (!orderMainId) {
 				uni.showToast({ title: '无效的订单ID', icon: 'none' });
 				return;
 			}
 			
+			console.log('📌 准备调用getOrderDetail，传入:', orderMainId);
 			getOrderDetail(orderMainId)
 				.then(res => {
 					if (res.code === 200) {
