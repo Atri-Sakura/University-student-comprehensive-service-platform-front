@@ -162,13 +162,11 @@
 				
 				<!-- 待取货状态 -->
 				<template v-else-if="orderStatus === 'pickup'">
-					<button class="action-btn secondary" @tap="reportException">异常报备</button>
 					<button class="action-btn primary" @tap="confirmPickup">确认取货</button>
 				</template>
 				
 				<!-- 配送中状态 -->
 				<template v-else-if="orderStatus === 'delivery'">
-					<button class="action-btn secondary" @tap="reportException">异常报备</button>
 					<button class="action-btn primary" @tap="confirmDelivery">确认送达</button>
 				</template>
 				
@@ -186,6 +184,7 @@
 
 <script>
 import { getOrderDetail } from '@/utils/api/order.js';
+import { acceptOrder, pickupOrder, deliverOrder } from '@/utils/api/orderFlow.js';
 
 export default {
 	data() {
@@ -454,14 +453,36 @@ export default {
 			uni.showModal({
 				title: '确认接单',
 				content: `确定要接受订单 ${this.orderInfo.id} 吗？`,
-				success: (res) => {
+				success: async (res) => {
 					if (res.confirm) {
-						this.orderStatus = 'pickup';
-						
-						uni.showToast({
-							title: '接单成功',
-							icon: 'success'
-						});
+						try {
+							// 调用后端接单接口
+							const response = await acceptOrder(this.orderInfo.id);
+							
+							if (response.code === 200) {
+								// 更新订单状态
+								this.orderStatus = 'pickup';
+								
+								uni.showToast({
+									title: '接单成功',
+									icon: 'success'
+								});
+								
+								// 重新加载订单详情以确保数据最新
+								this.loadOrderDetail();
+							} else {
+								uni.showToast({
+									title: response.msg || '接单失败',
+									icon: 'none'
+								});
+							}
+						} catch (error) {
+							console.error('接单操作失败:', error);
+							uni.showToast({
+								title: error.message || '网络错误，请稍后重试',
+								icon: 'none'
+							});
+						}
 					}
 				}
 			});
@@ -471,14 +492,36 @@ export default {
 			uni.showModal({
 				title: '确认取货',
 				content: `确定已取到订单 ${this.orderInfo.id} 的货物吗？`,
-				success: (res) => {
+				success: async (res) => {
 					if (res.confirm) {
-						this.orderStatus = 'delivery';
-						
-						uni.showToast({
-							title: '取货成功，请尽快送达',
-							icon: 'success'
-						});
+						try {
+							// 调用后端确认取货接口
+							const response = await pickupOrder(this.orderInfo.id);
+							
+							if (response.code === 200) {
+								// 更新订单状态
+								this.orderStatus = 'delivery';
+								
+								uni.showToast({
+									title: '取货成功，请尽快送达',
+									icon: 'success'
+								});
+								
+								// 重新加载订单详情以确保数据最新
+								this.loadOrderDetail();
+							} else {
+								uni.showToast({
+									title: response.msg || '取货失败',
+									icon: 'none'
+								});
+							}
+						} catch (error) {
+							console.error('取货操作失败:', error);
+							uni.showToast({
+								title: error.message || '网络错误，请稍后重试',
+								icon: 'none'
+							});
+						}
 					}
 				}
 			});
@@ -488,26 +531,43 @@ export default {
 			uni.showModal({
 				title: '确认送达',
 				content: `确定订单 ${this.orderInfo.id} 已送达吗？`,
-				success: (res) => {
+				success: async (res) => {
 					if (res.confirm) {
-						this.orderStatus = 'completed';
-						this.orderInfo.completedTime = new Date().toLocaleString();
-						
-						uni.showToast({
-							title: '订单已完成',
-							icon: 'success'
-						});
+						try {
+							// 调用后端确认送达接口
+							const response = await deliverOrder(this.orderInfo.id);
+							
+							if (response.code === 200) {
+								// 更新订单状态
+								this.orderStatus = 'completed';
+								this.orderInfo.completedTime = new Date().toLocaleString();
+								
+								uni.showToast({
+									title: '订单已完成',
+									icon: 'success'
+								});
+								
+								// 重新加载订单详情以确保数据最新
+								this.loadOrderDetail();
+							} else {
+								uni.showToast({
+									title: response.msg || '确认送达失败',
+									icon: 'none'
+								});
+							}
+						} catch (error) {
+							console.error('确认送达操作失败:', error);
+							uni.showToast({
+								title: error.message || '网络错误，请稍后重试',
+								icon: 'none'
+							});
+						}
 					}
 				}
 			});
 		},
 		
-		reportException() {
-			// 跳转到异常报备页面
-			uni.navigateTo({
-				url: `/pages/order/exception-report?orderId=${this.orderInfo.id}&status=${this.orderStatus}`
-			});
-		}
+
 	}
 }
 </script>
