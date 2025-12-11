@@ -12,10 +12,29 @@ export const getUserInfo = () => {
  * @param {String} filePath 本地文件路径
  */
 export const uploadAvatar = (filePath) => {
+  // 获取用户ID
+  let userBaseId = uni.getStorageSync('userId');
+  
+  // 如果没有userId，尝试从userInfo中获取
+  if (!userBaseId) {
+    const userInfo = uni.getStorageSync('userInfo');
+    if (userInfo) {
+      userBaseId = userInfo.userBaseId || userInfo.userId || userInfo.id;
+    }
+  }
+  
+  // 如果还是没有userBaseId，抛出错误
+  if (!userBaseId) {
+    return Promise.reject(new Error('用户未登录或用户ID不存在'));
+  }
+  
   return http.uploadFile({
-    url: '/common/upload',
+    url: '/platform/user/base/avatar/upload',
     filePath: filePath,
-    name: 'file'
+    name: 'file',
+    formData: {
+      userBaseId: userBaseId
+    }
   });
 };
 
