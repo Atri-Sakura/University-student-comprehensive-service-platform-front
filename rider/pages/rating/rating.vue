@@ -19,7 +19,7 @@
 				<view class="score-info">
 					<text class="score-label">综合评分</text>
 					<view class="stars">
-						<text class="star" :class="{ filled: i < Math.floor(averageRating) || (i === Math.floor(averageRating) && averageRating % 1 >= 0.5) }" v-for="i in 5" :key="i">★</text>
+						<text class="star" :class="{ filled: i <= averageRating }" v-for="i in 5" :key="i">★</text>
 					</view>
 					<text class="total-reviews">共{{ totalReviews }}条评价</text>
 				</view>
