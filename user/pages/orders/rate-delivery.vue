@@ -40,22 +40,6 @@
         <text class="rating-hint">点击星星进行评分</text>
       </view>
 
-      <!-- 服务标签区域 -->
-      <view class="tags-section">
-        <text class="tags-label">服务标签（可选）</text>
-        <view class="tags-container">
-          <text 
-            v-for="(tag, index) in serviceTags" 
-            :key="index"
-            class="tag"
-            :class="{ selected: selectedTags.includes(tag) }"
-            @click="toggleTag(tag)"
-          >
-            {{ tag }}
-          </text>
-        </view>
-      </view>
-
       <!-- 详细评价区域 -->
       <view class="comment-section">
         <text class="comment-label">详细评价（可选）</text>
@@ -82,6 +66,7 @@
 
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
+import orderApi from '@/api/order.js';
 
 export default {
   components: {
@@ -90,67 +75,110 @@ export default {
   data() {
     return {
       orderId: '',
+      numericOrderId: '', // 数字类型的订单ID，用于提交评价
       currentRating: 0,
-      selectedTags: [],
       commentText: '',
       wordCount: 0,
       deliveryInfo: {
-        name: '张同学'
+        name: ''
       },
       orderInfo: {
-        orderNo: '#20230915123456',
-        taskContent: '代取快递（中通）'
-      },
-      serviceTags: [
-        '准时送达',
-        '服务热情',
-        '包装完好',
-        '沟通顺畅',
-        '非常专业',
-        '态度友好'
-      ]
+        orderNo: '',
+        taskContent: ''
+      }
     };
   },
   onLoad(options) {
-    // 接收订单ID参数
+    // 接收订单ID或订单号参数
     if (options.orderId) {
       this.orderId = options.orderId;
+      this.numericOrderId = options.orderId; // 使用页面参数作为备选
       console.log('订单ID:', this.orderId);
-      // 这里可以根据订单ID从服务器获取真实数据
+      // 调用API获取订单数据
+      this.loadOrderData();
+    } else if (options.orderNo) {
+      this.orderId = options.orderNo;
+      // 尝试从订单号中提取数字部分
+      const numericPart = options.orderNo.replace(/[^\d]/g, '');
+      if (numericPart) {
+        this.numericOrderId = numericPart;
+      }
+      console.log('订单号:', this.orderId);
+      console.log('提取的数字部分:', numericPart);
+      // 调用API获取订单数据
       this.loadOrderData();
     }
   },
   methods: {
     // 加载订单数据
-    loadOrderData() {
-      // 实际项目中，这里应该调用API获取订单数据
-      console.log('正在加载订单数据...');
-      // 模拟API请求延迟
-      setTimeout(() => {
-        // 这里可以根据实际情况更新订单数据
-        this.deliveryInfo = {
-          name: '张同学'
-        };
+    async loadOrderData() {
+      try {
+        // 调用订单详情接口获取订单信息
+        const response = await orderApi.getOrderDetail(this.orderId);
+        console.log('订单详情接口返回:', response);
+        
+        let orderData;
+        // 兼容API返回的两种格式：含code字段的标准格式和直接返回数据的格式
+        if (response && response.code === 200) {
+          orderData = response.data;
+        } else {
+          // API可能直接返回数据而不包含code字段
+          orderData = response;
+        }
+        
+        console.log('订单数据:', orderData);
+        // 确保orderData存在
+        if (orderData) {
+          // 从orderTakeoutDetailList获取商品信息作为任务内容
+          let taskContent = orderData.taskContent || '';
+          if (!taskContent && orderData.orderTakeoutDetailList && orderData.orderTakeoutDetailList.length > 0) {
+            const detail = orderData.orderTakeoutDetailList[0];
+            taskContent = `${detail.goodsName || '商品'} x ${detail.quantity || 1}`;
+          }
+          
+          // 更新订单信息
+          this.orderInfo = {
+            orderNo: orderData.orderNo || '',
+            taskContent: taskContent
+          };
+          
+          // 保存数字类型的订单ID用于提交评价
+          console.log('orderData.orderId:', orderData.orderId);
+          this.numericOrderId = orderData.orderId || orderData.orderMainId || orderData.orderNo || '';
+          console.log('this.numericOrderId:', this.numericOrderId);
+          
+          // 更新配送员信息，兼容不同的骑手姓名字段
+          this.deliveryInfo = {
+            name: orderData.riderName || orderData.riderNickname || orderData.deliveryName || '未知配送员'
+          };
+        } else {
+          console.error('订单数据为空');
+          uni.showToast({
+            title: '获取订单信息失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        console.error('加载订单数据失败:', error);
+        // 重置orderInfo、deliveryInfo和numericOrderId以避免页面错误
         this.orderInfo = {
-          orderNo: '#20230915123456',
-          taskContent: '代取快递（中通）'
+          orderNo: '',
+          taskContent: ''
         };
-      }, 300);
+        this.deliveryInfo = {
+          name: '未知配送员'
+        };
+        this.numericOrderId = '';
+        uni.showToast({
+          title: '网络错误，请重试',
+          icon: 'none'
+        });
+      }
     },
     
     // 设置评分
     setRating(rating) {
       this.currentRating = rating;
-    },
-    
-    // 切换标签选择状态
-    toggleTag(tag) {
-      const index = this.selectedTags.indexOf(tag);
-      if (index > -1) {
-        this.selectedTags.splice(index, 1);
-      } else {
-        this.selectedTags.push(tag);
-      }
     },
     
     // 计算字数
@@ -159,7 +187,7 @@ export default {
     },
     
     // 提交评价
-    submitRating() {
+    async submitRating() {
       if (this.currentRating === 0) {
         uni.showToast({
           title: '请选择评分',
@@ -168,34 +196,52 @@ export default {
         return;
       }
       
-      // 构建评价数据
-      const ratingData = {
-        orderId: this.orderId,
+      // 构建评价数据（根据后端接口要求的RiderEvaluationDTO格式）
+      const evaluationData = {
+        orderId: this.numericOrderId,
         rating: this.currentRating,
-        tags: this.selectedTags,
-        comment: this.commentText
+        content: this.commentText
       };
       
-      console.log('提交评价数据:', ratingData);
+      console.log('提交评价数据:', evaluationData);
+      console.log('当前订单信息:', {orderId: this.orderId, numericOrderId: this.numericOrderId});
       
-      // 实际项目中，这里应该调用API提交评价
-      // 模拟API请求
-      uni.showLoading({
-        title: '提交中...'
-      });
-      
-      setTimeout(() => {
-        uni.hideLoading();
-        uni.showToast({
-          title: '评价成功',
-          icon: 'success'
+      try {
+        // 显示加载提示
+        uni.showLoading({
+          title: '提交中...'
         });
         
-        // 延迟返回上一页
-        setTimeout(() => {
-          uni.navigateBack();
-        }, 1500);
-      }, 1000);
+        // 调用API提交评价
+        const response = await orderApi.submitRiderEvaluation(evaluationData);
+        
+        // 隐藏加载提示
+        uni.hideLoading();
+        
+        if (response && response.code === 200) {
+          uni.showToast({
+            title: '评价成功',
+            icon: 'success'
+          });
+          
+          // 延迟返回上一页
+          setTimeout(() => {
+            uni.navigateBack();
+          }, 1500);
+        } else {
+          uni.showToast({
+            title: response.msg || '评价失败',
+            icon: 'none'
+          });
+        }
+      } catch (error) {
+        uni.hideLoading();
+        console.error('提交评价失败:', error);
+        uni.showToast({
+          title: '网络错误，请重试',
+          icon: 'none'
+        });
+      }
     },
     
     // 返回上一页
@@ -341,43 +387,6 @@ export default {
 .rating-hint {
   font-size: 24rpx;
   color: #999;
-}
-
-/* 服务标签区域 */
-.tags-section {
-  background-color: #fff;
-  border-radius: 20rpx;
-  padding: 40rpx;
-  margin-bottom: 30rpx;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
-}
-
-.tags-label {
-  font-size: 32rpx;
-  color: #333;
-  margin-bottom: 30rpx;
-  display: block;
-}
-
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20rpx;
-}
-
-.tag {
-  padding: 15rpx 30rpx;
-  background-color: #f0f0f0;
-  border-radius: 30rpx;
-  font-size: 28rpx;
-  color: #666;
-  transition: all 0.2s;
-}
-
-.tag.selected {
-  background-color: #e6f7ff;
-  color: #1890ff;
-  border: 2rpx solid #1890ff;
 }
 
 /* 详细评价区域 */

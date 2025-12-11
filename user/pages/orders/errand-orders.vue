@@ -60,7 +60,6 @@
         <view class="order-actions">
           <!-- 未接单状态 -->
           <template v-if="order.orderStatus === 1">
-            <button class="action-button primary" @click="editOrder(order.id)">修改订单</button>
             <button class="action-button cancel" @click="cancelOrder(order.id)">取消订单</button>
           </template>
           
@@ -71,10 +70,15 @@
           </template>
           
           <!-- 已完成状态 -->
-          <template v-else-if="order.orderStatus === 4 || order.orderStatus === 5">
-            <button class="action-button primary" @click="rateDelivery(order.id)">评价跑腿员</button>
-            <button class="action-button secondary" @click="viewOrderDetail(order.id)">查看详情</button>
+          <template v-else-if="order.orderStatus === 4">
+            <button class="action-button primary" @click="rateDelivery(order.orderNo)">评价跑腿员</button>
+            <button class="action-button secondary" @click="viewOrderDetail(order.orderNo)">查看详情</button>
             <button class="action-button secondary" @click="contactCustomerService()">联系客服</button>
+          </template>
+          
+          <!-- 已取消状态 -->
+          <template v-else-if="order.orderStatus === 5">
+            <!-- 已取消订单不显示任何操作按钮 -->
           </template>
         </view>
       </view>
@@ -194,7 +198,7 @@ export default {
         2: '进行中',
         3: '进行中',
         4: '已完成',
-        5: '已完成'
+        5: '已取消'
       };
       return statusMap[status] || '未知状态';
     },
@@ -215,9 +219,6 @@ export default {
         case '确认收货':
           this.confirmDelivery(order.id);
           break;
-        case '修改订单':
-          this.editOrder(order.id);
-          break;
         case '查看位置':
           this.viewLocation(order.id);
           break;
@@ -225,7 +226,7 @@ export default {
           this.contactCustomerService();
           break;
         case '查看详情':
-          this.viewOrderDetail(order.id);
+          this.viewOrderDetail(order.orderNo);
           break;
         case '评价跑腿员':
           this.rateDelivery(order.id);
@@ -290,13 +291,7 @@ export default {
         }
       });
     },
-    editOrder(orderId) {
-      console.log('修改订单:', orderId);
-      // 跳转到订单编辑页面，并传递订单ID
-      uni.navigateTo({
-        url: '/pages/orders/errand-order-edit?orderId=' + orderId
-      });
-    },
+
     // 联系客服
     contactCustomerService() {
       uni.navigateTo({
@@ -319,11 +314,11 @@ export default {
       uni.navigateBack();
     },
     // 评价跑腿员
-    rateDelivery(orderId) {
-      console.log('评价跑腿员:', orderId);
-      // 跳转到评价跑腿员页面，并传递订单ID
+    rateDelivery(orderNo) {
+      console.log('评价跑腿员 - 订单号:', orderNo);
+      // 跳转到评价跑腿员页面，并传递订单号
       uni.navigateTo({
-        url: '/pages/orders/rate-delivery?orderId=' + orderId
+        url: '/pages/orders/rate-delivery?orderNo=' + orderNo
       });
     },
     // 支付商品费

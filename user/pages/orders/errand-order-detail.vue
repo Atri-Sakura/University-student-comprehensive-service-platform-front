@@ -9,15 +9,36 @@
       <view class="navbar-right"></view>
     </view>
 
-    <!-- 订单状态卡片 -->
-    <view class="status-card">
-      <view class="status-header">
-        <text class="status-label">订单状态</text>
-        <text class="status-value status-completed">已完成</text>
-      </view>
-      <text class="status-desc">您的订单已成功完成</text>
-      <text class="complete-time">完成时间：2023-09-15 12:30</text>
+    <!-- 加载状态 -->
+    <view v-if="loading" class="loading-container">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">正在加载订单信息...</text>
     </view>
+
+    <!-- 错误信息 -->
+    <view v-else-if="error" class="error-container">
+      <text class="error-icon">❌</text>
+      <text class="error-text">{{ error }}</text>
+      <button class="retry-button" @click="loadOrderData">重试</button>
+    </view>
+
+    <!-- 空状态 -->
+    <view v-else-if="!Object.keys(orderInfo).length" class="empty-container">
+      <text class="empty-icon">📭</text>
+      <text class="empty-text">订单不存在或已被删除</text>
+    </view>
+
+    <!-- 订单内容 -->
+    <view v-else>
+      <!-- 订单状态卡片 -->
+      <view class="status-card">
+        <view class="status-header">
+          <text class="status-label">订单状态</text>
+          <text class="status-value" :class="getOrderStatusClass()">{{ getOrderStatusText() }}</text>
+        </view>
+        <text class="status-desc">{{ getOrderStatusDesc() }}</text>
+        <text class="complete-time" v-if="orderProgress.length > 0">完成时间：{{ orderProgress[0].time }}</text>
+      </view>
 
     <!-- 订单信息卡片 -->
     <view class="info-card">
@@ -25,13 +46,17 @@
         <text class="info-icon">📋</text>
         <text class="info-title">订单信息</text>
       </view>
+      <!-- 调试信息 -->
+      <view class="debug-info" style="display: none;">
+        <text>orderData: {{ JSON.stringify(orderData) }}</text>
+      </view>
       <view class="info-item">
         <text class="info-label">订单编号</text>
         <text class="info-value">{{ orderInfo.orderNo }}</text>
       </view>
       <view class="info-item">
         <text class="info-label">任务内容</text>
-        <text class="info-value">{{ orderInfo.taskContent }}</text>
+        <text class="info-value">{{ orderData && orderData.orderErrandDetailList && orderData.orderErrandDetailList.length > 0 ? orderData.orderErrandDetailList[0].goodsDesc : '暂无任务内容' }}</text>
       </view>
       <view class="info-item">
         <text class="info-label">配送路线</text>
@@ -43,24 +68,7 @@
       </view>
     </view>
 
-    <!-- 订单进度时间线 -->
-    <view class="progress-card">
-      <view class="info-header">
-        <text class="info-icon">⏱️</text>
-        <text class="info-title">订单进度</text>
-      </view>
-      <view class="timeline">
-        <view v-for="(step, index) in orderProgress" :key="index" class="timeline-item active">
-          <view :class="['timeline-dot', step.status]">
-            <text class="timeline-icon">{{ step.icon }}</text>
-          </view>
-          <view class="timeline-content">
-            <text class="timeline-time">{{ step.time }}</text>
-            <text class="timeline-text">{{ step.text }}</text>
-          </view>
-        </view>
-      </view>
-    </view>
+
 
     <!-- 配送员信息卡片 -->
     <view class="delivery-card">
@@ -73,7 +81,10 @@
           <text class="avatar-icon">👤</text>
         </view>
         <view class="delivery-details">
-          <text class="delivery-name">{{ deliveryInfo.name }}</text>
+          <text class="delivery-name">
+            {{ deliveryInfo.name }}
+            <text v-if="deliveryInfo.phone" class="delivery-phone">({{ deliveryInfo.phone }})</text>
+          </text>
           <view class="delivery-rating">
             <text class="star">★★★★★</text>
             <text class="rating-score">{{ deliveryInfo.rating }}</text>
@@ -83,91 +94,135 @@
       </view>
     </view>
 
-    <!-- 底部操作区域已移除，评价功能在订单列表页面 -->
+      <!-- 底部操作区域已移除，评价功能在订单列表页面 -->
+    </view>
   </view>
 </template>
 
 <script>
+import api from '@/api/index.js'
+
 export default {
   data() {
     return {
-      orderId: '',
-      orderInfo: {
-        orderNo: '#20230915123456',
-        taskContent: '代取食堂外卖（麻辣香锅）',
-        deliveryRoute: '从二食堂到图书馆3楼',
-        reward: '¥5.00'
-      },
-      deliveryInfo: {
-        name: '张师傅',
-        rating: '4.7',
-        phone: '13800138000'
-      },
-      orderProgress: [
-        {
-          time: '2023-09-15 12:30',
-          text: '订单已完成',
-          status: 'completed',
-          icon: '✓'
-        },
-        {
-          time: '2023-09-15 12:15',
-          text: '配送员已送达',
-          status: 'delivered',
-          icon: '🚪'
-        },
-        {
-          time: '2023-09-15 12:00',
-          text: '配送员已取餐',
-          status: 'picked',
-          icon: '🍽️'
-        },
-        {
-          time: '2023-09-15 11:45',
-          text: '配送员已接单',
-          status: 'accepted',
-          icon: '👤'
-        },
-        {
-          time: '2023-09-15 11:30',
-          text: '订单创建成功',
-          status: 'created',
-          icon: '+'
-        }
-      ]
+      orderNo: '',
+      loading: false,
+      error: '',
+      orderData: null, // 直接保存API返回的订单数据
+      orderInfo: {},
+      deliveryInfo: {},
+      orderProgress: [] // 订单进度数组
     };
   },
   onLoad(options) {
-    // 接收订单ID参数
+    // 接收订单号参数，兼容orderId和orderNo
     if (options.orderId) {
-      this.orderId = options.orderId;
-      // 这里可以根据订单ID从服务器获取真实数据
-      console.log('订单ID:', this.orderId);
-      // 模拟根据订单ID加载数据
-      this.loadOrderData();
+      this.orderNo = options.orderId;
+    } else if (options.orderNo) {
+      this.orderNo = options.orderNo;
     }
+    
+    console.log('订单号:', this.orderNo);
+    
+    // 如果未提供订单号，使用测试订单号作为备选
+    if (!this.orderNo) {
+      this.orderNo = 'TEST123456789';
+      console.warn('未提供订单号，使用测试订单号:', this.orderNo);
+    }
+    
+    // 加载订单数据
+    this.loadOrderData();
   },
   methods: {
     // 加载订单数据
-    loadOrderData() {
-      // 实际项目中，这里应该调用API获取订单数据
-      console.log('正在加载订单数据...');
-      // 模拟API请求延迟
-      setTimeout(() => {
-        // 这里可以根据实际情况更新订单数据
-        this.orderInfo = {
-          orderNo: '#20230915123456',
-          taskContent: '代取食堂外卖（麻辣香锅）',
-          deliveryRoute: '从二食堂到图书馆3楼',
-          reward: '¥5.00'
-        };
-        this.deliveryInfo = {
-          name: '张师傅',
-          rating: '4.7',
-          phone: '13800138000'
-        };
-      }, 300);
+    async loadOrderData() {
+      try {
+        this.loading = true
+        this.error = ''
+        
+        // 检查订单号是否为空
+        if (!this.orderNo) {
+          throw new Error('订单号不能为空')
+        }
+        
+        // 调用API获取订单详情
+          const res = await api.order.getErrandOrderDetail(this.orderNo)
+        
+        console.log('API响应结果:', res)
+        
+        if (res && res.code === 200) {
+          // 检查响应中是否包含数据
+          if (res.data) {
+            // 设置订单数据
+            this.orderData = res.data || {};
+            const orderData = this.orderData;
+            
+            // 调试：检查orderErrandDetailList数组
+            console.log('orderErrandDetailList:', orderData.orderErrandDetailList);
+            
+            // 注意：API返回的是orderErrandDetailList（复数形式带List后缀），这是一个数组
+            const errandDetail = orderData.orderErrandDetailList && orderData.orderErrandDetailList.length > 0 ? orderData.orderErrandDetailList[0] : {};
+            console.log('errandDetail:', errandDetail);
+            console.log('goodsDesc:', errandDetail.goodsDesc || '不存在');
+            
+            // 直接从errandDetail中提取goodsDesc字段作为任务内容
+            let taskContent = errandDetail.goodsDesc || '';
+            
+            // 提取订单信息
+            this.orderInfo = {
+              orderNo: orderData.orderNo || this.orderNo,
+              // 使用解析后的goodsDesc字段作为任务内容
+              taskContent: taskContent || orderData.taskContent || orderData.taskDesc || '',
+              deliveryRoute: orderData.deliveryRoute || (orderData.pickAddress && orderData.deliverAddress ? `${orderData.pickAddress}到${orderData.deliverAddress}` : ''),
+              reward: orderData.deliveryFeeAmount ? `¥${orderData.deliveryFeeAmount}` : ''
+            }
+            
+            // 调试：检查最终的orderInfo
+            console.log('最终的orderInfo:', this.orderInfo)
+            
+            // 提取配送员信息
+            this.deliveryInfo = {
+              name: orderData.deliveryName || orderData.riderName || orderData.riderNickname || '',
+              rating: orderData.deliveryRating || orderData.riderRating || '',
+              phone: orderData.deliveryPhone || orderData.riderPhone || ''
+            }
+            
+
+          } else {
+            // API返回成功但没有数据，使用默认数据并显示提示
+            console.warn('API返回成功但没有数据')
+            this.orderInfo = {
+              orderNo: this.orderNo,
+              taskContent: '暂无任务内容',
+              deliveryRoute: '暂无配送路线',
+              reward: '¥0.00'
+            }
+            this.deliveryInfo = {
+              name: '暂无配送员信息',
+              rating: '',
+              phone: ''
+            }
+            this.orderProgress = [
+              {
+                time: new Date().toLocaleString(),
+                text: '订单数据获取成功',
+                status: 'completed',
+                icon: '✓'
+              }
+            ]
+          }
+        } else {
+          throw new Error(res.message || res.msg || '获取订单详情失败')
+        }
+      } catch (err) {
+        console.error('获取订单详情出错:', err)
+        this.error = err.message || '网络错误，请稍后重试'
+      } finally {
+        this.loading = false
+      }
     },
+    
+
     
     // 返回上一页
     goBack() {
@@ -190,6 +245,48 @@ export default {
           });
         }
       });
+    },
+    
+    // 获取订单状态类名
+    getOrderStatusClass() {
+      if (!this.orderData) return '';
+      const status = this.orderData.orderStatus;
+      const statusMap = {
+        1: 'status-waiting',   // 待接单
+        2: 'status-progress',  // 待取货
+        3: 'status-progress',  // 配送中
+        4: 'status-completed', // 已完成
+        5: 'status-canceled'   // 已取消
+      };
+      return statusMap[status] || '';
+    },
+    
+    // 获取订单状态文本
+    getOrderStatusText() {
+      if (!this.orderData) return '未知状态';
+      const status = this.orderData.orderStatus;
+      const statusMap = {
+        1: '未接单',
+        2: '待取货',
+        3: '配送中',
+        4: '已完成',
+        5: '已取消'
+      };
+      return statusMap[status] || '未知状态';
+    },
+    
+    // 获取订单状态描述
+    getOrderStatusDesc() {
+      if (!this.orderData) return '';
+      const status = this.orderData.orderStatus;
+      const descMap = {
+        1: '您的订单正在等待跑腿员接单',
+        2: '跑腿员已接单，正在前往取货地点',
+        3: '跑腿员已取货，正在配送中',
+        4: '您的订单已成功完成',
+        5: '您的订单已取消'
+      };
+      return descMap[status] || '';
     },
     
 
@@ -477,6 +574,12 @@ export default {
   color: #666;
 }
 
+.delivery-phone {
+  font-size: 24rpx;
+  color: #999;
+  margin-left: 10rpx;
+}
+
 .contact-button {
   padding: 0 30rpx;
   height: 70rpx;
@@ -495,5 +598,91 @@ export default {
   
   /* 底部操作按钮已移除，评价功能在订单列表页面 */
 
+/* 加载状态样式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 0;
+}
+
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 6rpx solid #f3f3f3;
+  border-top: 6rpx solid #5DCDFF;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20rpx;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #666;
+}
+
+/* 错误信息样式 */
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 50rpx;
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+}
+
+.error-text {
+  font-size: 28rpx;
+  color: #ff4d4f;
+  margin-bottom: 30rpx;
+  line-height: 40rpx;
+}
+
+.retry-button {
+  padding: 0 40rpx;
+  height: 70rpx;
+  background-color: #5DCDFF;
+  color: white;
+  border-radius: 35rpx;
+  font-size: 28rpx;
+  line-height: 70rpx;
+  text-align: center;
+  border: none;
+}
+
+.retry-button::after {
+  border: none;
+}
+
+/* 空状态样式 */
+.empty-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 0;
+}
+
+.empty-icon {
+  font-size: 80rpx;
+  margin-bottom: 20rpx;
+  color: #ccc;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #999;
+}
 
 </style>

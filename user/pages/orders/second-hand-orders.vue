@@ -115,24 +115,26 @@ export default {
     
     // 订单状态样式
     statusClass(status) {
-      const statusMap = {
-        1: 'status-pending',   // 待支付
-        2: 'status-paid',      // 已支付
-        3: 'status-completed', // 已完成
-        4: 'status-cancelled'  // 已取消
+      if ([1, 2, 3].includes(status)) {
+        return 'status-selling' // 交易中
+      } else if (status === 4) {
+        return 'status-completed' // 已完成
+      } else if (status === 5) {
+        return 'status-removed' // 已取消
       }
-      return statusMap[status] || ''
+      return ''
     },
     
     // 订单状态文本
     orderStatusText(status) {
-      const statusMap = {
-        1: '待支付',
-        2: '已支付',
-        3: '已完成',
-        4: '已取消'
+      if ([1, 2, 3].includes(status)) {
+        return '交易中'
+      } else if (status === 4) {
+        return '已完成'
+      } else if (status === 5) {
+        return '已取消'
       }
-      return statusMap[status] || '未知状态'
+      return '未知状态'
     },
     
     // 返回上一页
@@ -279,22 +281,17 @@ export default {
   background-color: #E3F2FD;
 }
 
-.status-pending {
-  color: #FF9800;
-  background-color: #FFF3E0;
-}
-
-.status-paid {
-  color: #2196F3;
+.status-completed {
+  color: #5DCDFF;
   background-color: #E3F2FD;
 }
 
-.status-completed {
+.status-selling {
   color: #4CAF50;
   background-color: #E8F5E9;
 }
 
-.status-cancelled {
+.status-removed {
   color: #999;
   background-color: #F5F5F5;
 }
