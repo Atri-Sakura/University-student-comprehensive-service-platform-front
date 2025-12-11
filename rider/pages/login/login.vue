@@ -63,12 +63,6 @@
 					<button class="login-btn" @click="handleLogin">登录</button>
 					<button class="register-btn" @click="handleRegister">注册</button>
 				</view>
-				
-				<!-- 辅助功能 -->
-				<view class="helper-links">
-					<text class="helper-link" @click="handleSmsLogin">短信验证码登录</text>
-					<text class="helper-link" @click="handleForgotPassword">忘记密码</text>
-				</view>
 			</view>
 		</view>
 	</view>
