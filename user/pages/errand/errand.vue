@@ -140,10 +140,9 @@ export default {
   },
   computed: {
     estimatedPrice() {
-      // 计算总价：商品价格 + 服务费
-      let goodsPrice = parseFloat(this.form.goodsPrice) || 0;
+      // 跑腿订单只需支付服务费
       let servicePrice = parseFloat(this.form.servicePrice) || 0;
-      return goodsPrice + servicePrice;
+      return servicePrice;
     }
   },
   onLoad() {

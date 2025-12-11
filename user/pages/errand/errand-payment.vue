@@ -63,17 +63,17 @@
 
       <!-- 价格明细 -->
       <view class="price-card">
-        <view class="price-item" v-if="(orderInfo.goodsPrice || orderInfo.goodsAmount) > 0">
+        <view class="price-item" v-if="goodsAmount > 0">
           <text class="price-label">商品价格</text>
-          <text class="price-value">￥{{ ((orderInfo.goodsPrice || orderInfo.goodsAmount) || 0).toFixed(2) }}</text>
+          <text class="price-value">￥{{ goodsAmount.toFixed(2) }}</text>
         </view>
-        <view class="price-item">
-          <text class="price-label">服务费</text>
-          <text class="price-value">￥{{ ((orderInfo.servicePrice || orderInfo.deliveryFee) || 0).toFixed(2) }}</text>
+        <view class="price-item service-fee-item">
+          <text class="price-label service-fee-label">服务费</text>
+          <text class="price-value service-fee-value">￥{{ serviceFee.toFixed(2) }}</text>
         </view>
-        <view class="price-item" v-if="(orderInfo.discountAmount || 0) > 0">
+        <view class="price-item" v-if="discountAmount > 0">
           <text class="price-label">优惠金额</text>
-          <text class="price-value discount">-￥{{ (orderInfo.discountAmount || 0).toFixed(2) }}</text>
+          <text class="price-value discount">-￥{{ discountAmount.toFixed(2) }}</text>
         </view>
         <view class="price-divider"></view>
         <view class="price-item total">
@@ -159,7 +159,6 @@ export default {
       statusBarHeight: 0,
       navHeight: 0,
       preOrderNo: '', // 预订单号
-      totalPrice: 0, // 总价
       orderInfo: {},
       selectedPayment: 0, // 默认选择余额支付
       paymentMethods: [],
@@ -168,6 +167,24 @@ export default {
       paymentPassword: '', // 支付密码
       passwordInputFocus: false // 密码输入框聚焦状态
     };
+  },
+  computed: {
+    // 商品金额
+    goodsAmount() {
+      return parseFloat(this.orderInfo.goodsPrice || this.orderInfo.goodsAmount || 0);
+    },
+    // 服务费
+    serviceFee() {
+      return parseFloat(this.orderInfo.servicePrice || this.orderInfo.deliveryFee || 0);
+    },
+    // 优惠金额
+    discountAmount() {
+      return parseFloat(this.orderInfo.discountAmount || 0);
+    },
+    // 总价（跑腿订单只需支付服务费）
+    totalPrice() {
+      return this.serviceFee - this.discountAmount;
+    }
   },
   onLoad(options) {
     // 获取状态栏高度
@@ -186,10 +203,9 @@ export default {
         color: this.getPaymentColor(item.value)
       }));
 
-    // 从URL参数获取预订单号和总价
+    // 从URL参数获取预订单号
     if (options.preOrderNo) {
       this.preOrderNo = options.preOrderNo;
-      this.totalPrice = parseFloat(options.totalPrice) || 0;
     }
     
     // 从本地存储获取订单信息
@@ -300,7 +316,7 @@ export default {
         // 从本地存储获取地址ID和金额
         const prepayOrder = uni.getStorageSync('errandPrepayOrder');
         
-        // 使用后端返回的金额
+        // 使用计算属性的总价
         const payAmount = prepayOrder?.totalAmount || this.totalPrice;
         
         // 按照后端PayOrderDTO结构构建支付数据
@@ -645,6 +661,26 @@ export default {
 .price-value.discount {
   color: #52c41a;
   font-weight: 500;
+}
+
+/* 服务费突出显示 */
+.service-fee-item {
+  background-color: #fff7e6;
+  margin: 0 -30rpx;
+  padding: 20rpx 30rpx;
+  border-radius: 8rpx;
+}
+
+.service-fee-label {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #fa8c16;
+}
+
+.service-fee-value {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #fa8c16;
 }
 
 .price-value.total {
