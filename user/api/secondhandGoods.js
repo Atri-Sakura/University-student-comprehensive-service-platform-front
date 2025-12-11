@@ -198,6 +198,15 @@ export const confirmOrder = (orderNo) => {
 }
 
 /**
+ * 获取二手商品订单详情
+ * @param {String} orderNo 订单编号
+ * @returns {Promise}
+ */
+export const getOrderDetail = (orderNo) => {
+	return http.get(`/user/order/${orderNo}`)
+}
+
+/**
  * 生成唯一请求ID（用于幂等性）
  * @returns {String}
  */
@@ -213,6 +222,7 @@ export default {
 	createOrder,
 	payOrder,
 	confirmOrder,
+	getOrderDetail,
 	chooseGoodsImages,
 	generateRequestId
 }
