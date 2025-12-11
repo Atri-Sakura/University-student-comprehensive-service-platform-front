@@ -44,7 +44,25 @@ const orderApi = {
    * @returns {Promise} - 返回订单详情数据
    */
   getSecondHandOrderDetail: (orderNo) => {
-    return request.get(`/api/user/secondhandGoods/order/detail/${orderNo}`)
+    return request.get(`/user/order/secondHandOrder/${orderNo}`)
+  },
+  
+  /**
+   * 提交骑手评价
+   * @param {Object} evaluationData - 评价数据
+   * @returns {Promise} - 返回提交结果
+   */
+  submitRiderEvaluation: (evaluationData) => {
+    return request.post('/user/riderEvaluation', evaluationData)
+  },
+  
+  /**
+   * 获取跑腿订单详情
+   * @param {String} orderNo - 订单号
+   * @returns {Promise} - 返回订单详情数据
+   */
+  getErrandOrderDetail: (orderNo) => {
+    return request.get(`/user/order/errandOrder/${orderNo}`)
   }
 }
 
