@@ -43,45 +43,58 @@
             <text class="info-label">创建时间</text>
             <text class="info-value">{{ order.createTime }}</text>
           </view>
+          <view class="info-item" v-if="order.payTime">
+            <text class="info-label">支付时间</text>
+            <text class="info-value">{{ order.payTime }}</text>
+          </view>
           <view class="info-item">
             <text class="info-label">商品名称</text>
-            <text class="info-value">{{ order.orderSecondhandDetailList && order.orderSecondhandDetailList[0] ? order.orderSecondhandDetailList[0].goodsName : '二手交易商品' }}</text>
+            <text class="info-value">{{ order.goodsName || '二手交易商品' }}</text>
           </view>
           <view class="info-item">
-            <text class="info-label">交易金额</text>
-            <text class="info-value price">¥{{ order.totalAmount }}</text>
+            <text class="info-label">商品分类</text>
+            <text class="info-value">{{ getCategoryText(order.category) }}</text>
+          </view>
+          <view class="info-item">
+            <text class="info-label">商品价格</text>
+            <text class="info-value price">¥{{ order.goodsPrice }}</text>
+          </view>
+          <view class="info-item">
+            <text class="info-label">实付金额</text>
+            <text class="info-value price">¥{{ order.payAmount }}</text>
+          </view>
+          <view class="info-item" v-if="order.description">
+            <text class="info-label">商品描述</text>
+            <text class="info-value">{{ order.description }}</text>
           </view>
         </view>
         
-        <!-- 买家信息卡片 -->
-        <view class="user-card">
+        <!-- 商品图片卡片 -->
+        <view class="image-card" v-if="order.mainImageUrl">
           <view class="info-header">
-            <text class="info-icon">👤</text>
-            <text class="info-title">买家信息</text>
+            <text class="info-icon">�️</text>
+            <text class="info-title">商品图片</text>
           </view>
-          <view class="info-item">
-            <text class="info-label">买家昵称</text>
-            <text class="info-value">{{ order.buyerName || '未知' }}</text>
-          </view>
-          <view class="info-item">
-            <text class="info-label">联系电话</text>
-            <text class="info-value">{{ order.buyerPhone || '未知' }}</text>
-          </view>
+          <image class="goods-image" :src="order.mainImageUrl" mode="aspectFill" @click="previewImage"></image>
         </view>
         
-        <!-- 卖家信息卡片 -->
+        <!-- 交易对方信息卡片 -->
         <view class="user-card">
           <view class="info-header">
             <text class="info-icon">👤</text>
-            <text class="info-title">卖家信息</text>
+            <text class="info-title">交易对方</text>
           </view>
           <view class="info-item">
-            <text class="info-label">卖家昵称</text>
-            <text class="info-value">{{ order.sellerName || '未知' }}</text>
+            <text class="info-label">用户名</text>
+            <text class="info-value">{{ order.counterpartUsername || '未知' }}</text>
           </view>
           <view class="info-item">
             <text class="info-label">联系电话</text>
-            <text class="info-value">{{ order.sellerPhone || '未知' }}</text>
+            <text class="info-value">{{ order.counterpartPhone || '未知' }}</text>
+          </view>
+          <view class="info-item" v-if="order.counterpartAvatar">
+            <text class="info-label">头像</text>
+            <image class="avatar-image" :src="order.counterpartAvatar" mode="aspectFill"></image>
           </view>
         </view>
       </view>
@@ -153,9 +166,10 @@ export default {
     // 订单状态样式
     statusClass(status) {
       const statusMap = {
-        0: 'status-removed',  // 已下架
-        1: 'status-selling',  // 销售中
-        2: 'status-completed' // 已成交
+        1: 'status-pending',   // 待支付
+        2: 'status-paid',      // 已支付
+        3: 'status-completed', // 已完成
+        4: 'status-cancelled'  // 已取消
       }
       return statusMap[status] || ''
     },
@@ -163,11 +177,35 @@ export default {
     // 订单状态文本
     orderStatusText(status) {
       const statusMap = {
-        0: '已下架',
-        1: '销售中',
-        2: '已成交'
+        1: '待支付',
+        2: '已支付',
+        3: '已完成',
+        4: '已取消'
       }
       return statusMap[status] || '未知状态'
+    },
+    
+    // 商品分类文本
+    getCategoryText(category) {
+      const categoryMap = {
+        'ELECTRONICS': '电子产品',
+        'BOOKS': '图书',
+        'CLOTHING': '服装',
+        'FURNITURE': '家具',
+        'SPORTS': '体育用品',
+        'OTHER': '其他'
+      }
+      return categoryMap[category] || category || '未分类'
+    },
+    
+    // 预览图片
+    previewImage() {
+      if (this.order.mainImageUrl) {
+        uni.previewImage({
+          urls: [this.order.mainImageUrl],
+          current: this.order.mainImageUrl
+        })
+      }
     },
     
     // 返回上一页
@@ -270,7 +308,7 @@ export default {
 }
 
 /* 卡片样式 */
-.info-card, .user-card {
+.info-card, .user-card, .image-card {
   background-color: white;
   border-radius: 20rpx;
   padding: 30rpx;
@@ -354,8 +392,33 @@ export default {
   background-color: #E8F5E9;
 }
 
-.status-removed {
+.status-pending {
+  color: #FF9800;
+  background-color: #FFF3E0;
+}
+
+.status-paid {
+  color: #2196F3;
+  background-color: #E3F2FD;
+}
+
+.status-cancelled {
   color: #999;
   background-color: #F5F5F5;
+}
+
+/* 商品图片样式 */
+.goods-image {
+  width: 100%;
+  height: 400rpx;
+  border-radius: 10rpx;
+  margin-top: 20rpx;
+}
+
+/* 头像样式 */
+.avatar-image {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 30rpx;
 }
 </style>
