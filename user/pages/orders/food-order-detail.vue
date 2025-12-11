@@ -51,6 +51,10 @@
               <text class="info-value">{{ order.contactInfo }}</text>
             </view>
             <view class="info-item">
+              <text class="info-label">商家名称：</text>
+              <text class="info-value">{{ order.merchantName }}</text>
+            </view>
+            <view class="info-item">
               <text class="info-label">商品名称：</text>
               <text class="info-value">{{ order.productName }}</text>
             </view>
@@ -61,6 +65,10 @@
             <view class="info-item">
               <text class="info-label">商品金额：</text>
               <text class="info-value">¥{{ order.goodsAmount }}</text>
+            </view>
+            <view class="info-item">
+              <text class="info-label">外卖员：</text>
+              <text class="info-value">{{ encryptRiderName(order.riderNickname) }}</text>
             </view>
             <view class="info-item">
               <text class="info-label">配送费：</text>
@@ -148,10 +156,12 @@ export default {
         paymentMethod: '',
         address: '',
         contactInfo: '',
+        merchantName: '',
         price: '0.00',
         quantity: 1,
         riderName: '',
         riderPhone: '',
+        riderNickname: '',
         orderStatus: 0,
         payType: '',
         totalAmount: '0.00',
@@ -207,12 +217,14 @@ export default {
     
     // 处理订单数据，将后端返回的数据转换为页面需要的格式
     processOrderData(orderData) {
-      // 从orderTakeoutDetailList获取商品名称和数量
+      // 从orderTakeoutDetailList获取商品名称、数量和商家名称
       let productName = orderData.productName || ''
       let quantity = orderData.quantity || 1
+      let merchantName = ''
       if (orderData.orderTakeoutDetailList && orderData.orderTakeoutDetailList.length > 0) {
         productName = orderData.orderTakeoutDetailList[0].goodsName || ''
         quantity = orderData.orderTakeoutDetailList[0].quantity || 1
+        merchantName = orderData.orderTakeoutDetailList[0].merchantName || ''
       }
       
       // 根据后端返回的实际字段进行映射
@@ -227,10 +239,12 @@ export default {
         paymentMethod: this.getPaymentMethodText(orderData.payType || ''),
         address: orderData.deliverAddress || orderData.address || '',
         contactInfo: orderData.deliverPhone || orderData.contactInfo || '',
+        merchantName: merchantName,
         price: (orderData.paymentAmount || orderData.totalAmount || 0).toFixed(2),
         quantity: quantity,
         riderName: orderData.riderName || '',
         riderPhone: orderData.riderPhone || '',
+        riderNickname: orderData.riderNickname || '',
         orderStatus: orderData.orderStatus || 1,
         payType: orderData.payType || '',
         totalAmount: (orderData.totalAmount || 0).toFixed(2),
@@ -256,13 +270,29 @@ export default {
     
     // 将支付方式码转换为文本
     getPaymentMethodText(payType) {
-      const payTypeMap = {
+      const payTypeMap = {  
         1: '余额支付',
         2: '微信支付',
         3: '支付宝支付',
         4: '面付'
       }
       return payTypeMap[payType] || '未知支付方式'
+    },
+    
+    // 加密外卖员名称，部分显示
+    encryptRiderName(name) {
+      if (!name || name.length <= 1) {
+        return name || ''
+      } else if (name.length === 2) {
+        // 2个字符：显示第一个字符，最后一个用*代替
+        return name.charAt(0) + '*'
+      } else if (name.length === 3) {
+        // 3个字符：显示第一个和最后一个字符，中间用*代替
+        return name.charAt(0) + '*' + name.charAt(name.length - 1)
+      } else {
+        // 4个或更多字符：显示第一个和最后一个字符，中间用*代替
+        return name.charAt(0) + '*'.repeat(name.length - 2) + name.charAt(name.length - 1)
+      }
     },
     // 返回上一页
     goBack() {
