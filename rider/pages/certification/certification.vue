@@ -116,7 +116,7 @@
 </template>
 
 <script>
-	import { uploadQualificationCertification } from '@/utils/api/index.js';
+	import { uploadQualificationCertification, getRiderBaseInfo } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -132,8 +132,19 @@
 				idCardNumber: '',
 				
 				// 提交状态
-				submitting: false
+				submitting: false,
+				
+				// 加载状态
+				loading: false
 			}
+		},
+		
+		onLoad() {
+			this.loadCertificationStatus();
+		},
+		
+		onShow() {
+			this.loadCertificationStatus();
 		},
 		
 		computed: {
@@ -159,6 +170,33 @@
 			}
 		},
 		methods: {
+			// 从后端加载认证状态
+			async loadCertificationStatus() {
+				if (this.loading) return;
+				
+				this.loading = true;
+				try {
+					const response = await getRiderBaseInfo();
+					
+					if (response.code === 200 && response.data) {
+						const accountStatus = response.data.accountStatus || 0;
+						
+						// 根据 accountStatus 映射认证状态
+						if (accountStatus === 1) {
+							// 已认证
+							this.certificationStatus = 'approved';
+						} else {
+							// 未认证，默认为待提交
+							this.certificationStatus = 'pending';
+						}
+					}
+				} catch (error) {
+					console.error('获取认证状态失败:', error);
+				} finally {
+					this.loading = false;
+				}
+			},
+			
 			goBack() {
 				const pages = getCurrentPages();
 				if (pages.length > 1) {
@@ -262,6 +300,11 @@
 									icon: 'success',
 									duration: 2000
 								});
+								
+								// 延迟后重新加载状态
+								setTimeout(() => {
+									this.loadCertificationStatus();
+								}, 1000);
 								
 							} catch (error) {
 								console.error('提交认证失败:', error);
