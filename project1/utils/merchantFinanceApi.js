@@ -1,5 +1,5 @@
 // 商家财务管理 API 接口
-import { request } from './api.js';
+import { 请求 } from './api.js';
 
 const baseUrl = 'http://localhost:8080';
 
@@ -8,7 +8,7 @@ const baseUrl = 'http://localhost:8080';
  * @returns {Promise} 返回包含可用余额、今日收入、结算中金额、提现费率等信息
  */
 export const getWithdrawOverview = () => {
-  return request(`${baseUrl}/api/merchant/finance/withdraw/overview`, {
+  return 请求(`${baseUrl}/api/merchant/finance/withdraw/overview`, {
     method: 'GET'
   });
 };
@@ -18,7 +18,7 @@ export const getWithdrawOverview = () => {
  * @returns {Promise}
  */
 export const getFinancialOverview = () => {
-  return request(`${baseUrl}/merchant/finance/overview`, {
+  return 请求(`${baseUrl}/merchant/finance/overview`, {
     method: 'GET'
   });
 };
@@ -28,7 +28,7 @@ export const getFinancialOverview = () => {
  * @returns {Promise}
  */
 export const getTodayIncome = () => {
-  return request(`${baseUrl}/api/merchant/finance/income/today`, {
+  return 请求(`${baseUrl}/api/merchant/finance/income/today`, {
     method: 'GET'
   });
 };
@@ -38,7 +38,7 @@ export const getTodayIncome = () => {
  * @returns {Promise}
  */
 export const getMerchantWallet = () => {
-  return request(`${baseUrl}/api/merchant/finance/wallet`, {
+  return 请求(`${baseUrl}/api/merchant/finance/wallet`, {
     method: 'GET'
   });
 };
@@ -51,7 +51,7 @@ export const initMerchantWallet = () => {
   // 生成8位数字的钱包ID
   const merchantWalletId = Math.floor(10000000 + Math.random() * 90000000);
   
-  return request(`${baseUrl}/merchant/info/initWallet?merchantWalletId=${merchantWalletId}`, {
+  return 请求(`${baseUrl}/merchant/info/initWallet?merchantWalletId=${merchantWalletId}`, {
     method: 'POST'
   });
 };
@@ -67,7 +67,7 @@ export const initMerchantWallet = () => {
  * @returns {Promise}
  */
 export const getTransactionList = (params = {}) => {
-  return request(`${baseUrl}/merchant/finance/transactions`, {
+  return 请求(`${baseUrl}/merchant/finance/transactions`, {
     method: 'GET',
     data: params
   });
@@ -89,8 +89,24 @@ export const getTransactionDetail = (orderId) => {
   
   // 构建请求URL
   const url = `${baseUrl}/merchant/finance/transaction/${id}`;
-  return request(url, {
+  return 请求(url, {
     method: 'GET'
+  });
+};
+
+/**
+ * 查询当前商家钱包流水列表（含订单详情）
+ * @param {Object} params - 查询参数
+ * @param {String} [params.flowType] - 流水类型
+ * @param {String} [params.orderNo] - 订单号
+ * @param {String} [params.startTime] - 开始时间
+ * @param {String} [params.endTime] - 结束时间
+ * @returns {Promise}
+ */
+export const getWalletFlowListWithOrder = (params = {}) => {
+  return 请求(`${baseUrl}/merchant/walletFlow/listWithOrder`, {
+    method: 'GET',
+    data: params
   });
 };
 
@@ -99,7 +115,7 @@ export const getTransactionDetail = (orderId) => {
  * @returns {Promise} 返回账户列表数据，包含accountId、accountType、accountName、accountNumber、bankName等信息
  */
 export const getWithdrawalAccounts = () => {
-  return request(`${baseUrl}/api/merchant/finance/withdraw/account/list`, {
+  return 请求(`${baseUrl}/api/merchant/finance/withdraw/account/list`, {
     method: 'GET'
   });
 };
@@ -118,7 +134,7 @@ export const deleteWithdrawAccount = (accountId) => {
   // 构建请求URL，将账户ID添加到路径中
   const url = `${baseUrl}/api/merchant/finance/withdraw/account/${accountId}`;
   
-  return request(url, {
+  return 请求(url, {
     method: 'DELETE'
   });
 };
@@ -137,7 +153,7 @@ export const setDefaultWithdrawAccount = (accountId) => {
   // 构建请求URL，将账户ID添加到路径中
   const url = `${baseUrl}/api/merchant/finance/withdraw/account/${accountId}/default`;
   
-  return request(url, {
+  return 请求(url, {
     method: 'PUT'
   });
 };
@@ -164,7 +180,7 @@ export const addWithdrawalAccount = (accountData) => {
     return Promise.reject(new Error('银行账户需要提供银行名称'));
   }
   
-  return request(`${baseUrl}/api/merchant/finance/withdraw/account/add`, {
+  return 请求(`${baseUrl}/api/merchant/finance/withdraw/account/add`, {
     method: 'POST',
     data: accountData
   });
@@ -181,15 +197,15 @@ export const addWithdrawalAccount = (accountData) => {
 export const applyWithdrawal = (withdrawalData) => {
   // 验证必要参数
   if (!withdrawalData || !withdrawalData.amount || !withdrawalData.accountId) {
-    return Promise.reject(new Error('缺少必要的提现信息参数'));
+    return Promise。reject(new 错误('缺少必要的提现信息参数'));
   }
   
   // 验证金额格式
   if (typeof withdrawalData.amount !== 'number' || withdrawalData.amount <= 0) {
-    return Promise.reject(new Error('提现金额必须为大于0的数字'));
+    return Promise。reject(new 错误('提现金额必须为大于0的数字'));
   }
   
-  return request(`${baseUrl}/merchant/finance/withdraw`, {
+  return 请求(`${baseUrl}/merchant/finance/withdraw`， {
     method: 'POST',
     data: withdrawalData
   });
@@ -200,7 +216,7 @@ export const applyWithdrawal = (withdrawalData) => {
  * @returns {String} 生成的UUID
  */
 const generateIdempotentKey = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'。替换(/[xy]/g， function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -217,13 +233,13 @@ const generateIdempotentKey = () => {
  */
 export const applyWithdraw = (withdrawalData) => {
   // 验证必要参数
-  if (!withdrawalData || !withdrawalData.accountId || !withdrawalData.amount) {
-    return Promise.reject(new Error('缺少必要的提现信息参数'));
+  if (!withdrawalData || !withdrawalData。accountId || !withdrawalData。amount) {
+    return Promise。reject(new 错误('缺少必要的提现信息参数'));
   }
   
   // 验证金额格式
-  if (typeof withdrawalData.amount !== 'number' || withdrawalData.amount <= 0) {
-    return Promise.reject(new Error('提现金额必须为大于0的数字'));
+  if (typeof withdrawalData。amount !== 'number' || withdrawalData.amount <= 0) {
+    return Promise。reject(new 错误('提现金额必须为大于0的数字'));
   }
   
   // 生成幂等性键，防止重复提交
@@ -232,17 +248,17 @@ export const applyWithdraw = (withdrawalData) => {
   // 构建请求数据
   const requestData = {
     accountId: withdrawalData.accountId,
-    amount: withdrawalData.amount,
+    amount: withdrawalData。amount,
     idempotentKey: idempotentKey
   };
   
   // 如果有备注，添加到请求数据中
-  if (withdrawalData.remark) {
-    requestData.remark = withdrawalData.remark;
+  if (withdrawalData。remark) {
+    requestData。remark = withdrawalData。remark;
   }
   
-  return request(`${baseUrl}/api/merchant/finance/withdraw/apply`, {
-    method: 'POST',
+  return 请求(`${baseUrl}/api/merchant/finance/withdraw/apply`， {
+    method: 'POST'，
     data: requestData
   });
 };
@@ -256,8 +272,8 @@ export const applyWithdraw = (withdrawalData) => {
  * @returns {Promise}
  */
 export const getWithdrawalRecords = (params = {}) => {
-  return request(`${baseUrl}/merchant/finance/withdrawals`, {
-    method: 'GET',
+  return 请求(`${baseUrl}/merchant/finance/withdrawals`， {
+    method: 'GET'，
     data: params
   });
 };
@@ -269,8 +285,8 @@ export const getWithdrawalRecords = (params = {}) => {
  * @returns {Promise} 返回提现记录列表数据
  */
 export const getWithdrawRecordList = (params = {}) => {
-  return request(`${baseUrl}/api/merchant/finance/withdraw/records`, {
-    method: 'GET',
+  return 请求(`${baseUrl}/api/merchant/finance/withdraw/records`， {
+    method: 'GET'，
     data: params
   });
 };
@@ -291,7 +307,7 @@ export const getWithdrawalDetail = (withdrawalId) => {
   
   // 构建请求URL
   const url = `${baseUrl}/merchant/finance/withdrawal/${id}`;
-  return request(url, {
+  return 请求(url, {
     method: 'GET'
   });
 };
@@ -310,7 +326,7 @@ export const cancelWithdrawal = (withdrawalId) => {
     return Promise.reject(new Error('无效的提现记录ID'));
   }
   
-  return request(`${baseUrl}/merchant/finance/withdraw/cancel`, {
+  return 请求(`${baseUrl}/merchant/finance/withdraw/cancel`, {
     method: 'POST',
     data: { withdrawalId: id }
   });
@@ -321,7 +337,7 @@ export const cancelWithdrawal = (withdrawalId) => {
  * @returns {Promise}
  */
 export const getWithdrawalFeeRate = () => {
-  return request(`${baseUrl}/merchant/finance/withdraw/fee-rate`, {
+  return 请求(`${baseUrl}/merchant/finance/withdraw/fee-rate`, {
     method: 'GET'
   });
 };
@@ -340,7 +356,7 @@ export const printReceipt = (orderId) => {
     return Promise.reject(new Error('无效的订单ID'));
   }
   
-  return request(`${baseUrl}/merchant/finance/receipt/print`, {
+  return 请求(`${baseUrl}/merchant/finance/receipt/print`, {
     method: 'POST',
     data: { orderId: id }
   });
@@ -363,7 +379,7 @@ export const previewWithdraw = (amount) => {
   }
   
   // 由于后端使用@RequestParam，需要将amount作为查询参数发送
-  return request(`${baseUrl}/api/merchant/finance/withdraw/preview?amount=${amount}`, {
+  return 请求(`${baseUrl}/api/merchant/finance/withdraw/preview?amount=${amount}`, {
     method: 'POST'
   });
 };
@@ -377,6 +393,7 @@ export const merchantFinanceApi = {
   getTransactionList,
   getTransactionDetail,
   getWithdrawalAccounts,
+  getWalletFlowListWithOrder,
   addWithdrawalAccount,
   applyWithdrawal,
   applyWithdraw,
@@ -408,7 +425,7 @@ export const handleRefund = (refundData) => {
     return Promise.reject(new Error('退款金额必须为大于0的数字'));
   }
   
-  return request(`${baseUrl}/merchant/finance/order/refund`, {
+  return 请求(`${baseUrl}/merchant/finance/order/refund`, {
     method: 'POST',
     data: refundData
   });
@@ -420,6 +437,7 @@ export default {
   getTodayIncome,
   getTransactionList,
   getTransactionDetail,
+  getWalletFlowListWithOrder,
   getWithdrawalAccounts,
   addWithdrawalAccount,
   applyWithdrawal,
