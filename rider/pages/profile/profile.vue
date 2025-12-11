@@ -17,7 +17,6 @@
 		<view class="info-item" @tap.stop="navigateToCertification">
 			<text class="info-label">实名认证</text>
 			<view class="info-right">
-				<text class="info-value name">{{ userInfo.name }}</text>
 				<text class="certification-badge" :class="certificationStatus.class">{{ certificationStatus.text }}</text>
 				<text class="arrow-icon">›</text>
 			</view>
@@ -86,20 +85,20 @@
 				return phone || '未设置';
 			},
 			certificationStatus() {
-				// 根据 accountStatus 判断认证状态
-				if (this.userInfo.accountStatus === 1) {
-					return { text: '已认证', class: 'certified' };
-				} else {
-					return { text: '未认证', class: 'not-certified' };
-				}
+			// 根据 accountStatus 判断认证状态，与资质认证页面保持一致
+			if (this.userInfo.accountStatus === 1) {
+				return { text: '已通过', class: 'certified' };
+			} else {
+				return { text: '待提交', class: 'not-certified' };
 			}
-		},
-		onLoad() {
-			this.refreshUserInfo();
-		},
-		onShow() {
-			this.refreshUserInfo();
-		},
+		}
+	},
+	onLoad() {
+		this.refreshUserInfo();
+	},
+	onShow() {
+		this.refreshUserInfo();
+	},
 		methods: {
 			// 从后端获取骑手信息
 			async refreshUserInfo() {
@@ -107,14 +106,10 @@
 				
 				this.loading = true;
 				try {
-					console.log('🔄 开始刷新骑手信息...');
 					const response = await getRiderBaseInfo();
-					
-					console.log('📥 后端完整响应:', response);
 					
 					if (response.code === 200 && response.data) {
 						const data = response.data;
-						console.log('✅ 获取到的后端数据:', data);
 						
 						// 映射后端数据到前端字段
 						this.userInfo = {
@@ -127,8 +122,6 @@
 							creditScore: data.creditScore || 0,
 							createTime: data.createTime
 						};
-						
-						console.log('📱 更新后的用户信息:', this.userInfo);
 						
 						// 同时保存到本地存储作为缓存
 						uni.setStorageSync('riderInfo', this.userInfo);
@@ -185,9 +178,8 @@
 				});
 			},
 			navigateToCertification() {
-				uni.showToast({
-					title: '查看实名认证',
-					icon: 'none'
+				uni.navigateTo({
+					url: '/pages/certification/certification'
 				});
 			},
 			navigateToNicknameEdit() {
