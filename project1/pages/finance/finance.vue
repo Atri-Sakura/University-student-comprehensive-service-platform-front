@@ -116,30 +116,7 @@ export default {
       },
       selectedDateRange: 'today',
       displayDate: '2023-11-15',
-      orderList: [
-        {
-          time: '2023-11-15 12:30',
-          amount: '68.50',
-          orderId: '#20231115001',
-          customerName: '张先生',
-          productAmount: '78.50',
-          platformSubsidy: '5.00',
-          actualIncome: '68.50',
-          platformFee: '5.00',
-          deliveryFee: '5.00'
-        },
-        {
-          time: '2023-11-15 12:15',
-          amount: '112.00',
-          orderId: '#20231115002',
-          customerName: '李女士',
-          productAmount: '125.00',
-          activityDiscount: '13.00',
-          actualIncome: '112.00',
-          platformFee: '6.25',
-          deliveryFee: '6.75'
-        }
-      ],
+      orderList: [], // 初始化为空数组，由API动态填充
       withdrawalRecords: [
         {
           date: '2023-11-14',
@@ -157,6 +134,7 @@ export default {
   onLoad() {
     this.loadShopInfo();
     this.loadFinancialData();
+    this.loadOrderList();
     this.loadWithdrawalRecords();
   },
   methods: {
@@ -330,18 +308,26 @@ export default {
     selectDateRange(range) {
       this.selectedDateRange = range;
       // 根据选择的日期范围更新显示日期
+      const now = new Date();
       switch(range) {
         case 'today':
-          this.displayDate = '2023-11-15';
+          this.displayDate = now.toISOString().split('T')[0];
           break;
         case 'week':
-          this.displayDate = '2023-11-13 至 2023-11-19';
+          const dayOfWeek = now.getDay() || 7;
+          const diff = now.getDate() - dayOfWeek + 1;
+          const weekStart = new Date(now.setDate(diff));
+          const weekEnd = new Date(now.setDate(diff + 6));
+          this.displayDate = `${weekStart.toISOString().split('T')[0]} 至 ${weekEnd.toISOString().split('T')[0]}`;
           break;
         case 'month':
-          this.displayDate = '2023-11-01 至 2023-11-30';
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          this.displayDate = `${monthStart.toISOString().split('T')[0]} 至 ${monthEnd.toISOString().split('T')[0]}`;
           break;
       }
-      // 这里可以根据日期范围重新加载数据
+      // 根据日期范围重新加载数据
+      this.loadOrderList();
     },
     showCustomDatePicker() {
       // 显示自定义日期选择器
@@ -447,6 +433,107 @@ export default {
           icon: 'none'
         });
       });
+    },
+    
+    // 加载收入明细列表
+    loadOrderList() {
+      console.log('开始加载收入明细...');
+      // 根据当前选择的日期范围构建查询参数
+      const params = this.getDateRangeParams();
+      console.log('收入明细查询参数:', params);
+      
+      merchantFinanceApi.getWalletFlowListWithOrder(params).then(res => {
+        console.log('收入明细API响应:', res);
+        
+        // 检查响应格式
+        if (res && res.data && res.data.code === 200) {
+          const flowData = res.data.data || res.data.rows || [];
+          console.log('收入明细数据:', flowData);
+          
+          // 转换收入明细格式为页面需要的格式
+          const formattedOrders = flowData.map(flow => {
+            console.log('处理单条流水记录:', flow);
+            // 提取订单信息
+            const orderInfo = flow.orderInfo || {};
+            return {
+              time: this.formatDateTime(flow.createTime || ''),
+              amount: flow.amount || '0.00',
+              orderId: flow.orderNo || orderInfo.orderNo || '',
+              customerName: orderInfo.customerName || '',
+              productAmount: orderInfo.totalAmount || '0.00',
+              platformSubsidy: orderInfo.platformSubsidy || '0.00',
+              actualIncome: flow.amount || '0.00',
+              platformFee: orderInfo.platformFee || '0.00',
+              deliveryFee: orderInfo.deliveryFee || '0.00'
+            };
+          });
+          
+          console.log('格式化后的收入明细:', formattedOrders);
+          this.orderList = formattedOrders;
+        } else {
+          console.error('获取收入明细失败:', res);
+          uni.showToast({
+            title: '获取收入明细失败',
+            icon: 'none'
+          });
+        }
+      }).catch(err => {
+        console.error('获取收入明细异常:', err);
+        uni.showToast({
+          title: '网络异常，请重试',
+          icon: 'none'
+        });
+      });
+    },
+    
+    // 根据选择的日期范围构建查询参数
+    getDateRangeParams() {
+      const params = {};
+      const now = new Date();
+      
+      switch (this.selectedDateRange) {
+        case 'today':
+          // 今天
+          const today = now.toISOString().split('T')[0];
+          params.startTime = today + ' 00:00:00';
+          params.endTime = today + ' 23:59:59';
+          break;
+        case 'week':
+          // 本周
+          const dayOfWeek = now.getDay() || 7; // 转换为1-7，其中1是周一，7是周日
+          const diff = now.getDate() - dayOfWeek + 1;
+          const weekStart = new Date(now.setDate(diff));
+          const weekEnd = new Date(now.setDate(diff + 6));
+          params.startTime = weekStart.toISOString().split('T')[0] + ' 00:00:00';
+          params.endTime = weekEnd.toISOString().split('T')[0] + ' 23:59:59';
+          break;
+        case 'month':
+          // 本月
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          params.startTime = monthStart.toISOString().split('T')[0] + ' 00:00:00';
+          params.endTime = monthEnd.toISOString().split('T')[0] + ' 23:59:59';
+          break;
+      }
+      
+      return params;
+    },
+    
+    // 格式化日期时间
+    formatDateTime(dateString) {
+      if (!dateString) return '';
+      try {
+        const date = new Date(dateString);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}`;
+      } catch (error) {
+        console.error('日期时间格式化错误:', error);
+        return dateString;
+      }
     },
     
     // 格式化日期
