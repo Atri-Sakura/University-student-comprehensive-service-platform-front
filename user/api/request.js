@@ -207,12 +207,25 @@ const request = (options) => {
  */
 const uploadFile = (options) => {
 	return new Promise((resolve, reject) => {
+		// 获取token
+		const token = uni.getStorageSync('token');
+		
+		// 设置请求头
+		const header = {
+			...options.header
+		};
+		
+		// 如果有token，添加到请求头
+		if (token) {
+			header['Authorization'] = 'Bearer ' + token;
+		}
+		
 		uni.uploadFile({
 			url: BASE_URL + options.url,
 			filePath: options.filePath,
 			name: options.name || 'file',
 			formData: options.formData || {},
-			header: options.header || {},
+			header: header,
 			timeout: options.timeout || 30000,
 			success: (res) => {
 				if (res.statusCode === 200) {
