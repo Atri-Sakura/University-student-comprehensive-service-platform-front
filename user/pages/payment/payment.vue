@@ -47,6 +47,7 @@
             v-model="buyerInfo.phone" 
             placeholder="请输入手机号"
             type="number"
+            maxlength="11"
           />
         </view>
         <view class="form-item">
