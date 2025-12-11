@@ -100,6 +100,8 @@
 		computed: {
 			filteredOrders() {
 				let filtered = this.orders;
+				
+				// 搜索筛选
 				if (this.searchKeyword) {
 					filtered = filtered.filter(order => 
 						order.id.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
@@ -107,6 +109,34 @@
 						order.merchant.toLowerCase().includes(this.searchKeyword.toLowerCase())
 					);
 				}
+				
+				// 时间筛选
+				if (this.selectedTimeFilter !== '全部时间') {
+					const now = new Date();
+					
+					filtered = filtered.filter(order => {
+						if (!order.createTime) return false;
+						
+						const orderDate = new Date(order.createTime);
+						if (isNaN(orderDate.getTime())) return false;
+						
+						switch (this.selectedTimeFilter) {
+							case '今天':
+								return this.isSameDay(orderDate, now);
+							case '昨天':
+								const yesterday = new Date(now);
+								yesterday.setDate(yesterday.getDate() - 1);
+								return this.isSameDay(orderDate, yesterday);
+							case '本周':
+								return this.isSameWeek(orderDate, now);
+							case '本月':
+								return this.isSameMonth(orderDate, now);
+							default:
+								return true;
+						}
+					});
+				}
+				
 				return filtered;
 			}
 		},
@@ -181,7 +211,34 @@
 			selectTimeFilter(time) {
 				this.selectedTimeFilter = time;
 				this.showFilter = false;
-				this.loadOrders();
+				// 不需要重新加载数据，前端筛选即可
+			},
+			// 辅助函数：判断两个日期是否为同一天
+			isSameDay(date1, date2) {
+				return date1.getFullYear() === date2.getFullYear() &&
+					date1.getMonth() === date2.getMonth() &&
+					date1.getDate() === date2.getDate();
+			},
+			// 辅助函数：判断两个日期是否为同一周
+			isSameWeek(date1, date2) {
+				// 获取本周的第一天（周一）
+				const firstDayOfWeek = new Date(date2);
+				const dayOfWeek = date2.getDay() || 7; // 周日为0，转为7
+				firstDayOfWeek.setDate(date2.getDate() - dayOfWeek + 1);
+				firstDayOfWeek.setHours(0, 0, 0, 0);
+				
+				// 获取本周的最后一天（周日）
+				const lastDayOfWeek = new Date(firstDayOfWeek);
+				lastDayOfWeek.setDate(lastDayOfWeek.getDate() + 6);
+				lastDayOfWeek.setHours(23, 59, 59, 999);
+				
+				// 判断订单日期是否在本周内
+				return date1 >= firstDayOfWeek && date1 <= lastDayOfWeek;
+			},
+			// 辅助函数：判断两个日期是否为同一月
+			isSameMonth(date1, date2) {
+				return date1.getFullYear() === date2.getFullYear() &&
+					date1.getMonth() === date2.getMonth();
 			},
 			viewOrderDetail(order) {
 				uni.navigateTo({
