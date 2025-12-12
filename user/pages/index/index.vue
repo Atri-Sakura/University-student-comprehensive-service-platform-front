@@ -3,652 +3,759 @@
     <!-- 自定义导航栏 -->
     <view class="nav-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="nav-content">
-        <text class="nav-title">校园生活</text>
-        <view class="location">
-          <text class="location-icon">📍</text>
-          <text class="location-text">贵州大学</text>
-        </view>
+        <text class="nav-back" @click="navBack">&lt;</text>
+        <text class="nav-title">个人课表</text>
+        <view class="nav-right"></view>
       </view>
     </view>
 
     <!-- 内容区域 -->
-    <scroll-view class="content" scroll-y :style="{ top: navHeight + 'px' }">
-      <!-- 轮播图 -->
-      <view class="banner-section">
-        <swiper class="banner-swiper" :indicator-dots="true" :autoplay="true" :interval="3000" :duration="500" circular>
-          <swiper-item v-for="(item, index) in bannerList" :key="index">
-            <image class="banner-image" :src="item.image" mode="aspectFit"></image>
-          </swiper-item>
-        </swiper>
-      </view>
-
-      <!-- 功能按钮 -->
-      <view class="function-section">
-        <view class="function-item" @click="navToSchedule">
-          <view class="function-icon-box">
-            <text class="function-icon">📅</text>
-          </view>
-          <text class="function-text">个人课表</text>
-        </view>
-        <view class="function-item" @click="navToErrand">
-          <view class="function-icon-box">
-            <text class="function-icon">🏃</text>
-          </view>
-          <text class="function-text">跑腿服务</text>
-        </view>
-        <view class="function-item" @click="navToFood">
-          <view class="function-icon-box">
-            <text class="function-icon">🍽️</text>
-          </view>
-          <text class="function-text">外卖点餐</text>
+    <view class="content" :style="{ marginTop: navHeight + 'px' }">
+      <!-- 导入按钮 -->
+      <view class="import-btn-container">
+        <view class="import-btn" @click="showImportOptions">
+          <text class="import-icon">📥</text>
+          <text class="import-text">导入课表</text>
         </view>
       </view>
 
-      <!-- 今日课程 -->
-      <view class="course-section">
-        <view class="section-header">
-          <text class="section-title">今日课程</text>
-          <text class="section-more" @click="viewAllCourses">查看全部</text>
+      <!-- 课程表 -->
+      <view class="schedule-container">
+        <!-- 表头 -->
+        <view class="schedule-header">
+          <view class="time-cell"></view>
+          <view class="day-cell" v-for="day in weekDays" :key="day.value">{{ day.name }}</view>
         </view>
-        <view class="course-list">
-          <view class="course-item" v-for="(item, index) in courseList" :key="item.id || index">
-            <view class="course-time">{{ item.time }}</view>
-            <view class="course-info">
-              <text class="course-name">{{ item.name }}</text>
-              <text class="course-location">{{ item.location }}</text>
-              <text class="course-teacher">👨‍🏫 {{ item.teacher }}</text>
+
+        <!-- 课程内容 -->
+        <view class="schedule-content">
+          <!-- 时间列 -->
+          <view class="time-column">
+            <view class="time-item" v-for="time in classTimes" :key="time">{{ time }}</view>
+          </view>
+
+          <!-- 课程格子 -->
+          <view class="course-grid">
+            <view class="course-item" 
+                  v-for="course in courseSchedule" 
+                  :key="course.id"
+                  :style="{
+                    gridRowStart: course.start,
+                    gridRowEnd: course.end,
+                    gridColumn: course.day + 1,
+                    backgroundColor: course.color,
+                    opacity: 0.9
+                  }"
+                  @click="viewCourseDetail(course)">
+              <text class="course-name">{{ course.name }}</text>
+              <text class="course-location">{{ course.location }}</text>
             </view>
           </view>
-          <view v-if="courseList.length === 0" class="empty-course">
-            <text class="empty-text">今日暂无课程</text>
-          </view>
         </view>
       </view>
 
-      <!-- 推荐外卖 -->
-      <view class="recommend-section">
-        <view class="section-header">
-          <text class="section-title">推荐外卖</text>
-          <text class="section-more" @click="viewAllFood">查看全部</text>
+      <!-- 课程统计 -->
+      <view class="course-stats">
+        <view class="stat-item">
+          <text class="stat-number">{{ totalCourses }}</text>
+          <text class="stat-label">课程总数</text>
         </view>
-        <view class="recommend-grid">
-          <view class="recommend-item" v-for="(item, index) in recommendList" :key="`food_${item.id}_${index}`" @click="viewFoodDetail(item)">
-            <image class="recommend-image" :src="item.image" mode="aspectFill" @error="handleImageError($event, index, 'food')"></image>
-            <!-- 商品信息 -->
-            <view class="recommend-info">
-              <!-- 商品名称 -->
-              <text class="recommend-name">{{ item.goodsName }}</text>
-              <!-- 评分和销量 -->
-              <view class="recommend-meta">
-                <view class="recommend-rating">
-                  <text class="rating-star">⭐</text>
-                  <text class="rating-score">{{ item.avgRating || 0 }}</text>
+        <view class="stat-item">
+          <text class="stat-number">{{ todayCourses }}</text>
+          <text class="stat-label">今日课程</text>
+        </view>
+        <view class="stat-item">
+          <text class="stat-number">{{ completedCourses }}</text>
+          <text class="stat-label">已完成</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 手动输入课程模态框 -->
+    <view class="modal" v-if="showManualInputModal" @click.self="closeManualInputModal">
+      <view class="modal-content">
+        <view class="modal-header">
+          <text class="modal-title">{{ editingCourse ? '编辑课程' : '添加课程' }}</text>
+          <text class="modal-close" @click="closeManualInputModal">&times;</text>
+        </view>
+        <view class="modal-body">
+          <view class="form-item">
+            <text class="form-label">课程名称</text>
+            <input type="text" v-model="manualCourse.name" placeholder="请输入课程名称" />
+          </view>
+          <view class="form-item">
+            <text class="form-label">上课地点</text>
+            <input type="text" v-model="manualCourse.location" placeholder="请输入上课地点" />
+          </view>
+          <view class="form-item">
+            <text class="form-label">星期几</text>
+            <view class="picker-container">
+              <picker mode="selector" :value="manualCourse.day" :range="weekDays" :range-key="'name'" :show-toolbar="true" @change="onWeekChange">
+                <view class="picker">
+                  {{ weekDays[manualCourse.day].name }}
                 </view>
-                <text class="recommend-sales">月售{{ item.salesCount || 0 }}</text>
-              </view>
-              <!-- 价格区域 -->
-              <view class="recommend-price-area">
-                <text class="recommend-price">¥{{ item.price }}</text>
-                <text v-if="item.originalPrice && item.originalPrice > item.price" class="recommend-original-price">¥{{ item.originalPrice }}</text>
-              </view>
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">开始节次</text>
+            <view class="picker-container">
+              <picker mode="selector" :value="manualCourse.start - 1" :range="startOptions" :show-toolbar="true" @change="onStartChange">
+                <view class="picker">
+                  {{ getPeriodText(manualCourse.start) }}
+                </view>
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">结束节次</text>
+            <view class="picker-container">
+              <picker mode="selector" :value="manualCourse.endIndex" :range="endOptions" :show-toolbar="true" @change="onEndChange">
+                <view class="picker">
+                  {{ getPeriodText(manualCourse.start + manualCourse.endIndex) }}
+                </view>
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">教师姓名</text>
+            <input type="text" v-model="manualCourse.teacherName" placeholder="请输入教师姓名" />
+          </view>
+          <view class="form-item">
+            <text class="form-label">开始日期</text>
+            <view class="picker-container">
+              <picker mode="date" :value="startDatePickerValue" @change="onStartDateChange" :start="'2023-01-01'" :end="'2030-12-31'">
+                <input type="text" :value="startDatePickerValue" placeholder="请选择开始日期" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">开始时间</text>
+            <view class="picker-container">
+              <picker mode="time" :value="startTimePickerValue" @change="onStartTimeChange">
+                <input type="text" :value="startTimePickerValue" placeholder="请选择开始时间" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">结束日期</text>
+            <view class="picker-container">
+              <picker mode="date" :value="endDatePickerValue" @change="onEndDateChange" :start="'2023-01-01'" :end="'2030-12-31'">
+                <input type="text" :value="endDatePickerValue" placeholder="请选择结束日期" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">结束时间</text>
+            <view class="picker-container">
+              <picker mode="time" :value="endTimePickerValue" @change="onEndTimeChange">
+                <input type="text" :value="endTimePickerValue" placeholder="请选择结束时间" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">课程颜色</text>
+            <view class="color-picker">
+              <view class="color-item" 
+                    v-for="(color, index) in colorOptions" 
+                    :key="index"
+                    :style="{ backgroundColor: color }"
+                    :class="{ active: manualCourse.color === color }"
+                    @click="manualCourse.color = color"></view>
             </view>
           </view>
         </view>
-      </view>
-      
-      <!-- 推荐二手商品 -->
-      <view class="recommend-section">
-        <view class="section-header">
-          <text class="section-title">推荐二手商品</text>
-          <text class="section-more" @click="viewAllSecondHand">查看全部</text>
-        </view>
-        <view class="recommend-grid">
-          <view class="secondhand-item" v-for="(item, index) in secondHandList" :key="`secondhand_${item.id}_${index}`" @click="viewSecondHandDetail(item)">
-            <image class="secondhand-image" :src="getValidImageUrl(item.image)" mode="aspectFill" @error="handleImageError($event, index, 'secondHand')"></image>
-            <text class="secondhand-name">{{ item.goodsName }}</text>
-            <text class="secondhand-price">¥{{ item.price }}</text>
-          </view>
+        <view class="modal-footer">
+          <button class="btn-cancel" @click="closeManualInputModal">取消</button>
+          <button class="btn-confirm" @click="saveManualCourse">{{ editingCourse ? '更新' : '添加' }}</button>
         </view>
       </view>
-    </scroll-view>
-    
-    <!-- 自定义底部导航栏 -->
-    <custom-tabbar :current="0"></custom-tabbar>
+    </view>
   </view>
 </template>
 
 <script>
-import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
-import api from '@/api/index.js';
-
+import api from '../../api/index.js';
 export default {
-  components: {
-    CustomTabbar
-  },
   data() {
     return {
       statusBarHeight: 0,
       navHeight: 0,
-      bannerList: [],
-      courseList: [],
-      recommendList: [],
-      secondHandList: []
+        weekDays: [
+        { name: '周一', value: 0 },
+        { name: '周二', value: 1 },
+        { name: '周三', value: 2 },
+        { name: '周四', value: 3 },
+        { name: '周五', value: 4 },
+        { name: '周六', value: 5 },
+        { name: '周日', value: 6 }
+      ],
+      classTimes: ['一二节\n8:00-9:50', '三四节\n10:10-12:00', '五六节\n14:30-16:20', '七八节\n16:40-18:30', '九十节\n19:30-21:20'],
+      classOptions: [1, 2, 3, 4, 5],
+      colorOptions: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'],
+      startOptions: ['一二节', '三四节', '五六节', '七八节', '九十节'],
+      endOptions: [], // 动态计算的结束节次选项
+      courseSchedule: [],
+
+      // 手动输入相关
+      showManualInputModal: false,
+      editingCourse: null,
+      manualCourse: {
+        name: '',
+        location: '',
+        day: 0,
+        start: 1,
+        endIndex: 1,
+        color: '#FF6B6B',
+        teacherName: '',
+        startDate: '',
+        endDate: ''
+      },
+      // 开始日期时间选择器状态
+      startDatePickerValue: '',
+      startTimePickerValue: '08:00',
+      // 结束日期时间选择器状态
+      endDatePickerValue: '',
+      endTimePickerValue: '09:40'
     };
+  },
+  computed: {
+    totalCourses() {
+      return this.courseSchedule.length;
+    },
+    todayCourses() {
+      const today = new Date().getDay();
+      // 周日是0，对应我们数组中的索引6
+      const dayIndex = today === 0 ? 6 : today - 1;
+      return this.courseSchedule.filter(course => course.day === dayIndex).length;
+    },
+    completedCourses() {
+      // 基于时间段课程实例的数量来计算已完成的课程数
+      // 这里可以根据实际需求修改完成状态的判断逻辑
+      // 目前暂时返回所有课程实例的数量，后续可以根据课程的时间信息与当前时间比较来判断是否已完成
+      return this.courseSchedule.length;
+    }
   },
   onLoad() {
     // 获取状态栏高度
     const systemInfo = uni.getSystemInfoSync();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.navHeight = this.statusBarHeight + 44;
-    
-    // 加载所有数据
-    this.loadAllData();
+    // 获取课程表数据
+    this.getScheduleData();
   },
   methods: {
-    // 加载所有数据
-    async loadAllData() {
+    // 获取课程表数据
+    async getScheduleData() {
       try {
-        // 并行加载所有数据
-        await Promise.all([
-          this.getCarousel(),
-          this.getTodayCourses(),
-          this.getTakeoutRecommendations(),
-          this.getSecondhandRecommendations()
-        ]);
-      } catch (error) {
-        console.error('首页数据加载失败:', error);
-        uni.showToast({
-          title: '数据加载失败',
-          icon: 'none'
-        });
-      }
-    },
-    
-    // 获取轮播图数据
-    async getCarousel() {
-      try {
-        const res = await api.indexPage.getCarousel();
-        if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
-          // 转换数据格式，使用getValidImageUrl处理图片URL
-          this.bannerList = res.data.map(item => ({
-            image: this.getValidImageUrl(item.indexImageUrl),
-            id: item.indexImageUrlId || Math.floor(Math.random() * 10000)
-          }));
-        } else {
-          console.warn('获取轮播图失败:', res?.message || '未知错误');
-          this.bannerList = [];
+        // 检查token是否存在
+        const token = uni.getStorageSync('token');
+        console.log('=== 课程表请求前token检查 ===');
+        console.log('当前存储的token:', token ? '存在' : '不存在');
+        console.log('token类型:', typeof token);
+        if (token) {
+          console.log('token前30字符:', token.substring(0, Math.min(30, token.length)) + '...');
         }
-        return res;
-      } catch (error) {
-        console.error('获取轮播图异常:', error);
-        this.bannerList = [];
-        return null;
-      }
-    },
-    
-    // 获取今日课程
-    async getTodayCourses() {
-      try {
-        const res = await api.indexPage.getTodayCourses();
         
-        if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
-          // 转换今日课程数据格式
-          const classTimes = ['一二节\n8:00-9:50', '三四节\n10:10-12:00', '五六节\n14:30-16:20', '七八节\n16:40-18:30', '九十节\n19:30-21:20'];
-          
-          let transformedCourses = [];
-          
-          res.data.forEach(course => {
-            // 尝试多种可能的教师字段名
-            const teacher = course.courseTeacher || course.teacher || course.course_teacher || course.teacherName || '未指定教师';
-            
-            // 计算课程跨越的时间段数量
-            const startPeriod = course.startPeriod || 1;
-            const endPeriod = course.endPeriod || 1;
-            
-            // 如果课程只有一个时间段或结束时间小于开始时间，直接转换
-            if (endPeriod <= startPeriod) {
-              let timeText = '未知时间';
-              if (startPeriod >= 1 && startPeriod <= 5) {
-                timeText = classTimes[startPeriod - 1];
-              }
-              transformedCourses.push({
-                time: timeText,
-                name: course.courseName || '未命名课程',
-                location: course.classRoom || '未指定地点',
-                teacher: teacher,
-                originalData: course
+        // 调用API获取课程表数据
+        console.log('=== 开始调用课程表API ===');
+        console.log('API路径:', '/user/index/userCourses');
+        
+        const res = await api.indexPage.getSchedule();
+        
+        // 添加详细的响应日志
+        console.log('=== 课程表API响应详情 ===');
+        console.log('完整响应对象:', res);
+        console.log('响应code:', res.code);
+        console.log('响应message:', res.message || res.msg);
+        console.log('响应data:', res.data);
+        console.log('响应data类型:', typeof res.data);
+        console.log('响应data是否为数组:', Array.isArray(res.data));
+        if (Array.isArray(res.data)) {
+          console.log('响应data长度:', res.data.length);
+          if (res.data.length > 0) {
+            console.log('响应data前1项:', res.data[0]);
+          }
+        }
+        
+        // 更新课程表数据
+        if (res && res.code === 200) {
+          // 检查data字段是否存在
+          if (res.data !== undefined && res.data !== null) {
+            if (Array.isArray(res.data)) {
+              // 转换后端返回的数据格式为课程表所需格式
+              // 将每个课程拆分为多个时间段的独立课程
+              this.courseSchedule = res.data.flatMap(course => {
+                  // 后端weekDay从1开始计数(1=周一, 2=周二)，前端从0开始索引(0=周一, 1=周二)
+                  const dayIndex = course.weekDay !== undefined ? course.weekDay - 1 : 0;
+                  // 确保dayIndex在0-6范围内
+                  const validDayIndex = Math.max(0, Math.min(6, dayIndex));
+                  
+                  const startPeriod = course.startPeriod || 1;
+                  const endPeriod = course.endPeriod || 2;
+                  
+                  // 计算该课程跨越的时间段数量
+                  const startSlotIndex = Math.ceil(startPeriod / 2);
+                  const endSlotIndex = Math.ceil(endPeriod / 2);
+                  
+                  // 为每个时间段创建一个独立的课程实例
+                  const courses = [];
+                  for (let slotIndex = startSlotIndex; slotIndex <= endSlotIndex; slotIndex++) {
+                      courses.push({
+                          id: `${course.userTimetableId || Math.random().toString(36).substr(2, 9)}-${slotIndex}`,
+                          userTimetableId: course.userTimetableId, // 保存后端返回的原始ID
+                          name: course.courseName || '未命名课程',
+                          location: course.classRoom || '未指定地点',
+                          teacherName: course.teacherName || '',
+                          startTime: course.startTime || '',
+                          endTime: course.endTime || '',
+                          startDate: course.startDate || '',
+                          endDate: course.endDate || '',
+                          day: validDayIndex,
+                          start: slotIndex,
+                          end: slotIndex + 1, // 每个课程只占一个时间段
+                          color: this.colorOptions[Math.floor(Math.random() * this.colorOptions.length)]
+                      });
+                  }
+                  
+                  return courses;
               });
+              console.log('课程表数据转换成功，共', this.courseSchedule.length, '门课程');
+              console.log('转换后的数据格式:', this.courseSchedule);
+              
+              // 如果数据为空，显示提示
+              if (this.courseSchedule.length === 0) {
+                console.log('课程表数据为空数组，可能该用户没有课程');
+                uni.showToast({
+                  title: '暂无课程数据',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
             } else {
-              // 课程跨多个时间段，拆分成多个课程项显示
-              // 每两个小节为一个时间段，比如1-2节为一个时间段，3-4节为一个时间段
-              for (let i = startPeriod; i <= endPeriod; i += 2) {
-                // 计算当前时间段对应的索引（一二节对应索引0，三四节对应索引1，以此类推）
-                const periodIndex = Math.ceil(i / 2) - 1;
-                if (periodIndex >= 0 && periodIndex < classTimes.length) {
-                  transformedCourses.push({
-                    time: classTimes[periodIndex],
-                    name: course.courseName || '未命名课程',
-                    location: course.classRoom || '未指定地点',
-                    teacher: teacher,
-                    originalData: course
+              // 如果data不是数组，可能是单个对象或其他格式
+              console.warn('课程表data不是数组，尝试转换:', res.data);
+              // 转换单个课程数据为多个时间段实例
+              // 后端weekDay从1开始计数(1=周一, 2=周二)，前端从0开始索引(0=周一, 1=周二)
+              const dayIndex = res.data.weekDay !== undefined ? res.data.weekDay - 1 : 0;
+              // 确保dayIndex在0-6范围内
+              const validDayIndex = Math.max(0, Math.min(6, dayIndex));
+              
+              const startPeriod = res.data.startPeriod || 1;
+              const endPeriod = res.data.endPeriod || 2;
+              
+              // 计算该课程跨越的时间段数量
+              const startSlotIndex = Math.ceil(startPeriod / 2);
+              const endSlotIndex = Math.ceil(endPeriod / 2);
+              
+              // 为每个时间段创建一个独立的课程实例
+              const courses = [];
+              for (let slotIndex = startSlotIndex; slotIndex <= endSlotIndex; slotIndex++) {
+                  courses.push({
+                      id: `${res.data.userTimetableId || Math.random().toString(36).substr(2, 9)}-${slotIndex}`,
+                      userTimetableId: res.data.userTimetableId, // 保存后端返回的原始ID
+                      name: res.data.courseName || '未命名课程',
+                      location: res.data.classRoom || '未指定地点',
+                      teacherName: res.data.teacherName || '',
+                      startTime: res.data.startTime || '',
+                      endTime: res.data.endTime || '',
+                      startDate: res.data.startDate || '',
+                      endDate: res.data.endDate || '',
+                      day: validDayIndex,
+                      start: slotIndex,
+                      end: slotIndex + 1, // 每个课程只占一个时间段
+                      color: this.colorOptions[Math.floor(Math.random() * this.colorOptions.length)]
                   });
-                }
+              }
+              this.courseSchedule = courses;
+              console.log('单个课程数据转换成功:', this.courseSchedule);
+            }
+          } else {
+            // 如果data字段不存在或为null
+            this.courseSchedule = [];
+            console.log('课程表data字段不存在或为null，设置为空数组');
+            uni.showToast({
+              title: '暂无课程数据',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        } else {
+          this.courseSchedule = [];
+          console.error('获取课程表失败，状态码:', res.code, '消息:', res.message || res.msg);
+          uni.showToast({
+            title: res.message || res.msg || '获取课程表失败',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      } catch (error) {
+        console.error('=== 获取课程表异常 ===');
+        console.error('错误类型:', error.name);
+        console.error('错误消息:', error.message);
+        console.error('完整错误:', error);
+        this.courseSchedule = [];
+        uni.showToast({
+          title: '网络请求失败，请检查网络连接',
+          icon: 'none',
+          duration: 2000
+        });
+      }
+    },
+    
+    // 返回上一页
+    navBack() {
+      try {
+        // 尝试返回上一页
+        uni.navigateBack({
+          delta: 1,
+          fail: (err) => {
+            console.error('返回上一页失败，将直接跳转到首页:', err);
+            // 如果返回失败（如页面栈已清空），直接跳转到首页
+            uni.navigateTo({
+              url: '/pages/index/index'
+            });
+          }
+        });
+      } catch (error) {
+        console.error('返回操作出错:', error);
+        // 出错时直接跳转到首页
+        uni.navigateTo({
+          url: '/pages/index/index'
+        });
+      }
+    },
+
+    // 查看课程详情
+    viewCourseDetail(course) {
+      uni.showActionSheet({
+        itemList: ['查看详情', '编辑课程', '删除课程'],
+        success: (res) => {
+          if (res.tapIndex === 0) {
+            // 查看详情
+            // 优先使用后端返回的实际时间，否则使用计算的时间段
+            let timeDisplay = '';
+            if (course.startTime && course.endTime) {
+              // 使用后端返回的实际时间
+              timeDisplay = `${course.startTime}-${course.endTime}`;
+            } else {
+              // 计算时间段文本和时间范围
+              const timeSlotIndex = Math.ceil(course.start / 2);
+              const timeText = this.classTimes[timeSlotIndex - 1] || '';
+              if (timeText) {
+                const [period, timeRange] = timeText.split('\n');
+                timeDisplay = `${period} ${timeRange}`;
               }
             }
-          });
-          
-          this.courseList = transformedCourses;
-        } else if (res && res.code === 500 && res.message === '用户未登录') {
-          console.warn('用户未登录，无法获取今日课程');
-          this.courseList = [];
-        } else {
-          console.warn('获取今日课程失败:', res?.message || '未知错误');
-          this.courseList = [];
-        }
-        return res;
-      } catch (error) {
-        console.error('获取今日课程异常:', error);
-        this.courseList = [];
-        return null;
-      }
-    },
-    
-    // 直接清理URL中的反引号等特殊字符
-    cleanUrl(url) {
-      if (!url) return '';
-      
-      let cleaned = String(url);
-      
-      // 改进的反引号移除逻辑
-      // 方法1: 增强的逐字符过滤，检查多种可能的反引号编码
-      let filtered = '';
-      for (let i = 0; i < cleaned.length; i++) {
-        const char = cleaned.charAt(i);
-        const code = char.charCodeAt(0);
-        // 跳过反引号字符及其变种（ASCII码96和其他可能的变体）
-        if (code !== 96 && code !== 65344) { // 65344是Unicode中可能的反引号变种
-          filtered += char;
-        }
-      }
-      
-      // 方法2: 增强的正则表达式清理
-      // 使用更强大的正则表达式确保移除所有形式的反引号
-      filtered = filtered.replace(/[`\u0060\uFF1B]/g, ''); // 匹配多种反引号形式
-      
-      // 额外的安全检查，确保没有残留的反引号
-      while (filtered.includes('`') || filtered.includes('\u0060')) {
-        filtered = filtered.replace(/[`\u0060]/g, '');
-      }
-      
-      // 去除前后空白
-      filtered = filtered.trim();
-      
-      return filtered;
-    },
-    
-    // 获取有效图片URL
-    getValidImageUrl(url) {
-      // 如果URL为空，直接返回默认占位图而不是空字符串
-      if (!url) {
-        return '/static/images/default-food.svg';
-      }
-      
-      // 先进行trim去除前后空白，加强反引号清理
-      let cleanedUrl = String(url).trim().replace(/[`\u0060]/g, '').trim();
-      
-      // 如果清理后URL为空，返回默认占位图
-      if (!cleanedUrl) {
-        return '/static/images/default-food.svg';
-      }
-      
-      // 检查URL是否以@开头（有些后端可能会返回这种格式）
-      if (cleanedUrl.startsWith('@')) {
-        cleanedUrl = cleanedUrl.substring(1);
-      }
-      
-      // 检查URL是否为完整的HTTP/HTTPS URL
-      if (cleanedUrl.startsWith('http://') || cleanedUrl.startsWith('https://')) {
-        return cleanedUrl;
-      }
-      
-      // 检查是否为相对路径
-      if (cleanedUrl.startsWith('/')) {
-        // 如果是相对路径，尝试添加API基础URL
-        const baseUrl = 'http://localhost:8080';
-        return `${baseUrl}${cleanedUrl}`;
-      }
-      
-      // 检查是否为静态资源路径
-      if (cleanedUrl.startsWith('static/')) {
-        return `/${cleanedUrl}`;
-      }
-      
-      // 如果都不是，返回默认占位图
-      return '/static/images/default-food.svg';
-    },
-    
-    // 处理图片加载失败
-    handleImageError(event, index, type = 'food') {
-      console.error(`商品图片加载失败，索引: ${index}，类型: ${type}`);
-      console.error('错误事件详情:', event);
-      
-      // 如果是外卖类型，尝试修复URL
-      if (type === 'food' && this.recommendList && this.recommendList[index]) {
-        console.error(`外卖项[${index}]图片加载失败，当前图片URL:`, this.recommendList[index].image);
-        console.error(`原始mainImageUrl:`, this.recommendList[index].mainImageUrl);
-        
-        // 直接操作DOM元素，尝试修复URL并重新设置图片源
-        if (event && event.target) {
-          // 获取当前失败的URL
-          let failedUrl = event.target.src;
-          
-          // 强制移除所有可能的反引号
-          if (failedUrl) {
-            let fixedUrl = failedUrl.replace(/[`\u0060]/g, '');
-            if (fixedUrl !== failedUrl) {
-              event.target.src = fixedUrl;
-              return;
-            }
+            
+            uni.showModal({
+              title: course.name,
+              content: `地点：${course.location}\n时间：${this.weekDays[course.day].name} ${timeDisplay}`,
+              showCancel: false
+            });
+          } else if (res.tapIndex === 1) {
+            // 编辑课程
+            this.editCourse(course);
+          } else if (res.tapIndex === 2) {
+            // 删除课程
+            this.deleteCourse(course);
           }
-          
-          // 尝试使用清理后的mainImageUrl
-          if (this.recommendList[index].mainImageUrl) {
-            let cleanMainImageUrl = this.cleanUrl(this.recommendList[index].mainImageUrl);
-            event.target.src = cleanMainImageUrl;
-            return;
-          }
-          
-          // 使用默认占位图
-          event.target.src = '/static/images/default-food.svg';
         }
-      } 
-      // 如果是二手商品类型，记录相关图片信息并使用默认占位图
-      else if (type === 'secondHand' && this.secondHandList && this.secondHandList[index]) {
-        console.error(`二手商品项[${index}]图片加载失败，当前图片URL:`, this.secondHandList[index].image);
-        if (event && event.target) {
-          event.target.src = '/static/images/default-secondhand.svg';
-        }
+      });
+    },
+    // 显示导入选项（直接使用手动输入）
+    showImportOptions() {
+      this.openManualInputModal();
+    },
+    // 打开手动输入模态框
+    openManualInputModal() {
+      this.editingCourse = null;
+      this.manualCourse = {
+        name: '',
+        location: '',
+        day: 0,
+        start: 1,
+        endIndex: 0, // 从0开始索引
+        color: '#FF6B6B',
+        teacherName: '',
+        startDate: '',
+        endDate: ''
+      };
+      // 初始化结束节次选项
+      this.updateEndOptions();
+      this.showManualInputModal = true;
+    },
+    // 关闭手动输入模态框
+    closeManualInputModal() {
+      this.showManualInputModal = false;
+    },
+    // 获取结束节次选项
+    // 初始化结束节次选项
+    updateEndOptions() {
+      this.endOptions = [];
+      // 最大结束时间段序号为5
+      const maxEnd = 5 - this.manualCourse.start;
+      for (let i = 1; i <= maxEnd; i++) {
+        this.endOptions.push(`${this.getPeriodText(this.manualCourse.start + i)}`);
+      }
+      // 如果当前选择的结束节次超出范围，重置为0
+      if (this.manualCourse.endIndex >= this.endOptions.length) {
+        this.manualCourse.endIndex = 0;
       }
     },
-    
-    // 获取推荐外卖
-    async getTakeoutRecommendations() {
-      try {
-        // 使用indexPage.js中的推荐外卖接口
-        const res = await api.indexPage.getTakeoutRecommendations();
-        
-        if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
-          // 完整映射后端返回的所有字段，确保前端能正确显示所有信息
-          this.recommendList = res.data.map(item => {
-            // 处理图片URL，优先使用mainImageUrl，否则使用默认图片
-            let imageUrl = item.mainImageUrl;
-            // 如果有imageList且是数组，也可以考虑使用第一张图片
-            if (!imageUrl && item.imageList && Array.isArray(item.imageList) && item.imageList.length > 0) {
-              imageUrl = item.imageList[0];
-            }
-            // 使用getValidImageUrl函数处理图片URL
-            const finalImageUrl = this.getValidImageUrl(imageUrl);
-            
-            const processedItem = {
-              ...item,
-              // 确保基础字段存在并处理
-              goodsName: item.goodsName || item.name || '未命名商品',
-              // 图片字段 - 使用处理后的图片URL
-              image: finalImageUrl,
-              // 价格相关字段
-              price: item.price || 0,
-              originalPrice: item.originalPrice || null,
-              // 评分相关字段
-              avgRating: item.avgRating || 0,
-              ratingCount: item.ratingCount || 0,
-              // 销量信息
-              salesCount: item.salesCount || 0,
-              // 导航所需字段 - 确保merchantBaseId是主要字段，使用字符串避免精度丢失
-              id: String(item.merchantGoodsId || item.id || `temp_${Date.now()}_${Math.random()}`),
-              merchantGoodsId: item.merchantGoodsId || null,
-              merchantBaseId: item.merchantBaseId || null,
-              restaurantId: item.merchantBaseId || item.restaurantId || null,
-              // 分类信息
-              category: item.category || '',
-              subCategory: item.subCategory || '',
-              // 其他附加信息
-              description: item.description || '',
-              stock: item.stock || 0,
-              status: item.status || 1,
-              tagCodes: item.tagCodes || ''
-            };
-            
-            return processedItem;
-          });
-        } else if (res && res.code === 500 && res.message === '用户未登录') {
-          console.warn('用户未登录，无法获取推荐外卖');
-          this.recommendList = [];
-        } else {
-          console.warn('获取推荐外卖失败:', res?.message || '未知错误');
-          this.recommendList = [];
-        }
-        return res;
-      } catch (error) {
-        console.error('获取推荐外卖异常:', error);
-        this.recommendList = [];
-        return null;
+    // 获取时间段文本
+    getPeriodText(index) {
+      const texts = ['一二节', '三四节', '五六节', '七八节', '九十节'];
+      return texts[index - 1] || `时间段${index}`;
+    },
+    // 星期几选择改变事件
+    onWeekChange(e) {
+      this.manualCourse.day = e.detail.value;
+    },
+    // 开始节次选择改变事件
+    onStartChange(e) {
+      // e.detail.value是索引，需要+1得到实际的节次
+      const newStart = parseInt(e.detail.value) + 1;
+      this.manualCourse.start = newStart;
+      // 更新结束节次选项
+      this.updateEndOptions();
+    },
+    // 结束节次选择改变事件
+    onEndChange(e) {
+      this.manualCourse.endIndex = parseInt(e.detail.value);
+    },
+    // 开始日期选择事件
+    onStartDateChange(e) {
+      this.startDatePickerValue = e.detail.value;
+      // 如果已经选择了时间，更新完整的开始日期时间
+      if (this.startTimePickerValue) {
+        this.manualCourse.startDate = `${this.startDatePickerValue} ${this.startTimePickerValue}`;
       }
     },
-    
-    // 获取推荐二手商品
-    async getSecondhandRecommendations() {
-      try {
-        const res = await api.indexPage.getSecondhandRecommendations();
-        
-        if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
-          // 处理二手商品数据，确保图片URL正确
-          this.secondHandList = res.data.map(item => {
-            // 获取有效的图片URL，尝试多个可能的字段
-            let imageUrl = '';
-            if (Array.isArray(item.imageUrls) && item.imageUrls.length > 0) {
-              imageUrl = item.imageUrls[0];
-            } else {
-              // 添加对imageUrl字段的支持
-              imageUrl = item.imageUrl || item.image || item.mainImageUrl || '';
-            }
-            
-            // 使用getValidImageUrl处理图片URL，确保清理反引号和空格
-            const validImage = this.getValidImageUrl(imageUrl);
-            
-            return {
-              ...item,
-              // 使用goodsName作为商品名称
-              goodsName: item.goodsName || item.name || '未命名商品',
-              // 使用处理后的有效图片URL
-              image: validImage,
-              // 确保id字段存在，优先使用goodsId，转为字符串避免精度丢失
-              id: String(item.goodsId || item.id || item.secondhandId || `secondhand_${Date.now()}_${Math.random()}`),
-              // 确保基础字段存在
-              price: item.price || 0,
-              status: item.status || 1,
-              // 统计信息
-              viewCount: item.viewCount || 0,
-              favoriteCount: item.favoriteCount || 0,
-              shareCount: item.shareCount || 0,
-              // 卖家信息
-              sellerNickname: item.sellerNickname || '未知卖家',
-              sellerAvatar: item.sellerAvatar || '',
-              sellerPhone: item.sellerPhone || ''
-            };
-          });
-        } else if (res && res.code === 500 && res.message === '用户未登录') {
-          console.warn('用户未登录，无法获取推荐二手商品');
-          this.secondHandList = [];
-        } else {
-          console.warn('获取推荐二手商品失败:', res?.message || '未知错误');
-          this.secondHandList = [];
-        }
-        return res;
-      } catch (error) {
-        console.error('获取推荐二手商品异常:', error);
-        this.secondHandList = [];
-        return null;
+    // 开始时间选择事件
+    onStartTimeChange(e) {
+      this.startTimePickerValue = e.detail.value;
+      // 如果已经选择了日期，更新完整的开始日期时间
+      if (this.startDatePickerValue) {
+        this.manualCourse.startDate = `${this.startDatePickerValue} ${this.startTimePickerValue}`;
       }
     },
-    // 导航到个人课表
-    navToSchedule() {
-      uni.navigateTo({
-        url: '/pages/shedule/shedule',
-        fail: (err) => {
-          console.error('导航到个人课表失败:', err);
-          uni.showToast({
-            title: '导航失败，请重试',
-            icon: 'none'
-          });
-        }
-      });
+    // 结束日期选择事件
+    onEndDateChange(e) {
+      this.endDatePickerValue = e.detail.value;
+      // 如果已经选择了时间，更新完整的结束日期时间
+      if (this.endTimePickerValue) {
+        this.manualCourse.endDate = `${this.endDatePickerValue} ${this.endTimePickerValue}`;
+      }
     },
-    // 导航到跑腿服务
-    navToErrand() {
-      uni.navigateTo({
-        url: '/pages/errand/errand',
-        fail: (err) => {
-          console.error('导航到跑腿服务失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
-      });
+    // 结束时间选择事件
+    onEndTimeChange(e) {
+      this.endTimePickerValue = e.detail.value;
+      // 如果已经选择了日期，更新完整的结束日期时间
+      if (this.endDatePickerValue) {
+        this.manualCourse.endDate = `${this.endDatePickerValue} ${this.endTimePickerValue}`;
+      }
     },
-    // 导航到外卖点餐
-    navToFood() {
-      console.log('开始导航到外卖点餐...');
-      uni.navigateTo({
-        url: '/pages/food/food',
-        success: () => {
-          console.log('成功导航到外卖点餐');
-        },
-        fail: (err) => {
-          console.error('导航到外卖点餐失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 查看全部课程
-    viewAllCourses() {
-      console.log('开始导航到全部课程...');
-      uni.navigateTo({
-        url: '/pages/shedule/shedule',
-        success: () => {
-          console.log('成功导航到全部课程');
-        },
-        fail: (err) => {
-          console.error('导航到全部课程失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 查看全部外卖
-    viewAllFood() {
-      console.log('开始导航到全部外卖...');
-      uni.navigateTo({
-        url: '/pages/food/food?view=all',
-        success: () => {
-          console.log('成功导航到全部外卖');
-        },
-        fail: (err) => {
-          console.error('导航到全部外卖失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 查看外卖详情 - 直接跳转到商家页面并选择对应套餐
-    viewFoodDetail(item) {
-      // 获取商家ID，优先使用merchantBaseId
-      const merchantId = item.merchantBaseId || item.restaurantId;
-      const goodsId = item.merchantGoodsId || item.id;
-      
-      console.log('开始导航到外卖详情...', {
-        merchantBaseId: item.merchantBaseId,
-        restaurantId: item.restaurantId,
-        使用的商家ID: merchantId,
-        商品ID: goodsId,
-        完整item: item
-      });
-      
-      // 验证参数有效性
-      if (!merchantId || !goodsId) {
-        console.error('外卖详情参数不完整:', item);
-        uni.showToast({
-          title: '商品信息不完整',
-          icon: 'none'
-        });
+    // 保存手动输入的课程（使用新接口）
+    async saveManualCourse() {
+      // 表单验证
+      if (!this.manualCourse.name.trim()) {
+        uni.showToast({ title: '请输入课程名称', icon: 'none' });
         return;
       }
-      
-      uni.navigateTo({
-        url: `/pages/food/food-detail?restaurantId=${merchantId}&selectedFoodId=${goodsId}`,
-        success: () => {
-          console.log('成功导航到外卖详情');
-        },
-        fail: (err) => {
-          console.error('导航到外卖详情失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 查看所有二手商品 - 修改为与底部导航栏一致的跳转方式
-    viewAllSecondHand() {
-      console.log('开始导航到全部二手商品...');
-      uni.reLaunch({
-        url: '/pages/market/market',
-        success: () => {
-          console.log('跳转成功: 二手交易');
-        },
-        fail: (err) => {
-          console.error('跳转失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 查看二手商品详情 - 跳转到二手交易页面并自动选择对应商品
-    viewSecondHandDetail(item) {
-      console.log('开始导航到二手商品详情...', {
-        itemId: item.id
-      });
-      // 验证参数有效性
-      if (!item.id) {
-        console.error('二手商品详情参数不完整:', item);
-        uni.showToast({
-          title: '商品信息不完整',
-          icon: 'none'
-        });
+      if (!this.manualCourse.teacherName.trim()) {
+        uni.showToast({ title: '请输入教师姓名', icon: 'none' });
         return;
       }
-      uni.reLaunch({
-        url: `/pages/market/market?selectedItemId=${item.id}`,
-        success: () => {
-          console.log('跳转成功: 二手交易，已选择商品ID', item.id);
-        },
-        fail: (err) => {
-          console.error('跳转失败:', err);
-          uni.showToast({
-            title: '跳转失败',
-            icon: 'none'
-          });
+      if (!this.manualCourse.location.trim()) {
+        uni.showToast({ title: '请输入上课地点', icon: 'none' });
+        return;
+      }
+      if (!this.manualCourse.startDate) {
+        uni.showToast({ title: '请选择开始日期时间', icon: 'none' });
+        return;
+      }
+      if (!this.manualCourse.endDate) {
+        uni.showToast({ title: '请选择结束日期时间', icon: 'none' });
+        return;
+      }
+
+      // 使用表单中选择的节次索引
+      
+      // 处理picker组件返回的日期时间格式 (YYYY-MM-DD HH:mm)
+      // 提取日期部分和时间部分
+      const startParts = this.manualCourse.startDate ? this.manualCourse.startDate.split(' ') : ['', ''];
+      const endParts = this.manualCourse.endDate ? this.manualCourse.endDate.split(' ') : ['', ''];
+      
+      // 提取日期部分 (YYYY-MM-DD)
+      const startDate = startParts[0];
+      const endDate = endParts[0];
+      
+      // 提取时间部分 (HH:MM)
+      const startTime = startParts[1] || '00:00';
+      const endTime = endParts[1] || '00:00';
+      
+      // 获取当前用户ID并转换为String形式
+      const userBaseId = String(uni.getStorageSync('userId'));
+
+      // 转换为后端期望的数据格式
+      const courseData = {
+        userBaseId: userBaseId,
+        courseName: (this.manualCourse.name || '').trim(),
+        teacherName: (this.manualCourse.teacherName || '').trim(),
+        classRoom: (this.manualCourse.location || '').trim(),
+        weekDay: this.manualCourse.startDate ? new Date(this.manualCourse.startDate).getDay() + 1 : 1, // 从开始日期获取星期几，后端weekDay从1开始计数
+        startPeriod: this.manualCourse.start,
+        endPeriod: this.manualCourse.endIndex,
+        startTime: startTime,
+        endTime: endTime,
+        startDate: startDate,
+        endDate: endDate,
+        createTime: new Date().toISOString().slice(0, 19).replace('T', ' '), // 格式：YYYY-MM-DD HH:mm:ss
+        importSource: 'manual' // 手动添加
+      };
+
+      try {
+        // 调用新的API接口
+        const res = await api.indexPage.addTimetable(courseData);
+        if (res && res.code === 200) {
+          uni.showToast({ title: res.msg || '课程添加成功', icon: 'success' });
+          // 重新获取课程表数据以确保显示最新的课程
+          await this.getScheduleData();
+          this.closeManualInputModal();
+        } else {
+          uni.showToast({ title: res.msg || '课程添加失败', icon: 'none' });
+        }
+      } catch (error) {
+        console.error('保存课程失败:', error);
+        uni.showToast({ title: '网络请求失败', icon: 'none' });
+      }
+    },
+    // 编辑课程
+    editCourse(course) {
+      this.editingCourse = course;
+      // 计算时间段索引，假设course.start是时间段序号（1开始）
+      const timeSlotIndex = Math.ceil(course.start / 2);
+      
+      // 组合日期和时间为picker组件需要的格式 (YYYY-MM-DD HH:mm)
+      const startDateTime = course.startDate && course.startTime ? `${course.startDate} ${course.startTime}` : '';
+      const endDateTime = course.endDate && course.endTime ? `${course.endDate} ${course.endTime}` : '';
+      
+      this.manualCourse = {
+        name: course.name || course.courseName || '',
+        location: course.location || course.classRoom || '',
+        day: course.day,
+        start: timeSlotIndex, // 使用时间段序号
+        endIndex: Math.ceil(course.end / 2) - timeSlotIndex, // 计算结束时间段索引
+        color: course.color,
+        teacherName: course.teacherName || '',
+        startDate: startDateTime,
+        endDate: endDateTime
+      };
+      
+      // 更新日期时间选择器的值
+      if (this.manualCourse.startDate) {
+        const [startDate, startTime] = this.manualCourse.startDate.split(' ');
+        this.startDatePickerValue = startDate;
+        this.startTimePickerValue = startTime || '08:00';
+      }
+      if (this.manualCourse.endDate) {
+        const [endDate, endTime] = this.manualCourse.endDate.split(' ');
+        this.endDatePickerValue = endDate;
+        this.endTimePickerValue = endTime || '09:40';
+      }
+        
+        // 更新结束节次选项
+      this.updateEndOptions();
+      this.showManualInputModal = true;
+    },
+    // 删除课程
+    async deleteCourse(course) {
+      uni.showModal({
+        title: '删除课程',
+        content: `确定要删除"${course.name}"吗？`,
+        success: async (res) => {
+          if (res.confirm) {
+            try {
+              // 调用后端删除接口，使用原始的userTimetableId而不是格式化后的id
+              await api.indexPage.deleteUserCourse(course.userTimetableId);
+              
+              // 从本地课程列表中删除所有具有相同userTimetableId的课程实例
+              this.courseSchedule = this.courseSchedule.filter(c => c.userTimetableId !== course.userTimetableId);
+              
+              // 显示删除成功提示
+              uni.showToast({
+                title: '课程已删除',
+                icon: 'success'
+              });
+              
+              // 重新获取课程数据，确保本地数据与服务器一致
+              this.getScheduleData();
+            } catch (error) {
+              console.error('删除课程失败:', error);
+              uni.showToast({
+                title: '删除失败，请重试',
+                icon: 'none'
+              });
+            }
+          }
         }
       });
+    },
+    // 生成演示课表数据（仅保留手动输入相关功能）
+    generateDemoSchedule() {
+      // 生成一些随机的课程数据用于演示
+      const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
+      const courses = [
+        { name: '高等数学', location: '教学楼A201' },
+        { name: '大学英语', location: '外语楼B102' },
+        { name: '程序设计', location: '计算机中心305' },
+        { name: '物理实验', location: '实验楼C302' },
+        { name: '线性代数', location: '教学楼B301' },
+        { name: '体育', location: '操场' },
+        { name: '毛概', location: '教学楼A401' },
+        { name: '数据结构', location: '计算机中心205' },
+        { name: '概率论', location: '教学楼C101' }
+      ];
+      
+      const newSchedule = [];
+      let id = 1;
+      
+      // 随机生成每周的课程安排
+      for (let day = 0; day < 5; day++) { // 周一到周五
+        const courseCount = Math.floor(Math.random() * 3) + 1; // 每天1-3节课
+        const selectedIndices = new Set();
+        
+        while (selectedIndices.size < courseCount) {
+          selectedIndices.add(Math.floor(Math.random() * courses.length));
+        }
+        
+        const timeSlots = [];
+        selectedIndices.forEach(index => {
+          let start;
+          do {
+            start = Math.floor(Math.random() * 4) + 1; // 1-4节课开始
+          } while (timeSlots.some(slot => 
+            (start >= slot.start && start < slot.end) || 
+            (start + 1 >= slot.start && start + 1 < slot.end)
+          ));
+          
+          const duration = Math.floor(Math.random() * 2) + 1; // 1-2节连堂
+          timeSlots.push({ start, end: start + duration });
+          
+          newSchedule.push({
+            id: id++,
+            name: courses[index].name,
+            location: courses[index].location,
+            day,
+            start,
+            end: start + duration,
+            color: colors[Math.floor(Math.random() * colors.length)]
+          });
+        });
+      }
+      
+      this.courseSchedule = newSchedule;
     }
   }
 };
@@ -679,383 +786,343 @@ export default {
   padding: 0 30rpx;
 }
 
+.nav-back {
+  font-size: 36rpx;
+  color: #FFFFFF;
+  width: 40rpx;
+}
+
 .nav-title {
   font-size: 36rpx;
   font-weight: bold;
   color: #FFFFFF;
 }
 
-.location {
-  display: flex;
-  align-items: center;
-}
-
-.location-icon {
-  font-size: 32rpx;
-  margin-right: 8rpx;
-}
-
-.location-text {
-  font-size: 28rpx;
-  color: #FFFFFF;
+.nav-right {
+  width: 40rpx;
 }
 
 /* 内容区域 */
 .content {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding-bottom: 140rpx; /* 为底部导航栏预留空间 */
+  padding-bottom: 30rpx;
 }
 
-/* 轮播图 */
-.banner-section {
-  margin: 30rpx;
-  border-radius: 20rpx;
-  overflow: hidden;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.1);
+/* 导入按钮容器 */
+.import-btn-container {
+  margin: 20rpx 30rpx;
+}
+
+.import-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #5DCDFF;
+  color: #FFFFFF;
+  padding: 20rpx;
+  border-radius: 20rpx;
+  font-size: 28rpx;
+}
+
+.import-icon {
+  margin-right: 10rpx;
+  font-size: 32rpx;
+}
+
+.import-text {
+  font-weight: 500;
+}
+
+/* 课程表 */
+.schedule-container {
+  background-color: #FFFFFF;
+  margin: 0 30rpx;
+  padding: 20rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+/* 表头 */
+.schedule-header {
+  display: flex;
+  margin-bottom: 20rpx;
+  min-width: max-content;
+}
+
+.time-cell {
+  width: 100rpx;
+  flex-shrink: 0;
+}
+
+.day-cell {
+  width: 180rpx;
+  text-align: center;
+  font-size: 28rpx;
+  color: #666666;
+  flex-shrink: 0;
+}
+
+/* 课程内容 */
+.schedule-content {
+  display: flex;
+  height: 700rpx;
+  min-width: max-content;
+}
+
+/* 时间列 */
+.time-column {
+  width: 120rpx;
+  flex-shrink: 0;
+  background-color: #ffffff;
+}
+
+.time-item {
+  height: 140rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24rpx;
+  color: #888888;
+  border-bottom: 1px solid #F0F0F0;
+  line-height: 1.4;
+  text-align: center;
+  padding: 10rpx;
+  white-space: pre-line;
+}
+
+/* 课程格子 */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 180rpx);
+  grid-template-rows: repeat(5, 140rpx);
+  gap: 2rpx;
   background-color: #f5f5f5;
 }
 
-.banner-swiper {
-  height: 400rpx;
-  width: 100%;
+.course-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 8rpx;
+  border-radius: 8rpx;
+  overflow: hidden;
 }
 
-.banner-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.course-name {
+  font-size: 22rpx;
+  font-weight: bold;
+  color: #FFFFFF;
+  margin-bottom: 4rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  max-width: 90%;
 }
 
-/* 功能按钮 */
-.function-section {
+.course-location {
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+  max-width: 90%;
+}
+
+/* 课程统计 */
+.course-stats {
   display: flex;
   justify-content: space-around;
-  background-color: #FFFFFF;
   margin: 30rpx;
-  padding: 40rpx 0;
+  background-color: #FFFFFF;
+  padding: 30rpx;
   border-radius: 20rpx;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
 }
 
-.function-item {
+.stat-item {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.function-icon-box {
-  width: 100rpx;
-  height: 100rpx;
-  background: linear-gradient(135deg, #E3F4FF 0%, #D0EFFF 100%);
-  border-radius: 20rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 16rpx;
+.stat-number {
+  font-size: 48rpx;
+  font-weight: bold;
+  color: #5DCDFF;
+  margin-bottom: 10rpx;
 }
 
-.function-icon {
-  font-size: 56rpx;
+.stat-label {
+  font-size: 24rpx;
+  color: #999999;
 }
 
-.function-text {
-  font-size: 26rpx;
-  color: #666666;
-}
+/* 模态框样式 */
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 确保原生组件能在模态框上显示 */
+    z-index: 999;
+    /* 允许原生组件穿透 */
+    overflow: visible;
+  }
+  
+  .modal-content {
+    width: 90%;
+    max-height: 80vh;
+    background-color: #FFFFFF;
+    border-radius: 20rpx;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* 修复原生组件显示问题 */
+    z-index: 1000;
+  }
 
-/* 今日课程 */
-.course-section {
-  background-color: #FFFFFF;
-  margin: 20rpx 30rpx;
-  padding: 30rpx;
-  border-radius: 24rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
-}
-
-.section-header {
+  .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24rpx;
+  padding: 30rpx;
+  border-bottom: 1px solid #E0E0E0;
 }
 
-.section-title {
+.modal-title {
   font-size: 32rpx;
   font-weight: bold;
   color: #333333;
 }
 
-.section-more {
-  font-size: 26rpx;
-  color: #5DCDFF;
-  padding: 8rpx 16rpx;
-  border-radius: 16rpx;
-  background-color: #F0F9FF;
-  transition: all 0.3s ease;
-}
-
-.section-more:active {
-  background-color: #E0F2FE;
-  transform: scale(0.98);
-}
-
-.course-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.course-item {
-  display: flex;
-  align-items: center;
-  background-color: #F8FAFC;
-  padding: 24rpx;
-  border-radius: 16rpx;
-  transition: all 0.3s ease;
-  border-left: 8rpx solid #5DCDFF;
-}
-
-.course-item:hover {
-  transform: translateY(-2rpx);
-  box-shadow: 0 6rpx 24rpx rgba(0, 0, 0, 0.08);
-}
-
-.course-item:active {
-  transform: translateY(0);
-}
-
-.course-time {
-  font-size: 28rpx;
-  font-weight: bold;
-  color: #5DCDFF;
-  width: 140rpx;
-  flex-shrink: 0;
-  text-align: center;
-  background-color: #FFFFFF;
-  padding: 16rpx 12rpx;
-  border-radius: 12rpx;
-  box-shadow: 0 2rpx 12rpx rgba(93, 205, 255, 0.15);
-  line-height: 1.3;
-}
-
-.course-info {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  margin-left: 24rpx;
-  min-height: 100rpx;
-  justify-content: center;
-}
-
-.course-name {
-  font-size: 30rpx;
-  color: #333333;
-  font-weight: 600;
-  margin-bottom: 8rpx;
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-}
-
-.course-location {
-  font-size: 26rpx;
-  color: #666666;
-  margin-bottom: 6rpx;
-  line-height: 1.4;
-}
-
-.course-teacher {
-  font-size: 26rpx;
+.modal-close {
+  font-size: 40rpx;
   color: #999999;
-  line-height: 1.4;
-  display: block;
-  margin-top: 4rpx;
-  line-height: 1.4;
 }
 
-.empty-course {
-  text-align: center;
-  padding: 60rpx 20rpx;
-  color: #999999;
-  font-size: 28rpx;
-  background-color: #F8FAFC;
-  border-radius: 16rpx;
-  margin-top: 20rpx;
-}
-
-.empty-text {
-  color: #999999;
-  font-size: 28rpx;
-}
-
-.empty-course {
-  text-align: center;
-  padding: 60rpx 0;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #CCCCCC;
-}
-
-/* 推荐外卖 */
-.recommend-section {
-  background-color: #FFFFFF;
-  margin: 30rpx;
+.modal-body {
   padding: 30rpx;
-  border-radius: 20rpx;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
-}
-
-.recommend-section:last-child {
-  margin-bottom: 140rpx;
-}
-
-/* 自适应网格布局 */
-.recommend-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280rpx, 1fr));
-  gap: 20rpx;
-  padding: 20rpx 0;
-}
-
-/* 推荐外卖商品样式 */
-.recommend-item {
-  display: flex;
-  flex-direction: column;
-  border-radius: 20rpx;
-  overflow: hidden;
-  background-color: #FFFFFF;
-  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.recommend-image {
-  width: 100%;
-  height: 200rpx;
-  border-radius: 20rpx 20rpx 0 0;
-  margin-bottom: 0;
-  object-fit: cover;
-}
-
-.recommend-info {
-  padding: 20rpx;
-  display: flex;
-  flex-direction: column;
+  overflow-y: auto;
   flex: 1;
 }
 
-.recommend-name {
+.form-item {
+  margin-bottom: 30rpx;
+}
+
+.form-label {
+  display: block;
   font-size: 28rpx;
-  font-weight: 500;
   color: #333333;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   margin-bottom: 10rpx;
-  min-height: 70rpx;
-  white-space: normal;
-}
-
-.recommend-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10rpx;
-  font-size: 24rpx;
-  color: #999999;
-}
-
-.recommend-rating {
-  display: flex;
-  align-items: center;
-}
-
-.rating-star {
-  font-size: 20rpx;
-  margin-right: 4rpx;
-}
-
-.rating-score {
-  color: #FF6B81;
   font-weight: 500;
 }
 
-.recommend-sales {
-  font-size: 22rpx;
+.form-item input {
+  width: 100%;
+  height: 80rpx;
+  border: 1px solid #E0E0E0;
+  border-radius: 10rpx;
+  padding: 0 20rpx;
+  font-size: 28rpx;
 }
 
-.recommend-price-area {
+.picker {
+  width: 100%;
+  height: 80rpx;
+  border: 1px solid #E0E0E0;
+  border-radius: 10rpx;
+  padding: 0 20rpx;
   display: flex;
-  align-items: baseline;
-  margin-top: auto;
+  align-items: center;
+  font-size: 28rpx;
+  color: #333333;
+  background-color: #F9F9F9;
 }
 
-.recommend-price {
-    font-size: 36rpx;
-    font-weight: bold;
-    color: #FF6B81;
-    display: inline;
-  }
-
-  .recommend-original-price {
-    margin-left: 10rpx;
-    font-size: 24rpx;
-    color: #999999;
-    text-decoration: line-through;
+/* 为原生picker组件提供更好的层级支持 */
+  .picker-container {
+    position: relative;
+    /* 确保picker选择器能正确弹出 */
+    z-index: 1000;
+    /* 重要：确保picker可以突破模态框限制弹出 */
+    overflow: visible;
   }
   
-  /* 二手商品样式 */
-  .secondhand-item {
+  /* 优化picker触摸区域，确保容易点击 */
+  .picker {
+    width: 100%;
+    height: 80rpx;
+    border: 1px solid #E0E0E0;
+    border-radius: 10rpx;
+    padding: 0 20rpx;
     display: flex;
-    flex-direction: column;
     align-items: center;
-    padding: 20rpx;
-    border-radius: 16rpx;
-    background-color: #FFFFFF;
-    box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.03);
-    width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .secondhand-image {
-    width: 100%;
-    height: 200rpx;
-    border-radius: 16rpx;
-    margin-bottom: 16rpx;
-    object-fit: cover;
-  }
-  
-  .secondhand-name {
-    display: block;
-    font-size: 26rpx;
-    color: #333333;
-    margin-bottom: 8rpx;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    width: 100%;
-    text-align: center;
-  }
-  
-  .secondhand-price {
-    display: block;
     font-size: 28rpx;
-    font-weight: bold;
-    color: #FF6B6B;
-    text-align: center;
+    color: #333333;
+    background-color: #F9F9F9;
+    /* 增加点击区域的可识别性 */
+    position: relative;
   }
-  </style>
+  
+  .picker::after {
+    content: '▼';
+    position: absolute;
+    right: 20rpx;
+    font-size: 20rpx;
+    color: #999999;
+  }
 
+.color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+}
+
+.color-item {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.color-item.active {
+  border-color: #333333;
+  transform: scale(1.1);
+}
+
+.modal-footer {
+  display: flex;
+  border-top: 1px solid #E0E0E0;
+}
+
+.btn-cancel,
+.btn-confirm {
+  flex: 1;
+  height: 90rpx;
+  line-height: 90rpx;
+  text-align: center;
+  font-size: 32rpx;
+  border: none;
+  background-color: transparent;
+}
+
+.btn-cancel {
+  color: #999999;
+  border-right: 1px solid #E0E0E0;
+}
+
+.btn-confirm {
+  color: #5DCDFF;
+  font-weight: 500;
+}
+</style>
