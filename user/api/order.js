@@ -44,7 +44,7 @@ const orderApi = {
    * @returns {Promise} - 返回订单详情数据
    */
   getSecondHandOrderDetail: (orderNo) => {
-    return request.get(`/user/order/${orderNo}`)
+    return request.get(`/api/user/secondhandGoods/order/detail/${orderNo}`)
   },
   
   /**
