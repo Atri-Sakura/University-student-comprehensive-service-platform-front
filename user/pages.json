@@ -366,6 +366,14 @@
 			  "navigationBarTextStyle": "white" 
 		} 
 	},
+	{
+      "path": "pages/orders/food-order-evaluate",
+      "style": {
+        "navigationBarTitleText": "评价商家",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+	},  
     {
       "path": "pages/shedule/shedule",
       "style": {
@@ -373,7 +381,7 @@
         "navigationStyle": "custom"
       }
     }
-],
+]，
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "校园生活",
