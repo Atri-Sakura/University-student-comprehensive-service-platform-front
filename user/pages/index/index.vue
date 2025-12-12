@@ -454,9 +454,11 @@ export default {
               // 销量信息
               salesCount: item.salesCount || 0,
               // 导航所需字段
-              id: item.id || item.merchantGoodsId || Math.floor(Math.random() * 10000),
-              restaurantId: item.restaurantId || item.merchantBaseId || Math.floor(Math.random() * 100),
-              merchantBaseId: item.merchantBaseId || null,
+              id: String(item.id || item.merchantGoodsId || Math.floor(Math.random() * 1000)),
+              // 确保商家ID使用字符串类型，避免大数字精度丢失问题
+              // 所有商家相关ID都转换为字符串
+              restaurantId: item.restaurantId ? String(item.restaurantId) : (item.merchantBaseId ? String(item.merchantBaseId) : null),
+              merchantBaseId: item.merchantBaseId ? String(item.merchantBaseId) : null,
               merchantGoodsId: item.merchantGoodsId || null,
               // 分类信息
               category: item.category || '',
@@ -628,19 +630,26 @@ export default {
     viewFoodDetail(item) {
       console.log('开始导航到外卖详情...', {
         restaurantId: item.restaurantId,
+        merchantBaseId: item.merchantBaseId,
         foodId: item.id
       });
-      // 验证参数有效性
-      if (!item.restaurantId || !item.id) {
-        console.error('外卖详情参数不完整:', item);
+      // 验证参数有效性 - 确保商家ID不为空、不为null、不为undefined且商品ID存在
+      const restaurantId = item.restaurantId || item.merchantBaseId;
+      // 验证商家ID是否有效（不为null、undefined或空字符串）
+      const isValidRestaurantId = restaurantId !== null && restaurantId !== undefined && restaurantId !== "";
+      if (!isValidRestaurantId || !item.id) {
+        console.error('外卖详情参数不完整或商家ID无效:', item);
         uni.showToast({
-          title: '商品信息不完整',
+          title: '商品信息不完整，无法跳转',
           icon: 'none'
         });
         return;
       }
+      // 将商家ID转换为字符串，确保传递正确的参数
+      const stringRestaurantId = String(restaurantId);
       uni.navigateTo({
-        url: `/pages/food/food-detail?restaurantId=${item.restaurantId}&selectedFoodId=${item.id}`,
+        // 确保商家ID作为字符串传递，避免大数字精度问题
+        url: `/pages/food/food-detail?restaurantId=${encodeURIComponent(stringRestaurantId)}&selectedFoodId=${encodeURIComponent(String(item.id))}`,
         success: () => {
           console.log('成功导航到外卖详情');
         },
@@ -684,8 +693,9 @@ export default {
         });
         return;
       }
-      uni.reLaunch({
-        url: `/pages/market/market?selectedItemId=${item.id}`,
+      // 使用navigateTo保持页面栈的完整性，而不是reLaunch
+      uni.navigateTo({
+        url: `/pages/market/market?selectedItemId=${item.id}&autoBuy=true`,
         success: () => {
           console.log('跳转成功: 二手交易，已选择商品ID', item.id);
         },
