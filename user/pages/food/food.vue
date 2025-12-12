@@ -178,11 +178,14 @@ export default {
         // 从goodsMap中获取当前商家的商品列表
         const merchantGoods = this.goodsMap[merchant.merchantBaseId] || [];
         
+        // 使用getValidImageUrl方法处理商家logo URL
+        let logoUrl = this.getValidImageUrl(merchant.logo);
+        
         // 完整映射后端返回的商家字段
         return {
           id: merchant.merchantBaseId,
           name: merchant.merchantName || '未命名商家',
-          image: merchant.logo || '/static/images/default-food.svg',
+          image: logoUrl,
           rating: merchant.rating || 0,
             sales: merchant.monthSales || 0,
             tags: [], // 不再使用经营范围作为标签
@@ -223,7 +226,88 @@ export default {
     }
   },
   methods: {
-
+    // 获取有效图片URL
+    getValidImageUrl(url) {
+      console.log('原始URL输入:', url);
+      
+      // 如果URL为空，直接返回默认占位图而不是空字符串
+      if (!url) {
+        console.log('URL为空，返回默认占位图');
+        return '/static/images/default-food.svg';
+      }
+      
+      // 先进行trim去除前后空白
+      let cleanedUrl = String(url).trim();
+      console.log('trim后URL:', cleanedUrl);
+      
+      // 加强反引号清理，使用更严格的正则表达式
+      cleanedUrl = cleanedUrl.replace(/[`\u0060]/g, '');
+      console.log('第一次移除反引号后URL:', cleanedUrl);
+      
+      // 再次尝试移除可能的转义反引号
+      cleanedUrl = cleanedUrl.replace(/[`\u0060]/g, '');
+      console.log('第二次移除反引号后URL:', cleanedUrl);
+      
+      // 再次trim确保去除反引号后的空白
+      cleanedUrl = cleanedUrl.trim();
+      console.log('最终清理后URL:', cleanedUrl);
+      
+      // 如果清理后URL为空，返回默认占位图
+      if (!cleanedUrl) {
+        console.log('清理后URL为空，返回默认占位图');
+        return '/static/images/default-food.svg';
+      }
+      
+      // 检查URL是否以@开头（有些后端可能会返回这种格式）
+      if (cleanedUrl.startsWith('@')) {
+        cleanedUrl = cleanedUrl.substring(1);
+      }
+      
+      // 检查URL是否为完整的HTTP/HTTPS URL
+      if (cleanedUrl.startsWith('http://') || cleanedUrl.startsWith('https://')) {
+        // 对URL进行编码处理，特别是处理中文和空格
+        if (cleanedUrl.includes(' ') || cleanedUrl.match(/[\\u4e00-\\u9fa5]/)) {
+          // 对URL进行编码，但保留协议和主机部分（包括端口号）
+          const protocolMatch = cleanedUrl.match(/^(https?:\/\/[^\/]+)(\/.*)?$/);
+          if (protocolMatch) {
+            const [, protocolAndHost, path] = protocolMatch;
+            if (path) {
+              const encodedPath = path.split('/').map(segment => segment ? encodeURIComponent(segment) : '').join('/');
+              cleanedUrl = protocolAndHost + encodedPath;
+              console.log('编码后URL:', cleanedUrl);
+            }
+          }
+        }
+        return cleanedUrl;
+      }
+      
+      // 检查是否为相对路径
+      if (cleanedUrl.startsWith('/')) {
+        // 如果是相对路径，尝试添加API基础URL
+        const baseUrl = 'http://localhost:8080';
+        let fullUrl = `${baseUrl}${cleanedUrl}`;
+        // 对URL进行编码处理
+        if (fullUrl.includes(' ') || fullUrl.match(/[\\u4e00-\\u9fa5]/)) {
+          // 对URL进行编码，但保留协议部分
+          const protocol = fullUrl.split('://')[0] + '://';
+          const path = fullUrl.substring(protocol.length);
+          const encodedPath = path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+          fullUrl = protocol + encodedPath;
+          console.log('相对路径编码后URL:', fullUrl);
+        }
+        return fullUrl;
+      }
+      
+      // 检查是否为静态资源路径
+      if (cleanedUrl.startsWith('static/')) {
+        return `/${cleanedUrl}`;
+      }
+      
+      // 如果都不是，返回默认占位图
+      console.log('处理后URL不满足任何条件，返回默认占位图');
+      // 使用本地静态资源作为占位图
+      return '/static/images/default-food.svg';
+    },
     
     // 加载商品列表
     async loadGoodsList() {
