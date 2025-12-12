@@ -118,9 +118,6 @@
               <button class="action-button" @click="evaluateRider">评价骑手</button>
               <button class="action-button" @click="evaluateMerchant">评价商家</button>
             </view>
-            <view class="button-row">
-              <button class="action-button" @click="applyAfterSale">申请售后</button>
-            </view>
           </view>
           
           <!-- 已取消状态 -->
@@ -299,13 +296,7 @@ export default {
       uni.navigateBack()
     },
     
-    // 申请售后
-    applyAfterSale() {
-      // 跳转到售后申请页面
-      uni.navigateTo({
-        url: '/pages/orders/food-order-aftersale?orderId=' + this.order.orderId
-      })
-    },
+
     
     // 联系骑手
     contactRider() {
@@ -389,8 +380,8 @@ export default {
     
     // 评价商家
     evaluateMerchant() {
-      uni.navigateTo({
-        url: `/pages/orders/food-order-evaluate?orderId=${this.order.orderId}&type=merchant`
+      uni.navigateTo({        
+        url: `/pages/orders/food-order-evaluate?orderNo=${this.order.orderNo}&type=merchant`
       })
     }
   }
