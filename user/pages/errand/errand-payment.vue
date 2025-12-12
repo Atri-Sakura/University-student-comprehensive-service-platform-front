@@ -356,7 +356,10 @@ export default {
           
           setTimeout(() => {
             this.paying = false; // 重置支付状态
-            uni.navigateBack();
+            // 支付成功后跳转到首页
+            uni.reLaunch({
+              url: '/pages/index/index'
+            });
           }, 1500);
         } else {
           this.paying = false; // 支付失败，重置状态
