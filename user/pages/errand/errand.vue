@@ -25,19 +25,21 @@
 
       <!-- 订单表单 -->
       <view class="order-form">
-        <!-- 出发地 -->
+        <!-- 取货地址 -->
         <view class="form-item">
-          <text class="form-label">出发地</text>
-          <view class="form-input">
-            <input type="text" v-model="form.startLocation" placeholder="请输入出发地" />
+          <text class="form-label">取货地址</text>
+          <view class="form-input" @click="selectPickupAddress">
+            <text v-if="selectedPickupAddress" class="address-text">{{ selectedPickupAddress.fullAddress }}</text>
+            <text v-else class="placeholder-text">请选择取货地址</text>
+            <text class="arrow-icon">›</text>
           </view>
         </view>
 
         <!-- 收货地址 -->
         <view class="form-item">
           <text class="form-label">收货地址</text>
-          <view class="form-input" @click="selectAddress">
-            <text v-if="selectedAddress" class="address-text">{{ selectedAddress.fullAddress }}</text>
+          <view class="form-input" @click="selectDeliverAddress">
+            <text v-if="selectedDeliverAddress" class="address-text">{{ selectedDeliverAddress.fullAddress }}</text>
             <text v-else class="placeholder-text">请选择收货地址</text>
             <text class="arrow-icon">›</text>
           </view>
@@ -102,7 +104,7 @@
           <text class="price-value" v-if="selectedService">¥{{ estimatedPrice }}</text>
           <text class="price-placeholder" v-else>请先选择服务类型</text>
         </view>
-        <button class="submit-btn" @click="submitOrder">立即下单</button>
+        <button class="submit-btn" :disabled="submitting" @click="submitOrder">{{ submitting ? '提交中...' : '立即下单' }}</button>
       </view>
     </scroll-view>
   </view>
@@ -118,6 +120,7 @@ export default {
       statusBarHeight: 0,
       navHeight: 0,
       selectedService: null,
+      submitting: false, // 防止重复提交
       serviceTypes: [
         { id: 1, name: '取快递', icon: '📦' },
         { id: 2, name: '买食物', icon: '🍱' },
@@ -126,9 +129,9 @@ export default {
       ],
       timeOptions: [],
       addressList: [], // 地址列表
-      selectedAddress: null, // 选中的收货地址
+      selectedPickupAddress: null, // 选中的取货地址
+      selectedDeliverAddress: null, // 选中的收货地址
       form: {
-          startLocation: '',
           goodsName: '',
           goodsPrice: '',
           servicePrice: '',
@@ -140,9 +143,16 @@ export default {
   },
   computed: {
     estimatedPrice() {
-      // 跑腿订单只需支付服务费
       let servicePrice = parseFloat(this.form.servicePrice) || 0;
-      return servicePrice;
+      let goodsPrice = parseFloat(this.form.goodsPrice) || 0;
+      
+      // 取快递：只需服务费
+      // 其他（买食物、代买物品、其他）：商品价格 + 服务费
+      if (this.selectedService && this.selectedService.name === '取快递') {
+        return servicePrice;
+      } else {
+        return goodsPrice + servicePrice;
+      }
     }
   },
   onLoad() {
@@ -221,10 +231,10 @@ export default {
             };
           });
           
-          // 自动选择默认地址
+          // 自动选择默认地址作为收货地址
           const defaultAddr = this.addressList.find(addr => addr.isDefault === 1);
-          if (defaultAddr) {
-            this.selectedAddress = defaultAddr;
+          if (defaultAddr && !this.selectedDeliverAddress) {
+            this.selectedDeliverAddress = defaultAddr;
           }
         }
       } catch (error) {
@@ -232,8 +242,18 @@ export default {
       }
     },
     
+    // 选择取货地址
+    selectPickupAddress() {
+      this.selectAddressCommon('pickup');
+    },
+    
     // 选择收货地址
-    selectAddress() {
+    selectDeliverAddress() {
+      this.selectAddressCommon('deliver');
+    },
+    
+    // 通用地址选择方法
+    selectAddressCommon(type) {
       if (this.addressList.length === 0) {
         uni.showModal({
           title: '提示',
@@ -248,6 +268,8 @@ export default {
         });
         return;
       }
+      
+      const title = type === 'pickup' ? '选择取货地址' : '选择收货地址';
       
       // 添加"新增地址"选项
       const addressOptions = [
@@ -265,7 +287,11 @@ export default {
             });
           } else {
             // 选择已有地址
-            this.selectedAddress = this.addressList[res.tapIndex];
+            if (type === 'pickup') {
+              this.selectedPickupAddress = this.addressList[res.tapIndex];
+            } else {
+              this.selectedDeliverAddress = this.addressList[res.tapIndex];
+            }
           }
         }
       });
@@ -289,6 +315,11 @@ export default {
       
     // 提交订单
     async submitOrder() {
+      // 防止重复提交
+      if (this.submitting) {
+        return;
+      }
+      
       // 表单验证
       if (!this.selectedService) {
         uni.showToast({
@@ -297,14 +328,14 @@ export default {
         });
         return;
       }
-      if (!this.form.startLocation) {
+      if (!this.selectedPickupAddress) {
         uni.showToast({
-          title: '请输入出发地',
+          title: '请选择取货地址',
           icon: 'none'
         });
         return;
       }
-      if (!this.selectedAddress) {
+      if (!this.selectedDeliverAddress) {
         uni.showToast({
           title: '请选择收货地址',
           icon: 'none'
@@ -334,6 +365,7 @@ export default {
       }
 
       try {
+        this.submitting = true;
         uni.showLoading({
           title: '创建订单中...'
         });
@@ -344,18 +376,24 @@ export default {
         const expectTime = `${dateStr} ${this.form.pickupTime}:00`;
         
         // 构建订单数据 - 按照后端CreateErrandOrderDto结构
-        const addressId = this.selectedAddress.userAddressId;
+        const pickupAddressId = this.selectedPickupAddress.userAddressId;
+        const deliverAddressId = this.selectedDeliverAddress.userAddressId;
+        // 取快递不需要商品价格，其他服务类型需要
+        const goodsPrice = this.selectedService.name === '取快递' ? 0 : (parseFloat(this.form.goodsPrice) || 0);
+        const deliverAmount = parseFloat(this.form.servicePrice) || 0; // 配送费（后端字段名为deliverAmount）
+        
         const orderData = {
           orderType: 2, // 订单类型：2-跑腿单
           senderId: 1, // 发送者ID（可以从用户信息获取，暂时写死）
-          merchantName: this.form.startLocation || '用户自提', // 商家名称（使用出发地）
-          deliverAddressId: addressId, // 送货地址ID（必填）
-          deliverAddress: this.selectedAddress.fullAddress, // 送货地址文本
-          goodsPrice: parseFloat(this.form.goodsPrice) || 0, // 商品价格
-          deliverContact: this.selectedAddress.receiverName, // 收货联系人
-          deliverPhone: this.selectedAddress.receiverPhone, // 收货电话
-          deliverLongitude: this.selectedAddress.longitude || 0, // 送货经度
-          deliverLatitude: this.selectedAddress.latitude || 0, // 送货纬度
+          merchantName: this.selectedPickupAddress.receiverName || '取货点', // 商家名称（使用取货地址联系人）
+          deliverAddressId: deliverAddressId, // 送货地址ID（必填）
+          deliverAddress: this.selectedDeliverAddress.fullAddress, // 送货地址文本
+          goodsPrice: goodsPrice, // 商品价格（取快递时为0）
+          deliverAmount: deliverAmount, // 配送费/服务费（后端必需字段）
+          deliverContact: this.selectedDeliverAddress.receiverName, // 收货联系人
+          deliverPhone: this.selectedDeliverAddress.receiverPhone, // 收货电话
+          deliverLongitude: this.selectedDeliverAddress.longitude || 0, // 送货经度
+          deliverLatitude: this.selectedDeliverAddress.latitude || 0, // 送货纬度
           remark: this.form.remark || '', // 订单备注
           expectTime: expectTime, // 预期送达时间（yyyy-MM-dd HH:mm:ss）
           goodsDesc: this.form.description || this.form.goodsName // 商品描述
@@ -370,14 +408,15 @@ export default {
           // 完全使用后端返回的金额
           const backendTotalAmount = res.data.totalAmount || res.data.payAmount;
           
-          // 保存订单信息到本地存储
+          // 保存订单信息到本地存储，包含取货地址ID
           uni.setStorageSync('errandPrepayOrder', {
             preOrderNo: res.data.preOrderNo,
             totalAmount: backendTotalAmount,
             deliveryFee: parseFloat(this.form.servicePrice) || 0,
-            goodsAmount: parseFloat(this.form.goodsPrice) || 0,
+            goodsAmount: goodsPrice, // 使用计算后的商品价格
             expireTime: res.data.expireTime,
-            deliverAddressId: this.selectedAddress.userAddressId,
+            pickupAddressId: pickupAddressId, // 取货地址ID
+            deliverAddressId: deliverAddressId, // 送货地址ID
             orderInfo: {
               ...orderData,
               serviceType: this.selectedService.name,
@@ -401,6 +440,8 @@ export default {
           title: '创建订单失败，请重试',
           icon: 'none'
         });
+      } finally {
+        this.submitting = false;
       }
     }
   }

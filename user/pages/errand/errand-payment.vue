@@ -92,8 +92,8 @@
         <text class="total-label">实付款：</text>
         <text class="total-price">¥{{ totalPrice.toFixed(2) }}</text>
       </view>
-      <view class="submit-btn" @click="submitOrder">
-        <text class="submit-text">提交订单</text>
+      <view class="submit-btn" :class="{ disabled: paying }" @click="submitOrder">
+        <text class="submit-text">{{ paying ? '支付中...' : '提交订单' }}</text>
       </view>
     </view>
     
@@ -136,7 +136,7 @@
           <view class="password-cancel-btn" @click="closePasswordModal">
             <text class="cancel-btn-text">取消</text>
           </view>
-          <view class="password-confirm-btn" @click="confirmPaymentPassword">
+          <view class="password-confirm-btn" :class="{ disabled: loading }" @click="confirmPaymentPassword">
             <text class="confirm-btn-text">确认支付</text>
           </view>
         </view>
@@ -164,6 +164,7 @@ export default {
       selectedPayment: 0, // 默认选择余额支付
       paymentMethods: [],
       loading: false,
+      paying: false, // 防止重复支付
       showPasswordModal: false, // 显示密码输入框
       paymentPassword: '', // 支付密码
       passwordInputFocus: false // 密码输入框聚焦状态
@@ -267,6 +268,11 @@ export default {
     
     // 提交订单
     async submitOrder() {
+      // 防止重复提交
+      if (this.paying) {
+        return;
+      }
+      
       if (this.loading) return;
       
       const paymentMethod = this.paymentMethods[this.selectedPayment];
@@ -287,6 +293,7 @@ export default {
     // 创建订单请求
     async createOrderRequest() {
       try {
+        this.paying = true; // 设置支付中状态
         this.loading = true;
         uni.showLoading({
           title: '支付中...'
@@ -305,6 +312,7 @@ export default {
         
       } catch (error) {
         this.loading = false;
+        this.paying = false;
         uni.hideLoading();
         uni.showToast({
           title: '支付失败，请重试',
@@ -316,6 +324,7 @@ export default {
     // 执行支付
     async payOrder(payType, payPassword) {
       try {
+        this.loading = true;
         // 从本地存储获取地址ID
         const prepayOrder = uni.getStorageSync('errandPrepayOrder');
         
@@ -328,7 +337,7 @@ export default {
           payPassword: payPassword, // 支付密码
           payType: 1, // 支付方式：1-余额支付
           payAmount: payAmount, // 支付金额（必须使用后端返回的金额）
-          userAddressId: prepayOrder?.deliverAddressId // 用户地址ID
+          userAddressId: prepayOrder?.pickupAddressId // 取货地址ID（用于后端设置pick_address）
         };
         
         const res = await payAndCreateOrder(payData);
@@ -346,9 +355,11 @@ export default {
           });
           
           setTimeout(() => {
+            this.paying = false; // 重置支付状态
             uni.navigateBack();
           }, 1500);
         } else {
+          this.paying = false; // 支付失败，重置状态
           // 根据不同错误显示不同提示
           let errorMsg = res.msg || '支付失败';
           if (errorMsg.includes('余额不足')) {
@@ -365,6 +376,7 @@ export default {
       } catch (error) {
         uni.hideLoading();
         this.loading = false;
+        this.paying = false; // 重置支付状态
         
         let errorMsg = '支付失败，请重试';
         if (error.msg) {
@@ -395,18 +407,18 @@ export default {
       const value = e.detail.value;
       // 只保留数字，最多6位
       this.paymentPassword = value.replace(/\D/g, '').slice(0, 6);
-      
-      // 输入6位密码后自动提交
-      if (this.paymentPassword.length === 6) {
-        // 短暂延迟，让用户看到最后一位输入
-        setTimeout(() => {
-          this.confirmPaymentPassword();
-        }, 200);
-      }
     },
     
     // 确认支付密码
     async confirmPaymentPassword() {
+      console.log('confirmPaymentPassword 被调用，当前loading:', this.loading);
+      
+      // 防止重复确认 - 在最开始就检查并锁定
+      if (this.loading) {
+        console.log('支付请求处理中，忽略重复调用');
+        return;
+      }
+      
       if (this.paymentPassword.length !== 6) {
         uni.showToast({
           title: '请输入6位支付密码',
@@ -414,6 +426,10 @@ export default {
         });
         return;
       }
+      
+      // 立即设置loading为true，防止后续重复调用
+      this.loading = true;
+      console.log('开始支付流程，loading设置为true');
       
       try {
         uni.showLoading({
@@ -428,6 +444,8 @@ export default {
         this.closePasswordModal();
         
       } catch (error) {
+        console.error('支付异常:', error);
+        this.loading = false;
         uni.hideLoading();
         uni.showToast({
           title: '支付失败，请重试',
@@ -441,6 +459,7 @@ export default {
       this.showPasswordModal = false;
       this.paymentPassword = '';
       this.passwordInputFocus = false;
+      this.paying = false; // 取消支付，重置状态
     }
   }
 };
@@ -751,6 +770,11 @@ export default {
   transform: scale(0.98);
 }
 
+.submit-btn.disabled {
+  background-color: #91caff;
+  pointer-events: none;
+}
+
 .submit-text {
   font-size: 32rpx;
   font-weight: bold;
@@ -876,6 +900,12 @@ export default {
 .password-confirm-btn {
   background-color: #1677FF;
   border: 2rpx solid #1677FF;
+}
+
+.password-confirm-btn.disabled {
+  background-color: #91caff;
+  border-color: #91caff;
+  pointer-events: none;
 }
 
 .cancel-btn-text {
