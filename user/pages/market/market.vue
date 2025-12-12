@@ -153,14 +153,20 @@ export default {
       pageSize: 10,
       loading: false,
       noMore: false,
-      isFirstLoad: false
+      isFirstLoad: false,
+      selectedItemId: null, // 从首页传递的选中商品ID
+      autoBuy: false // 是否自动跳转到购买流程
     };
   },
-  onLoad() {
+  onLoad(options) {
     // 获取状态栏高度
     const systemInfo = uni.getSystemInfoSync();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.navHeight = this.statusBarHeight + 44;
+    
+    // 保存从首页传递的参数
+    this.selectedItemId = options.selectedItemId;
+    this.autoBuy = options.autoBuy === 'true';
     
     // 加载商品列表
     this.loadGoodsList();
@@ -278,6 +284,33 @@ export default {
         // 判断是否还有更多数据
         if (list.length < this.pageSize) {
           this.noMore = true;
+        }
+        
+        // 检查是否需要自动跳转到指定商品详情
+        if (this.selectedItemId) {
+          const selectedItem = this.allGoodsList.find(item => {
+            const itemId = item.id || item.goodsId || item.goods_id || item.secondhandGoodsId;
+            return String(itemId) === String(this.selectedItemId);
+          });
+          
+          if (selectedItem) {
+            // 如果找到对应的商品，自动跳转到详情页
+            // 设置一个短暂的延迟，确保界面已经渲染完成
+            setTimeout(() => {
+              if (this.autoBuy) {
+                this.buyItem(selectedItem);
+              } else {
+                this.viewDetail(selectedItem);
+              }
+              // 跳转完成后清除选中状态，避免重复跳转
+              this.selectedItemId = null;
+              this.autoBuy = false;
+            }, 300);
+          } else {
+            console.warn('未找到指定ID的商品：', this.selectedItemId);
+            this.selectedItemId = null;
+            this.autoBuy = false;
+          }
         }
         
       } catch (error) {
