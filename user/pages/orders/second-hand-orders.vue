@@ -17,7 +17,7 @@
         
         <!-- 商品信息 -->
         <view class="product-info">
-          <image class="product-image" :src="order.imageUrl || '/static/default-product.png'" mode="aspectFill"></image>
+          <image class="product-image" :src="order.mainImageUrl || '/static/default-product.png'" mode="aspectFill"></image>
           <view class="product-details">
             <text class="product-name">{{ getOrderGoodsName(order) || '二手交易订单' }}</text>
             <text class="product-time">转卖时间：{{ order.createTime }}</text>
@@ -115,11 +115,13 @@ export default {
     
     // 订单状态样式
     statusClass(status) {
-      if ([1, 2, 3].includes(status)) {
+      console.log('列表页orderStatus:', status, typeof status)
+      const numStatus = Number(status)
+      if (numStatus >= 1 && numStatus <= 3) {
         return 'status-selling' // 交易中
-      } else if (status === 4) {
+      } else if (numStatus === 4) {
         return 'status-completed' // 已完成
-      } else if (status === 5) {
+      } else if (numStatus === 5) {
         return 'status-removed' // 已取消
       }
       return ''
@@ -127,11 +129,12 @@ export default {
     
     // 订单状态文本
     orderStatusText(status) {
-      if ([1, 2, 3].includes(status)) {
+      const numStatus = Number(status)
+      if (numStatus >= 1 && numStatus <= 3) {
         return '交易中'
-      } else if (status === 4) {
+      } else if (numStatus === 4) {
         return '已完成'
-      } else if (status === 5) {
+      } else if (numStatus === 5) {
         return '已取消'
       }
       return '未知状态'
@@ -160,12 +163,7 @@ export default {
     
     // 获取订单商品名称
     getOrderGoodsName(order) {
-      // 尝试从orderSecondhandDetailList获取商品名称
-      if (order.orderSecondhandDetailList && order.orderSecondhandDetailList.length > 0) {
-        return order.orderSecondhandDetailList[0].goodsName;
-      }
-      // 如果没有找到，返回null
-      return null;
+      return order?.goodsName || null
     }
   }
 }

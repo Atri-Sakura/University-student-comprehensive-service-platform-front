@@ -45,7 +45,7 @@
           </view>
           <view class="info-item">
             <text class="info-label">商品名称</text>
-            <text class="info-value">{{ order.orderSecondhandDetailList && order.orderSecondhandDetailList[0] ? order.orderSecondhandDetailList[0].goodsName : '二手交易商品' }}</text>
+            <text class="info-value">{{ displayGoodsName }}</text>
           </view>
           <view class="info-item">
             <text class="info-label">交易金额</text>
@@ -53,38 +53,36 @@
           </view>
         </view>
         
-        <!-- 买家信息卡片 -->
+        <!-- 交易对方信息卡片 -->
         <view class="user-card">
           <view class="info-header">
             <text class="info-icon">👤</text>
-            <text class="info-title">买家信息</text>
+            <text class="info-title">交易对方信息</text>
           </view>
           <view class="info-item">
-            <text class="info-label">买家昵称</text>
-            <text class="info-value">{{ order.buyerName || '未知' }}</text>
-          </view>
-          <view class="info-item">
-            <text class="info-label">联系电话</text>
-            <text class="info-value">{{ order.buyerPhone || '未知' }}</text>
-          </view>
-        </view>
-        
-        <!-- 卖家信息卡片 -->
-        <view class="user-card">
-          <view class="info-header">
-            <text class="info-icon">👤</text>
-            <text class="info-title">卖家信息</text>
-          </view>
-          <view class="info-item">
-            <text class="info-label">卖家昵称</text>
-            <text class="info-value">{{ order.sellerName || '未知' }}</text>
+            <text class="info-label">对方昵称</text>
+            <text class="info-value">{{ order.counterpartUsername || '未知' }}</text>
           </view>
           <view class="info-item">
             <text class="info-label">联系电话</text>
-            <text class="info-value">{{ order.sellerPhone || '未知' }}</text>
+            <text class="info-value">{{ order.counterpartPhone || '未知' }}</text>
           </view>
         </view>
       </view>
+    </view>
+    
+    <!-- 底部操作按钮 -->
+    <view class="bottom-actions" v-if="!loading && !error">
+      <!-- 交易中状态：显示确认收货按钮 -->
+      <button 
+        v-if="order.orderStatus >= 1 && order.orderStatus <= 3" 
+        class="action-button confirm-button"
+        @click="confirmReceipt">
+        确认收货
+      </button>
+      
+      <!-- 已完成状态：不显示按钮 -->
+      <!-- 已取消状态：不显示按钮 -->
     </view>
   </view>
 </template>
@@ -93,6 +91,11 @@
 import api from '@/api/index.js'
 
 export default {
+  computed: {
+    displayGoodsName() {
+      return this.order?.goodsName || '二手交易商品'
+    }
+  },
   data() {
     return {
       orderNo: '',
@@ -152,11 +155,13 @@ export default {
     
     // 订单状态样式
     statusClass(status) {
-      if (status >= 1 && status <= 3) {
+      console.log('详情页orderStatus:', status, typeof status)
+      const numStatus = Number(status)
+      if (numStatus >= 1 && numStatus <= 3) {
         return 'status-selling'  // 交易中
-      } else if (status === 4) {
+      } else if (numStatus === 4) {
         return 'status-completed'  // 已完成
-      } else if (status === 5) {
+      } else if (numStatus === 5) {
         return 'status-removed'  // 已取消
       }
       return ''
@@ -164,11 +169,12 @@ export default {
     
     // 订单状态文本
     orderStatusText(status) {
-      if (status >= 1 && status <= 3) {
+      const numStatus = Number(status)
+      if (numStatus >= 1 && numStatus <= 3) {
         return '交易中'
-      } else if (status === 4) {
+      } else if (numStatus === 4) {
         return '已完成'
-      } else if (status === 5) {
+      } else if (numStatus === 5) {
         return '已取消'
       }
       return '未知状态'
@@ -177,6 +183,58 @@ export default {
     // 返回上一页
     goBack() {
       uni.navigateBack()
+    },
+    
+    // 确认收货
+    async confirmReceipt() {
+      try {
+        // 显示确认对话框
+        const confirmResult = await new Promise((resolve) => {
+          uni.showModal({
+            title: '确认收货',
+            content: '确认已收到商品吗？',
+            success: (res) => {
+              resolve(res.confirm)
+            }
+          })
+        })
+        
+        if (!confirmResult) {
+          return
+        }
+        
+        // 显示加载提示
+        uni.showLoading({ title: '处理中...' })
+        
+        // 调用确认收货接口
+        const res = await api.secondhandGoods.confirmOrder(this.orderNo)
+        
+        uni.hideLoading()
+        
+        if (res && res.code === 200) {
+          uni.showToast({
+            title: '确认收货成功',
+            icon: 'success'
+          })
+          
+          // 刷新订单详情
+          setTimeout(() => {
+            this.getOrderDetail()
+          }, 1500)
+        } else {
+          uni.showToast({
+            title: res.message || '操作失败',
+            icon: 'none'
+          })
+        }
+      } catch (err) {
+        uni.hideLoading()
+        console.error('确认收货失败:', err)
+        uni.showToast({
+          title: '网络错误，请稍后重试',
+          icon: 'none'
+        })
+      }
     }
   }
 }
@@ -361,5 +419,38 @@ export default {
 .status-removed {
   color: #999;
   background-color: #F5F5F5;
+}
+
+/* 底部操作按钮样式 */
+.bottom-actions {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20rpx 30rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background-color: white;
+  box-shadow: 0 -2rpx 10rpx rgba(0, 0, 0, 0.05);
+  display: flex;
+  gap: 20rpx;
+}
+
+.action-button {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  border: none;
+}
+
+.confirm-button {
+  background-color: #5DCDFF;
+  color: white;
+}
+
+.confirm-button:active {
+  opacity: 0.8;
 }
 </style>
