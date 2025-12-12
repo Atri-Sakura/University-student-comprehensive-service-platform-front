@@ -1,6 +1,5 @@
 <template>
   <view class="chat-container">
-    <!-- 聊天头部 -->
     <view class="chat-header">
       <view class="back-btn" @click="goBack">
         <text class="back-icon">←</text>
@@ -13,7 +12,6 @@
       </view>
     </view>
 
-    <!-- 聊天消息列表 -->
     <scroll-view 
       class="message-list" 
       scroll-y 
@@ -25,17 +23,14 @@
         :key="index"
         :id="'msg-' + index"
       >
-        <!-- 时间分隔线 -->
         <view v-if="msg.showTime" class="time-divider">
           <text class="time-text">{{ msg.time }}</text>
         </view>
 
-        <!-- 系统消息 -->
         <view v-if="msg.type === 'system'" class="system-message">
           <text class="system-text">{{ msg.content }}</text>
         </view>
 
-        <!-- 普通消息 -->
         <view v-else :class="['normal-message', msg.isSelf ? 'self' : 'other']">
           <view class="avatar" :style="{ backgroundColor: msg.isSelf ? '#4A90E2' : '#FFB74D' }">
             <text class="avatar-text">{{ msg.avatar }}</text>
@@ -49,7 +44,6 @@
       </view>
     </scroll-view>
 
-    <!-- 输入区域 -->
     <view class="input-area">
       <view class="input-tools">
         <view class="tool-btn" @click="showMoreActions">
@@ -70,7 +64,6 @@
       </view>
     </view>
 
-    <!-- 更多操作面板 -->
     <view v-if="showActions" class="action-panel" @click="hideActions">
       <view class="action-content" @click.stop>
         <view class="action-grid">
@@ -97,20 +90,22 @@
 </template>
 
 <script>
-import { getMessageList, sendMessage as sendMessageAPI, uploadChatImage, sendLocation as sendLocationAPI, chatWebSocket, markChatRead } from '@/utils/chatApi.js';
+import { getMessageList, sendMessage as sendMessageAPI, uploadChatImage, sendLocation as sendLocationAPI, markChatRead } from '@/utils/chatApi.js';
+import wsManager from '@/utils/websocket-protobuf-manager.js';
+import { USER_TYPE, MSG_TYPE } from '@/utils/protobuf-schema.js';
 
 export default {
   name: 'ChatPage',
   data() {
     return {
-      sessionId: null, // 会话ID
-      chatId: null, // 兼容旧字段
+      sessionId: '',
+      chatId: null,
       chatInfo: {
         title: '',
         icon: '',
-        iconColor: ''
+        iconColor: '',
+        unread: 0
       },
-      // 会话参与方信息
       sessionInfo: {
         fromType: null,
         fromId: null,
@@ -124,14 +119,30 @@ export default {
       pageNum: 1,
       pageSize: 50,
       hasMore: true,
-      loading: false
+      loading: false,
+      handlePopState: null
     }
   },
   onLoad(options) {
-    // 接收从消息列表传来的参数
-    if (options.sessionId || options.chatId) {
-      this.sessionId = parseInt(options.sessionId || options.chatId);
-      this.chatId = this.sessionId; // 兼容
+    // #ifdef H5
+    this.handlePopState = () => {
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        history.pushState(null, '', location.href);
+        uni.reLaunch({
+          url: '/pages/message/message'
+        });
+      }
+    };
+    history.pushState(null, '', location.href);
+    window.addEventListener('popstate', this.handlePopState);
+    // #endif
+
+    if (options.sessionId) {
+      this.sessionId = options.sessionId;
+    }
+    if (options.chatId) {
+      this.chatId = options.chatId;
     }
     if (options.title) {
       this.chatInfo.title = decodeURIComponent(options.title);
@@ -139,72 +150,71 @@ export default {
     if (options.icon) {
       this.chatInfo.icon = decodeURIComponent(options.icon);
     }
-    if (options.iconColor) {
-      this.chatInfo.iconColor = decodeURIComponent(options.iconColor);
-    }
-    
-    // 接收会话参与方信息
+
     if (options.fromType) {
       this.sessionInfo.fromType = parseInt(options.fromType);
     }
     if (options.fromId) {
-      this.sessionInfo.fromId = parseInt(options.fromId);
+      this.sessionInfo.fromId = String(options.fromId);
     }
     if (options.toType) {
       this.sessionInfo.toType = parseInt(options.toType);
     }
     if (options.toId) {
-      this.sessionInfo.toId = parseInt(options.toId);
+      this.sessionInfo.toId = String(options.toId);
     }
-    
-    // 加载历史消息
+
     this.loadMessages();
-    
-    // 标记会话为已读
     if (this.sessionId) {
       this.markAsRead();
     }
-    
-    // 连接WebSocket
     this.connectWebSocket();
   },
   onUnload() {
-    // 页面卸载时断开WebSocket
-    this.disconnectWebSocket();
+    try {
+      const index = wsManager.messageHandlers.indexOf(this.handleWebSocketMessage);
+      if (index > -1) {
+        wsManager.messageHandlers.splice(index, 1);
+      }
+    } catch (error) {
+      console.error('移除handler失败:', error);
+    }
+    // #ifdef H5
+    if (this.handlePopState) {
+      window.removeEventListener('popstate', this.handlePopState);
+    }
+    // #endif
+  },
+  onBackPress() {
+    const pages = getCurrentPages();
+    if (pages.length <= 1) {
+      uni.reLaunch({
+        url: '/pages/message/message'
+      });
+      return true;
+    }
+    return false;
   },
   methods: {
-    // 加载历史消息
     async loadMessages() {
       if (this.loading || !this.hasMore || !this.sessionId) {
         return;
       }
-      
       this.loading = true;
-      
       try {
         const res = await getMessageList({
           sessionId: this.sessionId,
-          chatId: this.sessionId, // 兼容
+          chatId: this.sessionId,
           pageNum: this.pageNum,
           pageSize: this.pageSize
         });
-        
         const success = res.data.code === 200 || res.data.code === 0;
-        
         if (success) {
           const messages = res.data.data || res.data.rows || [];
-          
-          // 转换消息格式，适配后端ChatMessage实体
           const formattedMessages = messages.map(msg => this.formatMessage(msg));
-          
-          // 插入到消息列表前面（历史消息）
           this.messageList = [...formattedMessages, ...this.messageList];
-          
-          // 判断是否还有更多消息
           this.hasMore = messages.length >= this.pageSize;
           this.pageNum++;
-          
-          // 第一次加载滚动到底部
           if (this.pageNum === 2) {
             this.$nextTick(() => {
               this.scrollToBottom();
@@ -226,15 +236,12 @@ export default {
         this.loading = false;
       }
     },
-    
-    // 格式化消息数据，适配后端ChatMessage实体
+
     formatMessage(msg) {
-      // 获取商户信息，判断是否是自己发送的
       const merchantInfo = uni.getStorageSync('merchantInfo') || {};
       const merchantId = String(merchantInfo.merchantBaseId || merchantInfo.id || '');
-      const isSelf = msg.fromType === 3 && msg.fromId === merchantId;
-      
-      // 消息类型转换：1-文本 2-图片 3-语音 4-系统通知
+      const isSelf = msg.fromType === 3 && String(msg.fromId) === merchantId;
+
       let messageType = 'text';
       let displayType = 'normal';
       if (msg.msgType === 2) {
@@ -245,7 +252,7 @@ export default {
         messageType = 'system';
         displayType = 'system';
       }
-      
+
       return {
         id: msg.messageId,
         type: displayType,
@@ -255,8 +262,7 @@ export default {
         time: this.formatTime(new Date(msg.sendTime || msg.createTime)),
         showTime: msg.showTime || false,
         messageType: messageType,
-        msgStatus: msg.msgStatus, // 0-发送中 1-已送达 2-已读 3-已撤回 4-发送失败
-        // 保存原始数据
+        msgStatus: msg.msgStatus,
         sessionId: msg.sessionId,
         fromType: msg.fromType,
         fromId: msg.fromId,
@@ -264,13 +270,11 @@ export default {
         toId: msg.toId
       };
     },
-    
-    // 发送消息
+
     async sendMessage() {
       if (!this.inputMessage.trim()) {
         return;
       }
-      
       if (!this.sessionId) {
         uni.showToast({
           title: '会话ID不存在',
@@ -278,8 +282,6 @@ export default {
         });
         return;
       }
-      
-      // 检查会话参与方信息
       if (!this.sessionInfo.toType || !this.sessionInfo.toId) {
         uni.showToast({
           title: '会话信息不完整',
@@ -287,11 +289,10 @@ export default {
         });
         return;
       }
-      
+
       const content = this.inputMessage.trim();
       this.inputMessage = '';
-      
-      // 先在界面上显示消息（乐观更新）
+
       const tempMessage = {
         type: 'normal',
         isSelf: true,
@@ -299,47 +300,48 @@ export default {
         content: content,
         time: this.formatTime(new Date()),
         showTime: false,
-        sending: true // 发送中标记
+        sending: true
       };
-      
+
       this.messageList.push(tempMessage);
-      
-      // 滚动到底部
       this.$nextTick(() => {
         this.scrollToBottom();
       });
-      
+
       try {
-        // 发送消息到后端
         const res = await sendMessageAPI({
           sessionId: this.sessionId,
-          chatId: this.sessionId, // 兼容
+          chatId: this.sessionId,
           toType: this.sessionInfo.toType,
           toId: this.sessionInfo.toId,
           msgContent: content,
-          content: content, // 兼容
-          msgType: 1, // 1-文本
-          messageType: 'text' // 兼容
+          content,
+          msgType: 1,
+          messageType: 'text'
         });
-        
+
         const success = res.data.code === 200 || res.data.code === 0;
-        
         if (success) {
-          // 发送成功，更新消息状态
           tempMessage.sending = false;
           tempMessage.id = res.data.data?.messageId || res.data.data;
-          
-          // 通过WebSocket通知对方（如果WebSocket已连接）
-          if (chatWebSocket.isConnected) {
-            chatWebSocket.send({
-              type: 'message',
-              sessionId: this.sessionId,
-              messageId: tempMessage.id,
-              content: content
-            });
+
+          const status = wsManager.getStatus();
+          if (status.isConnected && status.isRegistered) {
+            try {
+              const merchantInfo = uni.getStorageSync('merchantInfo');
+              await wsManager.sendTextMessage({
+                sessionId: this.sessionId,
+                fromType: 3,
+                fromId: String(merchantInfo.id),
+                toType: this.sessionInfo.fromType,
+                toId: this.sessionInfo.fromId,
+                content: content
+              });
+            } catch (err) {
+              console.warn('⚠️ WebSocket发送失败，消息已通过HTTP保存:', err);
+            }
           }
         } else {
-          // 发送失败，标记失败
           tempMessage.sendFailed = true;
           uni.showToast({
             title: res.data.msg || '发送失败',
@@ -355,83 +357,97 @@ export default {
         });
       }
     },
-    
-    // 接收WebSocket消息
-    handleWebSocketMessage(data) {
-      console.log('收到WebSocket消息:', data);
-      
-      // 处理不同类型的消息
-      if (data.type === 'message' && data.sessionId === this.sessionId) {
-        // 收到新消息
-        const newMessage = this.formatMessage(data.message || data);
+
+    handleWebSocketMessage(message) {
+      const msgType = message.msg_type || message.msgType;
+      const sessionId = String(message.session_id || message.sessionId || '');
+      const msgContent = message.msg_content || message.msgContent;
+      const fromId = String(message.from_id || message.fromId || '');
+
+      const merchantInfo = uni.getStorageSync('merchantInfo');
+      if (merchantInfo && merchantInfo.id && fromId) {
+        const currentMerchantId = String(merchantInfo.id);
+        const isSelf = fromId.substring(0, 10) === currentMerchantId.substring(0, 10);
+        if (isSelf) {
+          return;
+        }
+      }
+
+      const currentSessionId = String(this.sessionId || '');
+      const sessionMatches = sessionId.includes(currentSessionId.substring(0, 10)) ||
+        currentSessionId.includes(sessionId.substring(0, 10));
+
+      if (msgType === MSG_TYPE.TEXT && sessionMatches) {
+        const newMessage = {
+          type: 'normal',
+          isSelf: false,
+          avatar: '👤',
+          content: msgContent,
+          time: this.formatTime(new Date()),
+          showTime: false
+        };
         this.messageList.push(newMessage);
-        
-        // 滚动到底部
         this.$nextTick(() => {
           this.scrollToBottom();
         });
-        
-        // 标记为已读
         this.markAsRead();
-      } else if (data.type === 'auth' && data.success) {
-        // 认证成功
-        console.log('WebSocket认证成功');
-      } else if (data.type === 'heartbeat') {
-        // 心跳响应
-        console.log('收到心跳响应');
       }
     },
-    
-    // 连接WebSocket
-    connectWebSocket() {
-      chatWebSocket.connect({
-        onMessage: this.handleWebSocketMessage.bind(this),
-        onError: (err) => {
-          console.error('WebSocket错误:', err);
-        },
-        onClose: () => {
-          console.log('WebSocket连接关闭');
-        }
-      });
+
+    async connectWebSocket() {
+      const status = wsManager.getStatus();
+      if (status.isConnected && status.isRegistered) {
+        wsManager.addMessageHandler(this.handleWebSocketMessage);
+        return;
+      }
+
+      const merchantInfo = uni.getStorageSync('merchantInfo');
+      if (!merchantInfo || !merchantInfo.id) {
+        console.warn('⚠️ 商家信息不完整，无法连接WebSocket');
+        return;
+      }
+
+      try {
+        await wsManager.init();
+        await wsManager.connect(USER_TYPE.MERCHANT, merchantInfo.id);
+        wsManager.addMessageHandler(this.handleWebSocketMessage);
+      } catch (error) {
+        console.error('❌ WebSocket连接失败:', error);
+      }
     },
-    
-    // 断开WebSocket
+
     disconnectWebSocket() {
-      chatWebSocket.close();
+      wsManager.disconnect();
     },
-    
-    // 标记为已读
+
     async markAsRead() {
       if (!this.sessionId) return;
-      
       try {
         await markChatRead(this.sessionId);
       } catch (error) {
         console.error('标记已读失败:', error);
       }
     },
-    
-    // 滚动到底部
+
     scrollToBottom() {
       if (this.messageList.length > 0) {
         this.scrollToView = 'msg-' + (this.messageList.length - 1);
       }
     },
-    
-    // 格式化时间
+
     formatTime(date) {
       const now = new Date();
       const diff = now - date;
-      
-      if (diff < 60000) { // 1分钟内
+
+      if (diff < 60000) {
         return '刚刚';
-      } else if (diff < 3600000) { // 1小时内
+      } else if (diff < 3600000) {
         return Math.floor(diff / 60000) + '分钟前';
-      } else if (diff < 86400000) { // 今天
+      } else if (diff < 86400000) {
         const hours = date.getHours().toString().padStart(2, '0');
         const minutes = date.getMinutes().toString().padStart(2, '0');
         return `${hours}:${minutes}`;
-      } else if (diff < 172800000) { // 昨天
+      } else if (diff < 172800000) {
         return '昨天';
       } else {
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -439,18 +455,15 @@ export default {
         return `${month}-${day}`;
       }
     },
-    
-    // 显示更多操作
+
     showMoreActions() {
       this.showActions = true;
     },
-    
-    // 隐藏操作面板
+
     hideActions() {
       this.showActions = false;
     },
-    
-    // 选择图片
+
     selectImage() {
       if (!this.sessionId) {
         uni.showToast({
@@ -459,26 +472,19 @@ export default {
         });
         return;
       }
-      
       uni.chooseImage({
         count: 1,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
         success: async (res) => {
           const filePath = res.tempFilePaths[0];
-          
-          // 显示上传中
           uni.showLoading({
             title: '上传中...'
           });
-          
           try {
             const uploadRes = await uploadChatImage(filePath, this.sessionId);
-            
             const success = uploadRes.code === 200 || uploadRes.code === 0;
-            
             if (success) {
-              // 添加图片消息
               const newMessage = {
                 type: 'normal',
                 isSelf: true,
@@ -489,11 +495,9 @@ export default {
                 imageUrl: uploadRes.data?.imageUrl || uploadRes.data
               };
               this.messageList.push(newMessage);
-              
               this.$nextTick(() => {
                 this.scrollToBottom();
               });
-              
               uni.showToast({
                 title: '发送成功',
                 icon: 'success'
@@ -520,8 +524,7 @@ export default {
         }
       });
     },
-    
-    // 选择文件
+
     selectFile() {
       uni.showToast({
         title: '文件功能开发中',
@@ -529,8 +532,7 @@ export default {
       });
       this.hideActions();
     },
-    
-    // 发送位置
+
     sendLocation() {
       if (!this.sessionId) {
         uni.showToast({
@@ -539,8 +541,6 @@ export default {
         });
         return;
       }
-      
-      // 检查会话参与方信息
       if (!this.sessionInfo.toType || !this.sessionInfo.toId) {
         uni.showToast({
           title: '会话信息不完整',
@@ -548,13 +548,11 @@ export default {
         });
         return;
       }
-      
       uni.chooseLocation({
         success: async (res) => {
           uni.showLoading({
             title: '发送中...'
           });
-          
           try {
             const locationRes = await sendLocationAPI({
               sessionId: this.sessionId,
@@ -567,11 +565,8 @@ export default {
               address: res.address,
               name: res.name
             });
-            
             const success = locationRes.data?.code === 200 || locationRes.data?.code === 0;
-            
             if (success) {
-              // 添加位置消息
               const newMessage = {
                 type: 'normal',
                 isSelf: true,
@@ -587,11 +582,9 @@ export default {
                 }
               };
               this.messageList.push(newMessage);
-              
               this.$nextTick(() => {
                 this.scrollToBottom();
               });
-              
               uni.showToast({
                 title: '发送成功',
                 icon: 'success'
@@ -618,8 +611,7 @@ export default {
         }
       });
     },
-    
-    // 语音通话
+
     callPhone() {
       uni.showToast({
         title: '语音通话功能',
@@ -627,23 +619,16 @@ export default {
       });
       this.hideActions();
     },
-    
-    // 返回
+
     goBack() {
-      // 获取当前页面栈
       const pages = getCurrentPages();
-      
-      // 如果页面栈只有一个页面（说明是刷新后直接进入的）
       if (pages.length <= 1) {
-        // 检查是否有token
         const token = uni.getStorageSync('token');
         if (token) {
-          // 有token，跳转到首页
           uni.switchTab({
             url: '/pages/index/index'
           });
         } else {
-          // 没有token，跳转到登录页
           uni.redirectTo({
             url: '/pages/login/login',
             fail: () => {
@@ -654,7 +639,6 @@ export default {
           });
         }
       } else {
-        // 否则正常返回上一页
         uni.navigateBack();
       }
     }
@@ -671,7 +655,6 @@ export default {
   background-color: #f5f5f5;
 }
 
-/* 聊天头部 */
 .chat-header {
   background: linear-gradient(135deg, #4a90e2, #357abd);
   padding: 20rpx;
@@ -721,7 +704,6 @@ export default {
   font-weight: bold;
 }
 
-/* 消息列表 */
 .message-list {
   flex: 1;
   padding: 20rpx;
@@ -732,7 +714,6 @@ export default {
   margin-bottom: 30rpx;
 }
 
-/* 时间分隔线 */
 .time-divider {
   display: flex;
   justify-content: center;
@@ -747,7 +728,6 @@ export default {
   border-radius: 20rpx;
 }
 
-/* 系统消息 */
 .system-message {
   display: flex;
   justify-content: center;
@@ -762,7 +742,6 @@ export default {
   border-radius: 20rpx;
 }
 
-/* 普通消息 */
 .normal-message {
   display: flex;
   margin-bottom: 20rpx;
@@ -815,7 +794,6 @@ export default {
   color: white;
 }
 
-/* 输入区域 */
 .input-area {
   background: white;
   padding: 20rpx;
@@ -877,7 +855,6 @@ export default {
   color: white;
 }
 
-/* 操作面板 */
 .action-panel {
   position: fixed;
   top: 0;

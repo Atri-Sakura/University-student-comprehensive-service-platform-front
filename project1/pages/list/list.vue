@@ -328,7 +328,7 @@ export default {
         return {
           id: order.orderMainId,
           orderNo: order.orderNo,
-          customerName: order.deliverContact || '顾客',
+          customerName: order.deliverContact || order.userNickname || '顾客',
           phone: order.deliverPhone || '',
           orderTime: order.createTime,
           status: orderStatus,
@@ -338,7 +338,9 @@ export default {
           riderName: order.riderName,
           riderPhone: order.riderPhone,
           riderAcceptTime: order.riderAcceptTime,
-          review: order.review
+          review: order.review,
+          userId: order.userId,
+          userNickname: order.userNickname
         };
       })
     },
@@ -481,26 +483,101 @@ export default {
     },
     
     // 联系客户
-    contactCustomer(item) {
+    async contactCustomer(item) {
       uni.showActionSheet({
         itemList: ['电话联系', '消息联系'],
-        success: (res) => {
+        success: async (res) => {
           if (res.tapIndex === 0) {
-            // 电话联系
+            if (!item.phone) {
+              uni.showToast({
+                title: '客户电话不可用',
+                icon: 'none'
+              });
+              return;
+            }
             uni.makePhoneCall({
               phoneNumber: item.phone
             })
           } else if (res.tapIndex === 1) {
-            // 消息联系，跳转到消息中心（tabbar页面）
-            // 保存参数到全局，因为switchTab不能传递参数
-            getApp().globalData.contactParams = {
-              contactType: 'customer',
-              name: item.customerName,
-              id: item.id
+            if (!item.userId) {
+              uni.showToast({
+                title: '无法获取客户信息',
+                icon: 'none'
+              });
+              return;
             }
-            uni.switchTab({
-              url: '/pages/message/message'
-            })
+
+            uni.showLoading({
+              title: '正在打开聊天...'
+            });
+
+            try {
+              const merchantInfo = uni.getStorageSync('merchantInfo');
+              if (!merchantInfo || !merchantInfo.merchantBaseId) {
+                throw new Error('商家信息获取失败');
+              }
+
+              const sessionRes = await request(
+                `http://localhost:8080/platform/chat/session/list`,
+                {
+                  method: 'GET',
+                  data: {
+                    fromType: 3,
+                    fromId: merchantInfo.merchantBaseId,
+                    toType: 1,
+                    toId: item.userId
+                  }
+                }
+              );
+
+              let sessionId = null;
+              if (sessionRes && sessionRes.statusCode === 200 && sessionRes.data) {
+                const sessions = sessionRes.data.data || sessionRes.data.rows || [];
+                if (sessions.length > 0) {
+                  sessionId = sessions[0].sessionId;
+                }
+              }
+
+              if (!sessionId) {
+                const createRes = await request(
+                  `http://localhost:8080/platform/chat/session`,
+                  {
+                    method: 'POST',
+                    data: {
+                      fromType: 3,
+                      fromId: merchantInfo.merchantBaseId,
+                      toType: 1,
+                      toId: item.userId,
+                      sessionStatus: 1
+                    }
+                  }
+                );
+                if (createRes && createRes.statusCode === 200 && createRes.data) {
+                  sessionId = createRes.data.data || createRes.data.sessionId;
+                }
+              }
+
+              uni.hideLoading();
+
+              if (sessionId) {
+                uni.navigateTo({
+                  url: `/pages/message/chat?sessionId=${sessionId}&toType=1&toId=${item.userId}&title=${encodeURIComponent(item.customerName || item.userNickname || '用户')}`
+                });
+              } else {
+                uni.showToast({
+                  title: '无法创建会话',
+                  icon: 'none'
+                });
+              }
+
+            } catch (error) {
+              uni.hideLoading();
+              console.error('创建会话失败:', error);
+              uni.showToast({
+                title: error.message || '打开聊天失败',
+                icon: 'none'
+              });
+            }
           }
         }
       })

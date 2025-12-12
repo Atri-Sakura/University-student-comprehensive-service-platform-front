@@ -1,6 +1,5 @@
 <template>
   <view class="page-container">
-    <!-- 标签分类 -->
     <view class="tabs-container">
       <view 
         class="tab-item" 
@@ -13,8 +12,7 @@
         <view v-if="currentTab === index" class="tab-underline"></view>
       </view>
     </view>
-    
-    <!-- 聊天列表 -->
+
     <scroll-view class="chat-list" scroll-y>
       <view 
         class="chat-item" 
@@ -22,12 +20,10 @@
         :key="index"
         @click="openChat(item)"
       >
-        <!-- 头像 -->
         <view class="avatar" :style="{ background: item.avatarBg }">
           <text class="avatar-text">{{ item.avatarIcon }}</text>
         </view>
-        
-        <!-- 消息内容 -->
+
         <view class="chat-info">
           <view class="chat-header">
             <view class="name-row">
@@ -43,20 +39,18 @@
             <text v-if="item.emoji" class="message-emoji">{{ item.emoji }}</text>
           </view>
         </view>
-        
-        <!-- 未读标记 -->
+
         <view v-if="item.unread > 0" class="unread-badge">
           <text class="unread-count">{{ item.unread > 99 ? '99+' : item.unread }}</text>
         </view>
       </view>
-      
+
       <view v-if="filteredMessages.length === 0" class="empty">
         <text class="empty-icon">💬</text>
         <text class="empty-text">暂无消息</text>
       </view>
     </scroll-view>
-    
-    <!-- 自定义底部导航栏 -->
+
     <view class="custom-tab-bar">
       <view class="tab-bar-item" @click="switchTab('index')">
         <text class="tab-icon">🏠</text>
@@ -79,7 +73,7 @@
 </template>
 
 <script>
-import { getChatList, getUnreadCount } from '@/utils/chatApi.js';
+import { getChatList, getUnreadCount, getChatListBidirectional } from '@/utils/chatApi.js';
 
 export default {
   name: 'MessagePage',
@@ -97,92 +91,102 @@ export default {
     }
   },
   onLoad() {
-    // 加载会话列表
     this.loadChatList();
-    // 加载未读消息数
     this.loadUnreadCount();
   },
   onShow() {
-    // 每次显示页面时刷新未读消息数
     this.loadUnreadCount();
   },
   computed: {
     filteredMessages() {
       if (this.currentTab === 0) {
-        // 全部消息
         return this.messages;
       } else if (this.currentTab === 1) {
-        // 群聊消息
         return this.messages.filter(msg => msg.type === 'group');
       } else if (this.currentTab === 2) {
-        // 系统通知
         return this.messages.filter(msg => msg.type === 'system');
       }
       return this.messages;
     }
   },
   methods: {
-    // 加载会话列表
     async loadChatList() {
       if (this.loading) return;
-      
       this.loading = true;
-      
       try {
-        const res = await getChatList({
+        const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+        const currentMerchantId = String(
+          merchantInfo.merchantBaseId ||
+          merchantInfo.merchantId ||
+          merchantInfo.id ||
+          merchantInfo.merchant_base_id ||
+          merchantInfo.merchant_id ||
+          ''
+        );
+
+        const res = await getChatListBidirectional({
           pageNum: 1,
           pageSize: 50
         });
-        
-        // 后端返回的数据格式可能是 AjaxResult 或 R 类
+
         const success = res.data.code === 200 || res.data.code === 0;
-        
         if (success) {
-          // 根据后端ChatSession实体映射字段
           const chatList = res.data.data || res.data.rows || [];
-          
-          // 转换数据格式，映射后端ChatSession字段
           this.messages = chatList.map(session => {
-            // 确定会话名称（根据对方类型和ID获取）
+            let otherType;
+            let otherId;
+            const isMerchantFrom = String(session.fromId) === String(currentMerchantId);
+            if (isMerchantFrom) {
+              otherType = session.toType;
+              otherId = session.toId;
+            } else {
+              otherType = session.fromType;
+              otherId = session.fromId;
+            }
+
             let chatName = '未知用户';
             let chatType = 'group';
-            
-            // 判断对方类型
-            if (session.toType === 1) {
-              chatName = '用户' + session.toId;
+            let avatarIcon = '👥';
+            let avatarBg = 'linear-gradient(135deg, #64B5F6, #42A5F5)';
+
+            if (otherType === 1) {
+              chatName = '用户 #' + otherId;
               chatType = 'group';
-            } else if (session.toType === 2) {
-              chatName = '骑手' + session.toId;
+              avatarIcon = '👤';
+              avatarBg = 'linear-gradient(135deg, #64B5F6, #42A5F5)';
+            } else if (otherType === 2) {
+              chatName = '骑手 #' + otherId;
               chatType = 'group';
-            } else if (session.toType === 4) {
+              avatarIcon = '🚴';
+              avatarBg = 'linear-gradient(135deg, #66BB6A, #43A047)';
+            } else if (otherType === 4) {
               chatName = '系统消息';
               chatType = 'system';
+              avatarIcon = '🔔';
+              avatarBg = 'linear-gradient(135deg, #FFB300, #FFA000)';
             }
-            
+
             return {
               id: session.sessionId,
               sessionId: session.sessionId,
-              chatId: session.sessionId, // 兼容旧字段
+              chatId: session.sessionId,
               name: chatName,
               type: chatType,
-              avatarIcon: chatType === 'system' ? '🔔' : '👥',
-              avatarBg: chatType === 'system' ? 
-                'linear-gradient(135deg, #FFB300, #FFA000)' : 
-                'linear-gradient(135deg, #64B5F6, #42A5F5)',
+              avatarIcon,
+              avatarBg,
               lastMessage: session.lastMsgContent || '',
               time: this.formatChatTime(session.lastMsgTime),
               unread: session.unreadCount || 0,
               emoji: '',
-              // 保存原始数据，用于后续操作
               fromType: session.fromType,
               fromId: session.fromId,
               toType: session.toType,
-              toId: session.toId
+              toId: session.toId,
+              otherType,
+              otherId
             };
           });
         } else {
-          // 加载失败
-          console.warn('加载会话列表失败:', res.data.msg || '未知错误');
           this.messages = [];
           uni.showToast({
             title: res.data.msg || '加载失败',
@@ -200,125 +204,94 @@ export default {
         this.loading = false;
       }
     },
-    
-    // 加载未读消息数
+
     async loadUnreadCount() {
       try {
         const res = await getUnreadCount();
-        
         const success = res.data.code === 200 || res.data.code === 0;
-        
         if (success) {
-          // 后端返回的未读会话列表，计算总未读数
           const unreadList = res.data.data || [];
           this.unreadTotal = 0;
-          
           if (Array.isArray(unreadList)) {
-            // 累加所有会话的未读数
             unreadList.forEach(session => {
               this.unreadTotal += (session.unreadCount || 0);
             });
           } else if (typeof unreadList === 'number') {
-            // 如果直接返回数字
             this.unreadTotal = unreadList;
           }
-          
-          // 更新底部导航栏的角标（如果需要）
           if (this.unreadTotal > 0) {
             uni.setTabBarBadge({
-              index: 2, // 消息tab的索引
+              index: 2,
               text: this.unreadTotal > 99 ? '99+' : this.unreadTotal.toString()
             });
           } else {
-            uni.removeTabBarBadge({
-              index: 2
-            });
+            uni.removeTabBarBadge({ index: 2 });
           }
         }
       } catch (error) {
         console.error('加载未读消息数失败:', error);
       }
     },
-    
-    // 格式化会话时间
+
     formatChatTime(timestamp) {
       if (!timestamp) return '';
-      
       const date = new Date(timestamp);
       const now = new Date();
       const diff = now - date;
-      
-      if (diff < 60000) { // 1分钟内
-        return '刚刚';
-      } else if (diff < 3600000) { // 1小时内
-        return Math.floor(diff / 60000) + '分钟前';
-      } else if (diff < 86400000) { // 今天
+      if (diff < 60000) return '刚刚';
+      if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+      if (diff < 86400000) {
         const hours = date.getHours().toString().padStart(2, '0');
         const minutes = date.getMinutes().toString().padStart(2, '0');
         return `${hours}:${minutes}`;
-      } else if (diff < 172800000) { // 昨天
-        return '昨天';
-      } else if (diff < 604800000) { // 本周
+      }
+      if (diff < 172800000) return '昨天';
+      if (diff < 604800000) {
         const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
         return weekdays[date.getDay()];
-      } else {
-        const month = (date.getMonth() + 1).toString().padStart(2, '0');
-        const day = date.getDate().toString().padStart(2, '0');
-        return `${month}-${day}`;
       }
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      return `${month}-${day}`;
     },
-    
-    // 切换分类标签
+
     switchCategory(index) {
       this.currentTab = index;
     },
-    
-    // 打开聊天界面
+
     openChat(item) {
-      // 清除未读标记
       const originalUnread = item.unread;
       item.unread = 0;
-      
-      // 更新未读总数
       if (originalUnread > 0) {
         this.unreadTotal = Math.max(0, this.unreadTotal - originalUnread);
       }
-      
-      // 跳转到聊天界面，传递会话ID和会话信息
+
       const params = {
         sessionId: item.sessionId || item.chatId || item.id,
         title: encodeURIComponent(item.name),
         icon: encodeURIComponent(item.avatarIcon),
         iconColor: encodeURIComponent(item.avatarBg)
       };
-      
-      // 传递会话参与方信息（用于发送消息）
       if (item.fromType && item.fromId && item.toType && item.toId) {
         params.fromType = item.fromType;
         params.fromId = item.fromId;
         params.toType = item.toType;
         params.toId = item.toId;
       }
-      
       const queryString = Object.keys(params).map(key => `${key}=${params[key]}`).join('&');
-      
       uni.navigateTo({
         url: `/pages/message/chat?${queryString}`
       });
     },
-    
-    // 切换底部导航
+
     switchTab(tab) {
       const urlMap = {
         index: '/pages/index/index',
         list: '/pages/list/list',
         mine: '/pages/mine/mine'
       };
-      
       if (urlMap[tab]) {
-        uni.switchTab({
-          url: urlMap[tab]
-        });
+        uni.switchTab({ url: urlMap[tab] });
       }
     }
   }
@@ -334,7 +307,6 @@ export default {
   flex-direction: column;
 }
 
-/* 标签分类 */
 .tabs-container {
   background: #ffffff;
   display: flex;
@@ -373,7 +345,6 @@ export default {
   border-radius: 2rpx;
 }
 
-/* 聊天列表 */
 .chat-list {
   flex: 1;
   background: #ffffff;
@@ -393,7 +364,6 @@ export default {
   background: #f5f5f5;
 }
 
-/* 头像 */
 .avatar {
   width: 100rpx;
   height: 100rpx;
@@ -410,7 +380,6 @@ export default {
   color: white;
 }
 
-/* 聊天信息 */
 .chat-info {
   flex: 1;
   min-width: 0;
@@ -484,7 +453,6 @@ export default {
   flex-shrink: 0;
 }
 
-/* 未读标记 */
 .unread-badge {
   position: absolute;
   top: 24rpx;
@@ -505,7 +473,6 @@ export default {
   font-weight: 600;
 }
 
-/* 空状态 */
 .empty {
   padding: 200rpx 0;
   display: flex;
@@ -524,7 +491,6 @@ export default {
   color: #999;
 }
 
-/* 自定义底部导航栏 */
 .custom-tab-bar {
   position: fixed;
   bottom: 0;
