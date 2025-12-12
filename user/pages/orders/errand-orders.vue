@@ -65,7 +65,7 @@
           
           <!-- 进行中状态 -->
           <template v-else-if="order.orderStatus === 2 || order.orderStatus === 3">
-            <button class="action-button primary" @click="contactRider(order.orderMainId)">联系跑腿员</button>
+            <button class="action-button primary" @click="contactRider(order.id)">联系跑腿员</button>
             <button class="action-button secondary" @click="contactCustomerService()">联系客服</button>
           </template>
           
@@ -142,7 +142,7 @@ export default {
           const orderList = res.rows || res.data || [];
           // 筛选出跑腿订单(orderType=2)
           this.orders = orderList.filter(item => item.orderType === 2);
-          // 打印第一个订单的数据结构，用于调试
+          // 打印第一个订单的数据结构用于调试
           if (this.orders.length > 0) {
             console.log('订单数据结构:', this.orders[0]);
           }
@@ -207,11 +207,11 @@ export default {
       return statusMap[status] || '未知状态';
     },
     handleOrderAction(order, action) {
-      console.log('订单操作:', order.id, action);
+      console.log('订单操作:', order.orderMainId, action);
       // 这里可以添加订单操作的逻辑
       switch (action) {
         case '取消订单':
-          this.cancelOrder(order.id);
+          this.cancelOrder(order.orderMainId);
           break;
         case '再来一单':
           this.repeatOrder(order.id);
@@ -246,16 +246,17 @@ export default {
       uni.showModal({
         title: '取消订单',
         content: '确定要取消该订单吗？',
-        success: async (res) => {
+        success: (res) => {
           if (res.confirm) {
-            try {
-              // 调用取消订单API - 传递正确的参数：订单ID和取消原因
-              await api.order.cancelOrder(orderId, '用户主动取消');
-              uni.showToast({ title: '取消成功', icon: 'success' });
-              this.getErrandOrders();
-            } catch (err) {
-              uni.showToast({ title: err.msg || err.message || '取消失败', icon: 'none' });
-            }
+            // 调用取消订单API，传递订单ID和取消原因
+            api.order.cancelOrder(orderId, '用户取消')
+              .then(() => {
+                uni.showToast({ title: '取消成功', icon: 'success' });
+                this.getErrandOrders();
+              })
+              .catch(err => {
+                uni.showToast({ title: err.msg || '取消失败', icon: 'none' });
+              });
           }
         }
       });
@@ -266,7 +267,7 @@ export default {
     },
     contactRider(orderId) {
       // 这里需要获取跑腿员的联系方式，假设从order对象中可以获取
-      const order = this.orders.find(o => o.orderMainId === orderId);
+      const order = this.orders.find(o => o.id === orderId);
       if (order && order.riderPhone) {
         uni.makePhoneCall({
           phoneNumber: order.riderPhone
