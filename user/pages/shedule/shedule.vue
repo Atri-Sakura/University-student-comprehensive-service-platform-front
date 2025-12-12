@@ -118,6 +118,42 @@
             </view>
           </view>
           <view class="form-item">
+            <text class="form-label">教师姓名</text>
+            <input type="text" v-model="manualCourse.teacherName" placeholder="请输入教师姓名" />
+          </view>
+          <view class="form-item">
+            <text class="form-label">开始日期</text>
+            <view class="picker-container">
+              <picker mode="date" :value="startDatePickerValue" @change="onStartDateChange" :start="'2023-01-01'" :end="'2030-12-31'">
+                <input type="text" :value="startDatePickerValue" placeholder="请选择开始日期" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">开始时间</text>
+            <view class="picker-container">
+              <picker mode="time" :value="startTimePickerValue" @change="onStartTimeChange">
+                <input type="text" :value="startTimePickerValue" placeholder="请选择开始时间" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">结束日期</text>
+            <view class="picker-container">
+              <picker mode="date" :value="endDatePickerValue" @change="onEndDateChange" :start="'2023-01-01'" :end="'2030-12-31'">
+                <input type="text" :value="endDatePickerValue" placeholder="请选择结束日期" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
+            <text class="form-label">结束时间</text>
+            <view class="picker-container">
+              <picker mode="time" :value="endTimePickerValue" @change="onEndTimeChange">
+                <input type="text" :value="endTimePickerValue" placeholder="请选择结束时间" readonly />
+              </picker>
+            </view>
+          </view>
+          <view class="form-item">
             <text class="form-label">课程颜色</text>
             <view class="color-picker">
               <view class="color-item" 
@@ -139,6 +175,7 @@
 </template>
 
 <script>
+import api from '../../api/index.js';
 export default {
   data() {
     return {
@@ -158,15 +195,8 @@ export default {
       colorOptions: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'],
       startOptions: ['一二节', '三四节', '五六节', '七八节', '九十节'],
       endOptions: [], // 动态计算的结束节次选项
-      courseSchedule: [
-        { id: 1, name: '高等数学', location: '教学楼A201', day: 0, start: 1, end: 3, color: '#FF6B6B' },
-        { id: 2, name: '大学英语', location: '外语楼B102', day: 1, start: 1, end: 2, color: '#4ECDC4' },
-        { id: 3, name: '程序设计', location: '计算机中心305', day: 2, start: 3, end: 5, color: '#45B7D1' },
-        { id: 4, name: '物理实验', location: '实验楼C302', day: 3, start: 2, end: 4, color: '#96CEB4' },
-        { id: 5, name: '线性代数', location: '教学楼B301', day: 4, start: 1, end: 3, color: '#FECA57' },
-        { id: 6, name: '体育', location: '操场', day: 0, start: 4, end: 5, color: '#FF9FF3' },
-        { id: 7, name: '毛概', location: '教学楼A401', day: 3, start: 1, end: 2, color: '#54A0FF' }
-      ],
+      courseSchedule: [],
+
       // 手动输入相关
       showManualInputModal: false,
       editingCourse: null,
@@ -176,8 +206,17 @@ export default {
         day: 0,
         start: 1,
         endIndex: 1,
-        color: '#FF6B6B'
-      }
+        color: '#FF6B6B',
+        teacherName: '',
+        startDate: '',
+        endDate: ''
+      },
+      // 开始日期时间选择器状态
+      startDatePickerValue: '',
+      startTimePickerValue: '08:00',
+      // 结束日期时间选择器状态
+      endDatePickerValue: '',
+      endTimePickerValue: '09:40'
     };
   },
   computed: {
@@ -191,8 +230,10 @@ export default {
       return this.courseSchedule.filter(course => course.day === dayIndex).length;
     },
     completedCourses() {
-      // 简单计算，假设已完成一半课程
-      return Math.floor(this.totalCourses / 2);
+      // 基于时间段课程实例的数量来计算已完成的课程数
+      // 这里可以根据实际需求修改完成状态的判断逻辑
+      // 目前暂时返回所有课程实例的数量，后续可以根据课程的时间信息与当前时间比较来判断是否已完成
+      return this.courseSchedule.length;
     }
   },
   onLoad() {
@@ -200,21 +241,188 @@ export default {
     const systemInfo = uni.getSystemInfoSync();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.navHeight = this.statusBarHeight + 44;
+    // 获取课程表数据
+    this.getScheduleData();
   },
   methods: {
+    // 获取课程表数据
+    async getScheduleData() {
+      try {
+        // 检查token是否存在
+        const token = uni.getStorageSync('token');
+        console.log('=== 课程表请求前token检查 ===');
+        console.log('当前存储的token:', token ? '存在' : '不存在');
+        console.log('token类型:', typeof token);
+        if (token) {
+          console.log('token前30字符:', token.substring(0, Math.min(30, token.length)) + '...');
+        }
+        
+        // 调用API获取课程表数据
+        console.log('=== 开始调用课程表API ===');
+        console.log('API路径:', '/user/index/userCourses');
+        
+        const res = await api.indexPage.getSchedule();
+        
+        // 添加详细的响应日志
+        console.log('=== 课程表API响应详情 ===');
+        console.log('完整响应对象:', res);
+        console.log('响应code:', res.code);
+        console.log('响应message:', res.message || res.msg);
+        console.log('响应data:', res.data);
+        console.log('响应data类型:', typeof res.data);
+        console.log('响应data是否为数组:', Array.isArray(res.data));
+        if (Array.isArray(res.data)) {
+          console.log('响应data长度:', res.data.length);
+          if (res.data.length > 0) {
+            console.log('响应data前1项:', res.data[0]);
+          }
+        }
+        
+        // 更新课程表数据
+        if (res && res.code === 200) {
+          // 检查data字段是否存在
+          if (res.data !== undefined && res.data !== null) {
+            if (Array.isArray(res.data)) {
+              // 转换后端返回的数据格式为课程表所需格式
+              // 将每个课程拆分为多个时间段的独立课程
+              this.courseSchedule = res.data.flatMap(course => {
+                  // 后端weekDay从1开始计数(1=周一, 2=周二)，前端从0开始索引(0=周一, 1=周二)
+                  const dayIndex = course.weekDay !== undefined ? course.weekDay - 1 : 0;
+                  // 确保dayIndex在0-6范围内
+                  const validDayIndex = Math.max(0, Math.min(6, dayIndex));
+                  
+                  const startPeriod = course.startPeriod || 1;
+                  const endPeriod = course.endPeriod || 2;
+                  
+                  // 计算该课程跨越的时间段数量
+                  const startSlotIndex = Math.ceil(startPeriod / 2);
+                  const endSlotIndex = Math.ceil(endPeriod / 2);
+                  
+                  // 为每个时间段创建一个独立的课程实例
+                  const courses = [];
+                  for (let slotIndex = startSlotIndex; slotIndex <= endSlotIndex; slotIndex++) {
+                      courses.push({
+                          id: `${course.userTimetableId || Math.random().toString(36).substr(2, 9)}-${slotIndex}`,
+                          userTimetableId: course.userTimetableId, // 保存后端返回的原始ID
+                          name: course.courseName || '未命名课程',
+                          location: course.classRoom || '未指定地点',
+                          teacherName: course.teacherName || '',
+                          startTime: course.startTime || '',
+                          endTime: course.endTime || '',
+                          startDate: course.startDate || '',
+                          endDate: course.endDate || '',
+                          day: validDayIndex,
+                          start: slotIndex,
+                          end: slotIndex + 1, // 每个课程只占一个时间段
+                          color: this.colorOptions[Math.floor(Math.random() * this.colorOptions.length)]
+                      });
+                  }
+                  
+                  return courses;
+              });
+              console.log('课程表数据转换成功，共', this.courseSchedule.length, '门课程');
+              console.log('转换后的数据格式:', this.courseSchedule);
+              
+              // 如果数据为空，显示提示
+              if (this.courseSchedule.length === 0) {
+                console.log('课程表数据为空数组，可能该用户没有课程');
+                uni.showToast({
+                  title: '暂无课程数据',
+                  icon: 'none',
+                  duration: 2000
+                });
+              }
+            } else {
+              // 如果data不是数组，可能是单个对象或其他格式
+              console.warn('课程表data不是数组，尝试转换:', res.data);
+              // 转换单个课程数据为多个时间段实例
+              // 后端weekDay从1开始计数(1=周一, 2=周二)，前端从0开始索引(0=周一, 1=周二)
+              const dayIndex = res.data.weekDay !== undefined ? res.data.weekDay - 1 : 0;
+              // 确保dayIndex在0-6范围内
+              const validDayIndex = Math.max(0, Math.min(6, dayIndex));
+              
+              const startPeriod = res.data.startPeriod || 1;
+              const endPeriod = res.data.endPeriod || 2;
+              
+              // 计算该课程跨越的时间段数量
+              const startSlotIndex = Math.ceil(startPeriod / 2);
+              const endSlotIndex = Math.ceil(endPeriod / 2);
+              
+              // 为每个时间段创建一个独立的课程实例
+              const courses = [];
+              for (let slotIndex = startSlotIndex; slotIndex <= endSlotIndex; slotIndex++) {
+                  courses.push({
+                      id: `${res.data.userTimetableId || Math.random().toString(36).substr(2, 9)}-${slotIndex}`,
+                      userTimetableId: res.data.userTimetableId, // 保存后端返回的原始ID
+                      name: res.data.courseName || '未命名课程',
+                      location: res.data.classRoom || '未指定地点',
+                      teacherName: res.data.teacherName || '',
+                      startTime: res.data.startTime || '',
+                      endTime: res.data.endTime || '',
+                      startDate: res.data.startDate || '',
+                      endDate: res.data.endDate || '',
+                      day: validDayIndex,
+                      start: slotIndex,
+                      end: slotIndex + 1, // 每个课程只占一个时间段
+                      color: this.colorOptions[Math.floor(Math.random() * this.colorOptions.length)]
+                  });
+              }
+              this.courseSchedule = courses;
+              console.log('单个课程数据转换成功:', this.courseSchedule);
+            }
+          } else {
+            // 如果data字段不存在或为null
+            this.courseSchedule = [];
+            console.log('课程表data字段不存在或为null，设置为空数组');
+            uni.showToast({
+              title: '暂无课程数据',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+        } else {
+          this.courseSchedule = [];
+          console.error('获取课程表失败，状态码:', res.code, '消息:', res.message || res.msg);
+          uni.showToast({
+            title: res.message || res.msg || '获取课程表失败',
+            icon: 'none',
+            duration: 2000
+          });
+        }
+      } catch (error) {
+        console.error('=== 获取课程表异常 ===');
+        console.error('错误类型:', error.name);
+        console.error('错误消息:', error.message);
+        console.error('完整错误:', error);
+        this.courseSchedule = [];
+        uni.showToast({
+          title: '网络请求失败，请检查网络连接',
+          icon: 'none',
+          duration: 2000
+        });
+      }
+    },
+    
     // 返回上一页
     navBack() {
-      // 获取当前页面栈
-      const pages = getCurrentPages();
-      
-      // 如果页面栈中只有当前页面（比如刷新后），则跳转到首页
-      if (pages.length <= 1) {
-        uni.reLaunch({
+      try {
+        // 尝试返回上一页
+        uni.navigateBack({
+          delta: 1,
+          fail: (err) => {
+            console.error('返回上一页失败，将直接跳转到首页:', err);
+            // 如果返回失败（如页面栈已清空），直接跳转到首页
+            uni.navigateTo({
+              url: '/pages/index/index'
+            });
+          }
+        });
+      } catch (error) {
+        console.error('返回操作出错:', error);
+        // 出错时直接跳转到首页
+        uni.navigateTo({
           url: '/pages/index/index'
         });
-      } else {
-        // 否则正常返回上一页
-        uni.navigateBack();
       }
     },
 
@@ -225,14 +433,24 @@ export default {
         success: (res) => {
           if (res.tapIndex === 0) {
             // 查看详情
-            // 计算时间段文本和时间范围
-            const timeSlotIndex = Math.ceil(course.start / 2);
-            const timeText = this.classTimes[timeSlotIndex - 1];
-            const [period, timeRange] = timeText.split('\n');
+            // 优先使用后端返回的实际时间，否则使用计算的时间段
+            let timeDisplay = '';
+            if (course.startTime && course.endTime) {
+              // 使用后端返回的实际时间
+              timeDisplay = `${course.startTime}-${course.endTime}`;
+            } else {
+              // 计算时间段文本和时间范围
+              const timeSlotIndex = Math.ceil(course.start / 2);
+              const timeText = this.classTimes[timeSlotIndex - 1] || '';
+              if (timeText) {
+                const [period, timeRange] = timeText.split('\n');
+                timeDisplay = `${period} ${timeRange}`;
+              }
+            }
             
             uni.showModal({
               title: course.name,
-              content: `地点：${course.location}\n时间：${this.weekDays[course.day].name} ${period} ${timeRange}`,
+              content: `地点：${course.location}\n时间：${this.weekDays[course.day].name} ${timeDisplay}`,
               showCancel: false
             });
           } else if (res.tapIndex === 1) {
@@ -245,20 +463,9 @@ export default {
         }
       });
     },
-    // 显示导入选项
+    // 显示导入选项（直接使用手动输入）
     showImportOptions() {
-      uni.showActionSheet({
-        itemList: ['选择Excel文件', '选择图片识别', '手动输入'],
-        success: (res) => {
-          if (res.tapIndex === 0) {
-            this.selectExcelFile();
-          } else if (res.tapIndex === 1) {
-            this.selectImageFile();
-          } else if (res.tapIndex === 2) {
-            this.openManualInputModal();
-          }
-        }
-      });
+      this.openManualInputModal();
     },
     // 打开手动输入模态框
     openManualInputModal() {
@@ -269,7 +476,10 @@ export default {
         day: 0,
         start: 1,
         endIndex: 0, // 从0开始索引
-        color: '#FF6B6B'
+        color: '#FF6B6B',
+        teacherName: '',
+        startDate: '',
+        endDate: ''
       };
       // 初始化结束节次选项
       this.updateEndOptions();
@@ -314,155 +524,185 @@ export default {
     onEndChange(e) {
       this.manualCourse.endIndex = parseInt(e.detail.value);
     },
-    // 保存手动输入的课程
-    saveManualCourse() {
+    // 开始日期选择事件
+    onStartDateChange(e) {
+      this.startDatePickerValue = e.detail.value;
+      // 如果已经选择了时间，更新完整的开始日期时间
+      if (this.startTimePickerValue) {
+        this.manualCourse.startDate = `${this.startDatePickerValue} ${this.startTimePickerValue}`;
+      }
+    },
+    // 开始时间选择事件
+    onStartTimeChange(e) {
+      this.startTimePickerValue = e.detail.value;
+      // 如果已经选择了日期，更新完整的开始日期时间
+      if (this.startDatePickerValue) {
+        this.manualCourse.startDate = `${this.startDatePickerValue} ${this.startTimePickerValue}`;
+      }
+    },
+    // 结束日期选择事件
+    onEndDateChange(e) {
+      this.endDatePickerValue = e.detail.value;
+      // 如果已经选择了时间，更新完整的结束日期时间
+      if (this.endTimePickerValue) {
+        this.manualCourse.endDate = `${this.endDatePickerValue} ${this.endTimePickerValue}`;
+      }
+    },
+    // 结束时间选择事件
+    onEndTimeChange(e) {
+      this.endTimePickerValue = e.detail.value;
+      // 如果已经选择了日期，更新完整的结束日期时间
+      if (this.endDatePickerValue) {
+        this.manualCourse.endDate = `${this.endDatePickerValue} ${this.endTimePickerValue}`;
+      }
+    },
+    // 保存手动输入的课程（使用新接口）
+    async saveManualCourse() {
       // 表单验证
       if (!this.manualCourse.name.trim()) {
         uni.showToast({ title: '请输入课程名称', icon: 'none' });
+        return;
+      }
+      if (!this.manualCourse.teacherName.trim()) {
+        uni.showToast({ title: '请输入教师姓名', icon: 'none' });
         return;
       }
       if (!this.manualCourse.location.trim()) {
         uni.showToast({ title: '请输入上课地点', icon: 'none' });
         return;
       }
-
-      // 计算实际的开始和结束节次（每个时间段占2节课）
-      const startSlot = (this.manualCourse.start - 1) * 2 + 1;
-      const endSlot = startSlot + (this.manualCourse.endIndex + 1) * 2 - 1;
-      
-      const courseData = {
-        name: this.manualCourse.name.trim(),
-        location: this.manualCourse.location.trim(),
-        day: this.manualCourse.day,
-        start: startSlot,
-        end: endSlot,
-        color: this.manualCourse.color
-      };
-
-      if (this.editingCourse) {
-        // 更新课程
-        const index = this.courseSchedule.findIndex(item => item.id === this.editingCourse.id);
-        if (index !== -1) {
-          this.courseSchedule[index] = {
-            ...this.courseSchedule[index],
-            ...courseData
-          };
-          uni.showToast({ title: '课程更新成功', icon: 'success' });
-        }
-      } else {
-        // 添加新课程
-        courseData.id = Date.now(); // 使用时间戳作为唯一ID
-        this.courseSchedule.push(courseData);
-        uni.showToast({ title: '课程添加成功', icon: 'success' });
+      if (!this.manualCourse.startDate) {
+        uni.showToast({ title: '请选择开始日期时间', icon: 'none' });
+        return;
+      }
+      if (!this.manualCourse.endDate) {
+        uni.showToast({ title: '请选择结束日期时间', icon: 'none' });
+        return;
       }
 
-      this.closeManualInputModal();
+      // 使用表单中选择的节次索引
+      
+      // 处理picker组件返回的日期时间格式 (YYYY-MM-DD HH:mm)
+      // 提取日期部分和时间部分
+      const startParts = this.manualCourse.startDate ? this.manualCourse.startDate.split(' ') : ['', ''];
+      const endParts = this.manualCourse.endDate ? this.manualCourse.endDate.split(' ') : ['', ''];
+      
+      // 提取日期部分 (YYYY-MM-DD)
+      const startDate = startParts[0];
+      const endDate = endParts[0];
+      
+      // 提取时间部分 (HH:MM)
+      const startTime = startParts[1] || '00:00';
+      const endTime = endParts[1] || '00:00';
+      
+      // 获取当前用户ID并转换为String形式
+      const userBaseId = String(uni.getStorageSync('userId'));
+
+      // 转换为后端期望的数据格式
+      const courseData = {
+        userBaseId: userBaseId,
+        courseName: (this.manualCourse.name || '').trim(),
+        teacherName: (this.manualCourse.teacherName || '').trim(),
+        classRoom: (this.manualCourse.location || '').trim(),
+        weekDay: this.manualCourse.startDate ? new Date(this.manualCourse.startDate).getDay() + 1 : 1, // 从开始日期获取星期几，后端weekDay从1开始计数
+        startPeriod: this.manualCourse.start,
+        endPeriod: this.manualCourse.endIndex,
+        startTime: startTime,
+        endTime: endTime,
+        startDate: startDate,
+        endDate: endDate,
+        createTime: new Date().toISOString().slice(0, 19).replace('T', ' '), // 格式：YYYY-MM-DD HH:mm:ss
+        importSource: 'manual' // 手动添加
+      };
+
+      try {
+        // 调用新的API接口
+        const res = await api.indexPage.addTimetable(courseData);
+        if (res && res.code === 200) {
+          uni.showToast({ title: res.msg || '课程添加成功', icon: 'success' });
+          // 重新获取课程表数据以确保显示最新的课程
+          await this.getScheduleData();
+          this.closeManualInputModal();
+        } else {
+          uni.showToast({ title: res.msg || '课程添加失败', icon: 'none' });
+        }
+      } catch (error) {
+        console.error('保存课程失败:', error);
+        uni.showToast({ title: '网络请求失败', icon: 'none' });
+      }
     },
     // 编辑课程
     editCourse(course) {
       this.editingCourse = course;
       // 计算时间段索引，假设course.start是时间段序号（1开始）
       const timeSlotIndex = Math.ceil(course.start / 2);
+      
+      // 组合日期和时间为picker组件需要的格式 (YYYY-MM-DD HH:mm)
+      const startDateTime = course.startDate && course.startTime ? `${course.startDate} ${course.startTime}` : '';
+      const endDateTime = course.endDate && course.endTime ? `${course.endDate} ${course.endTime}` : '';
+      
       this.manualCourse = {
-        name: course.name,
-        location: course.location,
+        name: course.name || course.courseName || '',
+        location: course.location || course.classRoom || '',
         day: course.day,
         start: timeSlotIndex, // 使用时间段序号
         endIndex: Math.ceil(course.end / 2) - timeSlotIndex, // 计算结束时间段索引
-        color: course.color
+        color: course.color,
+        teacherName: course.teacherName || '',
+        startDate: startDateTime,
+        endDate: endDateTime
       };
-      // 更新结束节次选项
+      
+      // 更新日期时间选择器的值
+      if (this.manualCourse.startDate) {
+        const [startDate, startTime] = this.manualCourse.startDate.split(' ');
+        this.startDatePickerValue = startDate;
+        this.startTimePickerValue = startTime || '08:00';
+      }
+      if (this.manualCourse.endDate) {
+        const [endDate, endTime] = this.manualCourse.endDate.split(' ');
+        this.endDatePickerValue = endDate;
+        this.endTimePickerValue = endTime || '09:40';
+      }
+        
+        // 更新结束节次选项
       this.updateEndOptions();
       this.showManualInputModal = true;
     },
     // 删除课程
-    deleteCourse(course) {
+    async deleteCourse(course) {
       uni.showModal({
         title: '删除课程',
         content: `确定要删除"${course.name}"吗？`,
-        success: (res) => {
+        success: async (res) => {
           if (res.confirm) {
-            const index = this.courseSchedule.findIndex(c => c.id === course.id);
-            if (index !== -1) {
-              this.courseSchedule.splice(index, 1);
+            try {
+              // 调用后端删除接口，使用原始的userTimetableId而不是格式化后的id
+              await api.indexPage.deleteUserCourse(course.userTimetableId);
+              
+              // 从本地课程列表中删除所有具有相同userTimetableId的课程实例
+              this.courseSchedule = this.courseSchedule.filter(c => c.userTimetableId !== course.userTimetableId);
+              
+              // 显示删除成功提示
               uni.showToast({
                 title: '课程已删除',
                 icon: 'success'
+              });
+              
+              // 重新获取课程数据，确保本地数据与服务器一致
+              this.getScheduleData();
+            } catch (error) {
+              console.error('删除课程失败:', error);
+              uni.showToast({
+                title: '删除失败，请重试',
+                icon: 'none'
               });
             }
           }
         }
       });
     },
-    // 选择Excel文件
-    selectExcelFile() {
-      uni.chooseFile({
-        count: 1,
-        extension: ['xlsx', 'xls'],
-        success: (res) => {
-          const tempFilePath = res.tempFilePaths[0];
-          uni.showLoading({
-            title: '解析中...'
-          });
-          
-          // 模拟解析过程
-          setTimeout(() => {
-            uni.hideLoading();
-            this.confirmImport();
-          }, 1500);
-        },
-        fail: () => {
-          uni.showToast({
-            title: '取消选择',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 选择图片文件
-    selectImageFile() {
-      uni.chooseImage({
-        count: 1,
-        success: (res) => {
-          const tempFilePath = res.tempFilePaths[0];
-          uni.showLoading({
-            title: '识别中...'
-          });
-          
-          // 模拟识别过程
-          setTimeout(() => {
-            uni.hideLoading();
-            this.confirmImport();
-          }, 1500);
-        },
-        fail: () => {
-          uni.showToast({
-            title: '取消选择',
-            icon: 'none'
-          });
-        }
-      });
-    },
-    // 确认导入
-    confirmImport() {
-      uni.showModal({
-        title: '导入成功',
-        content: '已成功解析课表数据，是否覆盖当前课表？',
-        success: (res) => {
-          if (res.confirm) {
-            // 这里可以添加覆盖课表的逻辑
-            uni.showToast({
-              title: '课表已更新',
-              icon: 'success'
-            });
-            // 模拟导入后的课程数据更新
-            // 实际应用中，这里应该使用解析得到的真实数据
-            this.generateDemoSchedule();
-          }
-        }
-      });
-    },
-    // 生成演示课表数据
+    // 生成演示课表数据（仅保留手动输入相关功能）
     generateDemoSchedule() {
       // 生成一些随机的课程数据用于演示
       const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'];
@@ -599,12 +839,15 @@ export default {
   padding: 20rpx;
   border-radius: 20rpx;
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 /* 表头 */
 .schedule-header {
   display: flex;
   margin-bottom: 20rpx;
+  min-width: max-content;
 }
 
 .time-cell {
@@ -613,22 +856,25 @@ export default {
 }
 
 .day-cell {
-  flex: 1;
+  width: 180rpx;
   text-align: center;
   font-size: 28rpx;
   color: #666666;
+  flex-shrink: 0;
 }
 
 /* 课程内容 */
 .schedule-content {
   display: flex;
   height: 700rpx;
+  min-width: max-content;
 }
 
 /* 时间列 */
 .time-column {
-  width: 100rpx;
+  width: 120rpx;
   flex-shrink: 0;
+  background-color: #ffffff;
 }
 
 .time-item {
@@ -637,18 +883,21 @@ export default {
   align-items: center;
   justify-content: center;
   font-size: 24rpx;
-  color: #999999;
+  color: #888888;
   border-bottom: 1px solid #F0F0F0;
+  line-height: 1.4;
+  text-align: center;
+  padding: 10rpx;
+  white-space: pre-line;
 }
 
 /* 课程格子 */
 .course-grid {
-  flex: 1;
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, 180rpx);
   grid-template-rows: repeat(5, 140rpx);
   gap: 2rpx;
-  background-color: #F0F0F0;
+  background-color: #f5f5f5;
 }
 
 .course-item {
@@ -656,27 +905,31 @@ export default {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 10rpx;
+  padding: 8rpx;
   border-radius: 8rpx;
   overflow: hidden;
 }
 
 .course-name {
-  font-size: 24rpx;
+  font-size: 22rpx;
   font-weight: bold;
   color: #FFFFFF;
-  margin-bottom: 6rpx;
+  margin-bottom: 4rpx;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.3;
+  max-width: 90%;
 }
 
 .course-location {
-  font-size: 20rpx;
-  color: #FFFFFF;
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.9);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.3;
+  max-width: 90%;
 }
 
 /* 课程统计 */
