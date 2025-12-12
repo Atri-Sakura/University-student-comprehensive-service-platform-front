@@ -1,5 +1,5 @@
 // 订单相关API
-import request from './request.js'
+import 请求 from './request.js'
 
 const orderApi = {
   /**
@@ -8,7 +8,7 @@ const orderApi = {
    * @returns {Promise} - 返回订单列表数据
    */
   getOrderList: (params = {}) => {
-    return request.get('/user/order/list', params)
+    return 请求.get('/user/order/list', params)
   },
   
   /**
@@ -17,7 +17,7 @@ const orderApi = {
    * @returns {Promise} - 返回订单详情数据
    */
   getOrderDetail: (orderNo) => {
-    return request.get(`/user/order/${orderNo}`)
+    return 请求.get(`/user/order/${orderNo}`)
   },
   
   /**
@@ -25,7 +25,7 @@ const orderApi = {
    * @returns {Promise} - 返回订单统计数据
    */
   getOrderStats: () => {
-    return request.get('/user/order/stats')
+    return 请求.get('/user/order/stats')
   },
   
   /**
@@ -35,7 +35,7 @@ const orderApi = {
    * @returns {Promise} - 返回取消订单结果
    */
   cancelOrder: (orderMainId, cancelReason) => {
-    return request.put(`/user/order/cancel/${orderMainId}?cancelReason=${encodeURIComponent(cancelReason)}`)
+    return 请求.put(`/user/order/cancel/${orderMainId}?cancelReason=${encodeURIComponent(cancelReason)}`)
   },
   
   /**
@@ -44,7 +44,7 @@ const orderApi = {
    * @returns {Promise} - 返回订单详情数据
    */
   getSecondHandOrderDetail: (orderNo) => {
-    return request.get(`/api/user/secondhandGoods/order/detail/${orderNo}`)
+    return 请求.get(`/api/user/secondhandGoods/order/detail/${orderNo}`)
   },
   
   /**
@@ -53,7 +53,16 @@ const orderApi = {
    * @returns {Promise} - 返回提交结果
    */
   submitRiderEvaluation: (evaluationData) => {
-    return request.post('/user/riderEvaluation', evaluationData)
+    return 请求.post('/user/riderEvaluation', evaluationData)
+  },
+
+    /**
+   * 提交商家评价
+   * @param {Object} evaluationData - 评价数据
+   * @returns {Promise} - 返回提交结果
+   */
+  submitMerchantEvaluation: (evaluationData) => {
+    return 请求.post('/platform/evaluation/add', evaluationData)
   },
   
   /**
@@ -62,8 +71,9 @@ const orderApi = {
    * @returns {Promise} - 返回订单详情数据
    */
   getErrandOrderDetail: (orderNo) => {
-    return request.get(`/user/order/errandOrder/${orderNo}`)
+    return 请求.get(`/user/order/errandOrder/${orderNo}`)
   }
 }
+
 
 export default orderApi
