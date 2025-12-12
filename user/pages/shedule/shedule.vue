@@ -112,7 +112,7 @@
             <view class="picker-container">
               <picker mode="selector" :value="manualCourse.endIndex" :range="endOptions" :show-toolbar="true" @change="onEndChange">
                 <view class="picker">
-                  {{ getPeriodText(manualCourse.start + manualCourse.endIndex) }}
+                  {{ endOptions[manualCourse.endIndex] || getPeriodText(manualCourse.start) }}
                 </view>
               </picker>
             </view>
@@ -195,6 +195,14 @@ export default {
       colorOptions: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF'],
       startOptions: ['一二节', '三四节', '五六节', '七八节', '九十节'],
       endOptions: [], // 动态计算的结束节次选项
+      // 节次与时间的映射关系
+      periodTimeMap: {
+        1: { startTime: '08:00', endTime: '09:50' },
+        2: { startTime: '10:10', endTime: '12:00' },
+        3: { startTime: '14:30', endTime: '16:20' },
+        4: { startTime: '16:40', endTime: '18:30' },
+        5: { startTime: '19:30', endTime: '21:20' }
+      },
       courseSchedule: [],
 
       // 手动输入相关
@@ -411,16 +419,16 @@ export default {
           delta: 1,
           fail: (err) => {
             console.error('返回上一页失败，将直接跳转到首页:', err);
-            // 如果返回失败（如页面栈已清空），直接跳转到首页
-            uni.navigateTo({
+            // 如果返回失败（如页面栈已清空），直接跳转到首页并替换当前页面
+            uni.redirectTo({
               url: '/pages/index/index'
             });
           }
         });
       } catch (error) {
         console.error('返回操作出错:', error);
-        // 出错时直接跳转到首页
-        uni.navigateTo({
+        // 出错时直接跳转到首页并替换当前页面
+        uni.redirectTo({
           url: '/pages/index/index'
         });
       }
@@ -495,7 +503,7 @@ export default {
       this.endOptions = [];
       // 最大结束时间段序号为5
       const maxEnd = 5 - this.manualCourse.start;
-      for (let i = 1; i <= maxEnd; i++) {
+      for (let i = 0; i <= maxEnd; i++) {
         this.endOptions.push(`${this.getPeriodText(this.manualCourse.start + i)}`);
       }
       // 如果当前选择的结束节次超出范围，重置为0
@@ -519,10 +527,46 @@ export default {
       this.manualCourse.start = newStart;
       // 更新结束节次选项
       this.updateEndOptions();
+      
+      // 根据选择的节次自动更新时间
+      if (this.periodTimeMap[newStart]) {
+        this.startTimePickerValue = this.periodTimeMap[newStart].startTime;
+        
+        // 计算结束时间段并进行边界检查
+        const endPeriod = newStart + this.manualCourse.endIndex;
+        if (this.periodTimeMap[endPeriod]) {
+          this.endTimePickerValue = this.periodTimeMap[endPeriod].endTime;
+        }
+        
+        // 更新完整的日期时间
+        if (this.startDatePickerValue) {
+          this.manualCourse.startDate = `${this.startDatePickerValue} ${this.startTimePickerValue}`;
+        }
+        if (this.endDatePickerValue) {
+          this.manualCourse.endDate = `${this.endDatePickerValue} ${this.endTimePickerValue}`;
+        } else if (this.startDatePickerValue) {
+          // 如果结束日期未选择，默认使用开始日期
+          this.manualCourse.endDate = `${this.startDatePickerValue} ${this.endTimePickerValue}`;
+        }
+      }
     },
     // 结束节次选择改变事件
     onEndChange(e) {
       this.manualCourse.endIndex = parseInt(e.detail.value);
+      
+      // 根据选择的结束节次自动更新结束时间
+      const endPeriod = this.manualCourse.start + this.manualCourse.endIndex;
+      if (this.periodTimeMap[endPeriod]) {
+        this.endTimePickerValue = this.periodTimeMap[endPeriod].endTime;
+        
+        // 更新完整的结束日期时间
+        if (this.endDatePickerValue) {
+          this.manualCourse.endDate = `${this.endDatePickerValue} ${this.endTimePickerValue}`;
+        } else if (this.startDatePickerValue) {
+          // 如果结束日期未选择，默认使用开始日期
+          this.manualCourse.endDate = `${this.startDatePickerValue} ${this.endTimePickerValue}`;
+        }
+      }
     },
     // 开始日期选择事件
     onStartDateChange(e) {
@@ -579,7 +623,78 @@ export default {
         uni.showToast({ title: '请选择结束日期时间', icon: 'none' });
         return;
       }
+      
+      // 课程冲突检测
+      const newCourseDay = this.manualCourse.day;
+      
+      // 将时间段索引转换为具体的节次范围
+      const newCourseStartPeriod = (this.manualCourse.start - 1) * 2 + 1;
+      const newCourseEndPeriod = (this.manualCourse.start + this.manualCourse.endIndex - 1) * 2 + 2;
+      
+      // 检查是否与现有课程冲突
+      const conflictingCourses = this.courseSchedule.filter(course => {
+        // 检查是否是同一天
+        if (course.day !== newCourseDay) return false;
+        
+        // 检查是否是同一课程实例（编辑模式）
+        if (this.editingCourse && course.userTimetableId === this.editingCourse.userTimetableId) return false;
+        
+        // 将现有课程的时间段索引转换为具体的节次范围（每个时间段对应2节课）
+        const existingCourseStartPeriod = (course.start - 1) * 2 + 1;
+        const existingCourseEndPeriod = (course.start - 1) * 2 + 2;
+        
+        // 调试信息
+        console.log(`检查冲突 - 新课程: 节次${newCourseStartPeriod}-${newCourseEndPeriod} (时间段${this.manualCourse.start}-${this.manualCourse.start + this.manualCourse.endIndex})`);
+        console.log(`现有课程: ${course.name}, 时间段${course.start}-${course.end}, 转换为节次${existingCourseStartPeriod}-${existingCourseEndPeriod}`);
+        
+        // 时间段重叠的条件：新课程的开始节次小于现有课程的结束节次，且新课程的结束节次大于现有课程的开始节次
+        const isConflict = newCourseStartPeriod < existingCourseEndPeriod && newCourseEndPeriod > existingCourseStartPeriod;
+        console.log(`冲突结果: ${isConflict}`);
+        
+        return isConflict;
+      });
+      
+      // 如果有冲突课程，提示用户确认
+      if (conflictingCourses.length > 0) {
+        // 移除重复的冲突课程（同一门课可能有多个时间段实例）
+        const uniqueConflictingCourses = [];
+        const existingIds = new Set();
+        conflictingCourses.forEach(course => {
+          if (!existingIds.has(course.userTimetableId)) {
+            existingIds.add(course.userTimetableId);
+            uniqueConflictingCourses.push(course);
+          }
+        });
+        
+        // 构建冲突提示信息
+        const conflictMessage = uniqueConflictingCourses.length === 1 
+          ? `与课程"${uniqueConflictingCourses[0].name}"时间冲突，是否继续添加？` 
+          : `与${uniqueConflictingCourses.length}门课程时间冲突，是否继续添加？`;
+        
+        // 弹出确认对话框
+        uni.showModal({
+          title: '课程时间冲突',
+          content: conflictMessage,
+          success: async (res) => {
+            if (res.confirm) {
+              // 用户确认继续添加，执行添加逻辑
+              await this.performSaveCourse();
+            } else {
+              // 用户取消添加
+              return;
+            }
+          }
+        });
+        
+        return; // 等待用户确认
+      } else {
+        // 没有冲突，直接执行添加逻辑
+        await this.performSaveCourse();
+      }
 
+    },
+    // 执行保存课程的实际逻辑（抽取出来以便在冲突确认后调用）
+    async performSaveCourse() {
       // 使用表单中选择的节次索引
       
       // 处理picker组件返回的日期时间格式 (YYYY-MM-DD HH:mm)
@@ -599,14 +714,18 @@ export default {
       const userBaseId = String(uni.getStorageSync('userId'));
 
       // 转换为后端期望的数据格式
+      // 将时间段索引转换为具体的节次（比如时间段1对应节次1-2，时间段2对应节次3-4等）
+      const actualStartPeriod = (this.manualCourse.start - 1) * 2 + 1;
+      const actualEndPeriod = (this.manualCourse.start + this.manualCourse.endIndex - 1) * 2 + 2;
+      
       const courseData = {
         userBaseId: userBaseId,
         courseName: (this.manualCourse.name || '').trim(),
         teacherName: (this.manualCourse.teacherName || '').trim(),
         classRoom: (this.manualCourse.location || '').trim(),
-        weekDay: this.manualCourse.startDate ? new Date(this.manualCourse.startDate).getDay() + 1 : 1, // 从开始日期获取星期几，后端weekDay从1开始计数
-        startPeriod: this.manualCourse.start,
-        endPeriod: this.manualCourse.endIndex,
+        weekDay: this.manualCourse.day + 1, // 使用用户选择的星期几，后端weekDay从1开始计数
+        startPeriod: actualStartPeriod, // 实际的开始节次（1-10）
+        endPeriod: actualEndPeriod, // 实际的结束节次（1-10）
         startTime: startTime,
         endTime: endTime,
         startDate: startDate,
@@ -634,8 +753,8 @@ export default {
     // 编辑课程
     editCourse(course) {
       this.editingCourse = course;
-      // 计算时间段索引，假设course.start是时间段序号（1开始）
-      const timeSlotIndex = Math.ceil(course.start / 2);
+      // 计算时间段索引，course.start和course.end是具体的节次（1-10）
+      const timeSlotIndex = Math.ceil(course.start / 2); // 将节次转换为时间段索引（1-5）
       
       // 组合日期和时间为picker组件需要的格式 (YYYY-MM-DD HH:mm)
       const startDateTime = course.startDate && course.startTime ? `${course.startDate} ${course.startTime}` : '';
@@ -644,8 +763,8 @@ export default {
       this.manualCourse = {
         name: course.name || course.courseName || '',
         location: course.location || course.classRoom || '',
-        day: course.day,
-        start: timeSlotIndex, // 使用时间段序号
+        day: course.day, // 直接使用course.day（0-6）
+        start: timeSlotIndex, // 使用时间段索引（1-5）
         endIndex: Math.ceil(course.end / 2) - timeSlotIndex, // 计算结束时间段索引
         color: course.color,
         teacherName: course.teacherName || '',
@@ -775,7 +894,7 @@ export default {
   left: 0;
   right: 0;
   background: linear-gradient(135deg, #89CFF0 0%, #5DCDFF 100%);
-  z-index: 999;
+  z-index: 1100;
 }
 
 .nav-content {
