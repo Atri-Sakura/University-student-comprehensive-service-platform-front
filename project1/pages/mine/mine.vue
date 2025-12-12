@@ -363,6 +363,7 @@ export default {
         district: '',
         detailAddress: ''
       },
+      addressBackup: null, // 编辑前的地址副本，用于取消还原
       hasAddress: false, // 标记是否已有地址
       showAddressModal: false, // 地址编辑弹窗
       showEditModal: false,
@@ -713,6 +714,7 @@ export default {
      * 打开地址编辑弹窗
      */
     editAddress() {
+      this.addressBackup = { ...this.addressInfo };
       this.showAddressModal = true;
     },
     
@@ -720,6 +722,11 @@ export default {
      * 关闭地址编辑弹窗
      */
     closeAddressModal() {
+      // 若有备份且未确认保存，则还原
+      if (this.addressBackup) {
+        this.addressInfo = { ...this.addressBackup };
+      }
+      this.addressBackup = null;
       this.showAddressModal = false;
     },
     
@@ -792,7 +799,9 @@ export default {
           this.saveAddressToLocal();
           
           uni.hideLoading();
-          this.closeAddressModal();
+          // 标记已保存，清空备份，直接关闭弹窗
+          this.addressBackup = null;
+          this.showAddressModal = false;
           
           uni.showToast({
             title: '地址保存成功',
