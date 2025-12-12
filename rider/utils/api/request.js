@@ -6,6 +6,48 @@
 import { API_BASE_URL } from '../config.js';
 
 /**
+ * 处理大整数ID，防止精度丢失
+ * @param {String} jsonString JSON字符串
+ * @returns {Object} 处理后的JSON对象
+ */
+function parseJsonWithLargeIntegers(jsonString) {
+    if (typeof jsonString !== 'string') {
+        return jsonString;
+    }
+
+    const idFields = [
+        'orderMainId', 'orderId', 'id', 'userId', 
+        'riderId', 'merchantId', 'userBaseId', 
+        'riderBaseId', 'merchantBaseId', 'sessionId',
+        'messageId', 'fromId', 'toId'
+    ];
+    
+    try {
+        // 先尝试直接解析
+        const parsed = JSON.parse(jsonString);
+        return parsed;
+    } catch (e) {
+        // 如果解析失败，尝试处理大整数
+        let processedJson = jsonString;
+        
+        idFields.forEach(field => {
+            // 处理字段名加引号的情况
+            const quotedField = `"${field}":`;
+            if (processedJson.includes(quotedField)) {
+                // 匹配 "field":123456789012345678 这样的格式
+                const regex = new RegExp(`"${field}":(\d+)`, 'g');
+                processedJson = processedJson.replace(regex, (match, number) => {
+                    // 将数字转换为字符串，避免精度丢失
+                    return `"${field}":"${number}"`;
+                });
+            }
+        });
+        
+        return JSON.parse(processedJson);
+    }
+}
+
+/**
  * 统一请求方法
  * @param {Object} options 请求配置
  * @param {String} options.url 请求地址
@@ -86,7 +128,17 @@ async function 请求(options) {
 				method: method.toUpperCase(),
 				data: method.toUpperCase() === 'GET' ? {} : requestData,
 				header: requestHeaders,
+				dataType: 'text', // 关键：获取原始文本，避免自动JSON解析
 				success: (res) => {
+					// 处理大整数ID
+					if (typeof res.data === 'string') {
+						try {
+							res.data = parseJsonWithLargeIntegers(res.data);
+						} catch (e) {
+							console.error('JSON解析失败:', e);
+							reject(e);
+						}
+					}
 					resolve(res);
 				},
 				fail: (error) => {
@@ -107,7 +159,7 @@ async function 请求(options) {
 		
 		// 显示错误提示
 		uni.showToast({
-			title: '网络请求失败',
+			title: error.message || '网络请求失败',
 			icon: 'none',
 			duration: 2000
 		});

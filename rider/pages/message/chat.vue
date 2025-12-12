@@ -2,7 +2,7 @@
 	<view class="page">
 		<!-- 自定义导航栏 -->
 		<view class="nav-bar">
-			<text class="nav-back" @tap="goBack">‹</text>
+			<text class="nav-back" @tap="goBack">�?/text>
 			<text class="nav-title">{{ title }}</text>
 			<view class="nav-actions">
 				<!-- <text class="service-status online">在线</text> -->
@@ -15,7 +15,7 @@
 				<view 
 					class="chat-item" 
 					:class="{ 'chat-self': isSelf(message) }"
-					v-for="(message, index) in chatMessages" 
+					v-for="(message, index) in messages" 
 					:key="message.messageId || index"
 					:id="'msg-' + index"
 				>
@@ -53,14 +53,14 @@
 				<input 
 					class="message-input" 
 					v-model="inputMessage"
-					placeholder="请输入消息..."
+					placeholder="请输入消�?.."
 					confirm-type="send"
 					@confirm="handleSendMessage"
 					:focus="inputFocus"
 				/>
 				<view class="input-actions">
 					<text class="action-btn" @tap="showMoreActions">+</text>
-					<button class="send-btn" :disabled="!inputMessage.trim()" @tap="handleSendMessage">发送</button>
+					<button class="send-btn" :disabled="!inputMessage.trim()" @tap="handleSendMessage">发�?/button>
 				</view>
 			</view>
 		</view>
@@ -75,7 +75,7 @@
 				<view class="panel-actions">
 					<view class="action-item" @tap="chooseImage">
 						<text class="action-icon">📷</text>
-						<text class="action-text">发送图片</text>
+						<text class="action-text">发送图�?/text>
 					</view>
 					<!-- 暂时只实现图片发送逻辑，其他功能可扩展 -->
 				</view>
@@ -85,7 +85,11 @@
 </template>
 
 <script>
-import { sendMessage, getMessageList, getMessagesFromTo, markSessionRead } from '@/utils/api';
+// WebSocket实时通信（protobufjs已安装）
+import wsManager from '@/utils/websocket-protobuf-manager.js';
+import { getMessageList, markMessagesAsRead, USER_TYPE, MSG_TYPE, MSG_STATUS } from '@/utils/api/message.js';
+import { markSessionAsRead } from '@/utils/api/session.js';
+import { sendMessage, getMessagesFromTo } from '@/utils/api/chat.js';
 
 export default {
 	data() {
@@ -95,33 +99,60 @@ export default {
 			toId: null,
 			toType: null,
 			fromId: null,
-			fromType: 2, // 假设骑手类型为2
+			fromType: USER_TYPE.RIDER,
+			currentUser: null,
+			wsConnected: false,
 			
 			inputMessage: '',
+			messages: [],
 			inputFocus: false,
 			scrollTop: 0,
 			showMore: false,
-			chatMessages: [],
 			
 			refreshTimer: null
-		}
+		};
 	},
 	
 	onLoad(options) {
+		console.log('====== 聊天页面参数 ======');
+		console.log('options:', options);
+		console.log('sessionId:', options.sessionId);
+		console.log('fromType:', options.fromType);
+		console.log('fromId:', options.fromId);
+		console.log('toType:', options.toType);
+		console.log('toId:', options.toId);
+		
 		this.sessionId = options.sessionId;
 		this.toId = options.toId;
-		this.toType = options.toType;
-		this.title = options.title || '聊天';
+		this.toType = parseInt(options.toType);
+		this.fromType = parseInt(options.fromType) || USER_TYPE.RIDER;
+		this.fromId = options.fromId;
+		this.title = decodeURIComponent(options.title || '聊天');
 		
-		const riderInfo = uni.getStorageSync('riderInfo');
-		if (riderInfo && riderInfo.id) {
-			this.fromId = riderInfo.id;
+		// 如果没有fromId，从本地存储获取
+		if (!this.fromId) {
+			const riderInfo = uni.getStorageSync('riderInfo');
+			const riderId = uni.getStorageSync('riderId');
+			console.log('riderInfo:', riderInfo);
+			console.log('riderId:', riderId);
+			
+			if (riderInfo && riderInfo.id) {
+				this.fromId = riderInfo.id;
+			} else if (riderId) {
+				this.fromId = riderId;
+			}
 		}
+		
+		console.log('最终参�?');
+		console.log('  sessionId:', this.sessionId);
+		console.log('  fromType:', this.fromType);
+		console.log('  fromId:', this.fromId);
+		console.log('  toType:', this.toType);
+		console.log('  toId:', this.toId);
 		
 		this.loadMessages();
 		
-		// 开始轮询新消息
-		this.startPolling();
+		// 开始轮询新消息（暂时禁用，便于调试�?		// this.startPolling();
 	},
 	
 	onUnload() {
@@ -143,144 +174,281 @@ export default {
 		},
 		
 		isSelf(message) {
-			return message.fromId == this.fromId && message.fromType == this.fromType;
+			const result = message.fromId == this.fromId && message.fromType == this.fromType;
+			console.log('isSelf判断:', {
+				'message.fromId': message.fromId,
+				'message.fromType': message.fromType,
+				'this.fromId': this.fromId,
+				'this.fromType': this.fromType,
+				'fromId匹配': message.fromId == this.fromId,
+				'fromType匹配': message.fromType == this.fromType,
+				'最终结�?: result
+			});
+			return result;
 		},
 		
 		async loadMessages() {
 			try {
-				let res;
-				if (this.sessionId) {
-					res = await getMessageList({
-						sessionId: this.sessionId,
-						// 可以添加分页逻辑
-					});
-				} else if (this.fromId && this.toId) {
-					res = await getMessagesFromTo({
+				console.log('====== 开始加载消�?======');
+				console.log('sessionId:', this.sessionId);
+				console.log('fromId:', this.fromId);
+				console.log('toId:', this.toId);
+				
+				// 临时方案：由于后端getMessageList存在bug，强制使用getMessagesFromTo
+				// 需要双向查询：骑手→用�?+ 用户→骑�?				const [res1, res2] = await Promise.all([
+					getMessagesFromTo({
 						fromType: this.fromType,
-						fromId: this.fromId,
+						fromId: String(this.fromId),
 						toType: this.toType,
-						toId: this.toId
-					});
+						toId: String(this.toId),
+						pageSize: 100
+					}),
+					getMessagesFromTo({
+						fromType: this.toType,
+						fromId: String(this.toId),
+						toType: this.fromType,
+						toId: String(this.fromId),
+						pageSize: 100
+					})
+				]);
+				
+				let allMessages = [];
+				if (res1.code === 200 && res1.data) {
+					allMessages = allMessages.concat(res1.data);
+				}
+				if (res2.code === 200 && res2.data) {
+					allMessages = allMessages.concat(res2.data);
 				}
 				
-				if (res && res.code === 200) {
-					// 假设返回的是消息列表
-					this.chatMessages = res.data || [];
-					this.scrollToBottom();
+				if (allMessages.length > 0) {
+					this.messages = allMessages
+						.map(msg => this.formatMessage(msg))
+						.sort((a, b) => {
+							const timeA = new Date(a.createTime || a.sendTime || 0);
+							const timeB = new Date(b.createTime || b.sendTime || 0);
+							return timeA - timeB;
+						});
 					
-					// 标记已读
-					if (this.sessionId) {
-						markSessionRead(this.sessionId);
-					}
+					this.$nextTick(() => {
+						this.scrollToBottom();
+					});
+				} else {
+					this.messages = [];
 				}
-			} catch (e) {
-				console.error('加载消息失败', e);
+			} catch (error) {
+				console.error('加载消息异常:', error);
+				uni.showToast({
+					title: '加载消息失败',
+					icon: 'none'
+				});
 			}
 		},
 		
-		async handleSendMessage() {
-			if (!this.inputMessage.trim()) return;
+		// 格式化消息数�?		formatMessage(msg) {
+			const isSelf = String(msg.fromId) === String(this.fromId) && 
+			                Number(msg.fromType) === Number(this.fromType);
 			
-			const content = this.inputMessage;
-			this.inputMessage = ''; // 清空输入框
+			return {
+				messageId: msg.messageId || msg.id,
+				sessionId: msg.sessionId,
+				fromType: msg.fromType,
+				fromId: msg.fromId,
+				toType: msg.toType,
+				toId: msg.toId,
+				msgContent: msg.msgContent || msg.content,
+				time: this.formatTime(msg.createTime || msg.sendTime),
+				sendTime: msg.sendTime,
+				createTime: msg.createTime,
+				msgType: msg.msgType,
+				msgStatus: msg.msgStatus,
+				isSelf: isSelf
+			};
+		},
+		
+		// 发送消�?		async handleSendMessage() {
+			if (!this.inputMessage.trim()) {
+				return;
+			}
 			
-			const msgData = {
-				sessionId: this.sessionId, // 如果没有会话ID，后端可能需要处理新建会话逻辑，或者我们这里不传
-				fromType: this.fromType,
-				fromId: this.fromId,
-				toType: this.toType,
-				toId: this.toId,
-				msgType: 1, // 文本
+			if (!this.sessionId) {
+				uni.showToast({
+					title: '会话信息异常',
+					icon: 'none'
+				});
+				return;
+			}
+			
+			const content = this.inputMessage.trim();
+			this.inputMessage = '';
+			
+			// 先添加到本地显示（乐观更新）
+			const tempMessage = {
+				messageId: Date.now(),
 				msgContent: content,
-				msgStatus: 0,
-				isDeleted: 0,
-				version: 1
+				sendTime: new Date(),
+				isSelf: true,
+				sending: true
 			};
 			
-			try {
-				const res = await sendMessage(msgData);
-				if (res.code === 200) {
-					// 发送成功，刷新列表或追加
-					// 如果是新会话，后端可能会返回sessionId
-					if (!this.sessionId && res.data && res.data.sessionId) {
-						this.sessionId = res.data.sessionId;
-					}
-					
-					// 简单的追加到本地列表（实际应该以服务器返回为准）
-					this.chatMessages.push({
-						...msgData,
-						sendTime: new Date(),
-						messageId: res.data ? res.data.messageId : Date.now() // 临时ID
-					});
-					
-					this.scrollToBottom();
-				} else {
-					uni.showToast({ title: res.msg || '发送失败', icon: 'none' });
-				}
-			} catch (e) {
-				console.error('发送消息失败', e);
-				uni.showToast({ title: '发送失败', icon: 'none' });
-			}
-		},
-		
-		startPolling() {
-			this.refreshTimer = setInterval(() => {
-				this.loadMessages();
-			}, 5000); // 5秒刷新一次
-		},
-		
-		stopPolling() {
-			if (this.refreshTimer) {
-				clearInterval(this.refreshTimer);
-				this.refreshTimer = null;
-			}
-		},
-		
-		scrollToBottom() {
+			this.messages.push(tempMessage);
+			
 			this.$nextTick(() => {
-				// 使用递增的值确保每次都能触发滚动
-				this.scrollTop = this.scrollTop === 99999 ? 99998 : 99999;
+				this.scrollToBottom();
 			});
-		},
-		
-		showMoreActions() {
-			this.showMore = true;
-		},
-		
-		hideMoreActions() {
-			this.showMore = false;
-		},
-		
-		chooseImage() {
-			this.hideMoreActions();
-			uni.chooseImage({
-				count: 1,
-				success: (res) => {
-					// 上传图片并发送消息逻辑...
-					// 暂未实现文件上传API，仅做示例
-					uni.showToast({ title: '图片发送开发中', icon: 'none' });
+			
+			try {
+				// 调用HTTP API保存消息
+				const response = await sendMessage({
+					sessionId: this.sessionId,
+					fromType: this.fromType,
+					fromId: String(this.fromId),
+					toType: this.toType,
+					toId: String(this.toId),
+					msgType: MSG_TYPE.TEXT,
+					msgContent: content,
+					msgStatus: MSG_STATUS.SENDING,
+					isDeleted: 0,
+					version: 1
+				});
+				
+				if (response.code === 200) {
+					tempMessage.sending = false;
+					tempMessage.messageId = response.data.messageId || response.data;
+					
+					// 通过WebSocket实时推�?					const status = wsManager.getStatus();
+					if (status.isConnected && status.isRegistered) {
+						try {
+							await wsManager.sendTextMessage({
+								sessionId: this.sessionId,
+								fromType: this.fromType,
+								fromId: String(this.fromId),
+								toType: this.toType,
+								toId: String(this.toId),
+								content: content
+							});
+						} catch (err) {
+							console.warn('WebSocket发送失败，消息已通过HTTP保存:', err);
+						}
+					}
+				} else {
+					tempMessage.sendFailed = true;
+					uni.showToast({
+						title: response.msg || '发送失�?,
+						icon: 'none'
+					});
 				}
+			} catch (error) {
+				console.error('发送消息失�?', error);
+				tempMessage.sendFailed = true;
+				uni.showToast({
+					title: '发送失�?,
+					icon: 'none'
+				});
+			}
+		},
+		
+		// 连接WebSocket
+		async connectWebSocket() {
+			try {
+				await wsManager.connect(USER_TYPE.RIDER, this.fromId);
+				wsManager.addMessageHandler(this.handleWebSocketMessage);
+				
+				this.wsConnected = true;
+			} catch (error) {
+				console.error('WebSocket连接失败:', error);
+				uni.showToast({
+					title: 'WebSocket连接失败',
+					icon: 'none'
+				});
+			}
+		},
+		
+		// 断开WebSocket
+		disconnectWebSocket() {
+			try {
+				const index = wsManager.messageHandlers.indexOf(this.handleWebSocketMessage);
+				if (index > -1) {
+					wsManager.messageHandlers.splice(index, 1);
+				}
+			} catch (error) {
+				console.error('移除handler失败:', error);
+			}
+			this.wsConnected = false;
+		},
+		
+		// 处理WebSocket接收的消�?		handleWebSocketMessage(message) {
+			// 兼容字段命名
+			const msgType = message.msg_type || message.msgType;
+			const msgContent = message.msg_content || message.msgContent || message.content;
+			const fromId = String(message.from_id || message.fromId || '');
+			const fromType = message.from_type || message.fromType;
+			const toId = String(message.to_id || message.toId || '');
+			const toType = message.to_type || message.toType;
+			const sendTime = message.send_time || message.sendTime;
+			
+			// 过滤掉自己发送的消息（避免回声）
+			if (this.currentUser && fromId) {
+				const currentRiderId = String(this.currentUser.id || '');
+				const isSelf = fromId.substring(0, 10) === currentRiderId.substring(0, 10);
+				
+				if (isSelf) {
+					return;
+				}
+			}
+			
+			// 只处理文本消�?			if (msgType !== MSG_TYPE.TEXT) {
+				return;
+			}
+			
+			// 检查是否是当前对话的对方发来的消息
+			const isFromChatUser = String(fromId).substring(0, 10) === String(this.toId).substring(0, 10);
+			const isToMe = (toType === 2 || toType === USER_TYPE.RIDER) && 
+			               String(toId).substring(0, 10) === String(this.fromId).substring(0, 10);
+			
+			if (!isFromChatUser || !isToMe) {
+				return;
+			}
+			
+			// 添加到消息列�?			const newMessage = {
+				messageId: message.message_id || message.messageId || Date.now(),
+				msgContent: msgContent,
+				sendTime: sendTime || Date.now(),
+				isSelf: false
+			};
+			
+			this.messages.push(newMessage);
+			
+			this.$nextTick(() => {
+				this.scrollToBottom();
 			});
+		},
+		
+		// 滚动到底�?		scrollToBottom() {
+			const query = uni.createSelectorQuery().in(this);
+			query.select('.chat-list').boundingClientRect(data => {
+				if (data) {
+					this.scrollTop = data.height;
+				}
+			}).exec();
 		}
 	}
-}
+};
 </script>
 
 <style scoped>
+	/* 页面容器 */
 	.page {
+		width: 100%;
 		height: 100vh;
 		display: flex;
 		flex-direction: column;
-		background-color: #f7f7f7;
-		padding-top: calc(112rpx + env(safe-area-inset-top));
+		background-color: #f5f5f5;
 	}
 
+	/* 导航�?*/
 	.nav-bar {
-		position: fixed;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: calc(112rpx + env(safe-area-inset-top));
+		width: 100%;
+		height: 88rpx;
 		padding: env(safe-area-inset-top) 30rpx 0;
 		display: flex;
 		align-items: flex-end;
@@ -311,23 +479,11 @@ export default {
 		bottom: 22rpx;
 	}
 
-	.service-status {
-		font-size: 24rpx;
-		padding: 6rpx 16rpx;
-		border-radius: 20rpx;
-		font-weight: 500;
-	}
-
-	.service-status.online {
-		background-color: #f6ffed;
-		color: #52c41a;
-	}
-
 	/* 聊天内容 */
 	.chat-content {
 		flex: 1;
 		padding: 20rpx;
-		padding-bottom: 120rpx; /* 为固定的输入区域留出空间 */
+		padding-bottom: 120rpx;
 	}
 
 	.chat-list {
@@ -353,6 +509,7 @@ export default {
 		width: 64rpx;
 		height: 64rpx;
 		border-radius: 50%;
+		background-color: #e0e0e0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -415,7 +572,6 @@ export default {
 		color: #ffffff;
 	}
 
-
 	/* 输入区域 */
 	.input-section {
 		position: fixed;
@@ -452,15 +608,9 @@ export default {
 	}
 
 	.action-btn {
-		width: 64rpx;
-		height: 64rpx;
-		border-radius: 50%;
-		background-color: #f0f0f0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 32rpx;
-		color: #666666;
+		font-size: 42rpx;
+		color: #1890ff;
+		padding: 0 12rpx;
 	}
 
 	.send-btn {
@@ -478,71 +628,69 @@ export default {
 		color: #999999;
 	}
 
-	/* 更多操作面板 */
+	/* 更多面板 */
 	.more-panel {
 		position: fixed;
 		top: 0;
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(0, 0, 0, 0.5);
-		z-index: 100;
+		background-color: rgba(0,0,0,0.3);
 		display: flex;
 		align-items: flex-end;
+		justify-content: center;
+		z-index: 200;
 	}
 
 	.panel-content {
 		width: 100%;
 		background-color: #ffffff;
-		border-radius: 20rpx 20rpx 0 0;
-		padding: 30rpx;
-		padding-bottom: calc(30rpx + env(safe-area-inset-bottom));
+		border-top-left-radius: 20rpx;
+		border-top-right-radius: 20rpx;
+		padding: 20rpx 30rpx 40rpx 30rpx;
 	}
 
 	.panel-header {
 		display: flex;
-		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 30rpx;
+		align-items: center;
+		margin-bottom: 20rpx;
 	}
 
 	.panel-title {
 		font-size: 32rpx;
 		font-weight: 600;
-		color: #333333;
 	}
 
 	.panel-close {
 		font-size: 40rpx;
 		color: #999999;
-		width: 60rpx;
-		height: 60rpx;
-		display: flex;
-		align-items: center;
-		justify-content: center;
 	}
 
 	.panel-actions {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		display: flex;
 		gap: 30rpx;
+		flex-wrap: wrap;
 	}
 
 	.action-item {
+		width: 140rpx;
+		height: 160rpx;
+		border-radius: 16rpx;
+		background-color: #f7f7f7;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		padding: 20rpx;
+		justify-content: center;
+		gap: 12rpx;
 	}
 
 	.action-icon {
 		font-size: 48rpx;
-		margin-bottom: 16rpx;
 	}
 
 	.action-text {
-		font-size: 24rpx;
-		color: #666666;
-		text-align: center;
+		font-size: 26rpx;
+		color: #333333;
 	}
 </style>

@@ -8,7 +8,7 @@
 			</view>
 		</view>
 
-		<!-- 标签页导航 -->
+		<!-- 标签页导�?-->
 		<view class="tab-bar">
 			<view 
 				class="tab-item" 
@@ -72,7 +72,7 @@
 				</view>
 			</template>
 
-			<!-- 空状态 -->
+			<!-- 空状�?-->
 			<view class="empty-state" v-if="(activeTab === 'all' && sessions.length === 0 && systemMessages.length === 0) || (activeTab !== 'all' && currentTabMessages.length === 0)">
 				<text class="empty-icon">💬</text>
 				<text class="empty-text">{{ emptyStateText }}</text>
@@ -85,78 +85,33 @@
 </template>
 
 <script>
-	export default {
-		data() {
-			return {
-				activeTab: 'all', // 当前选中的标签
-				systemMessages: [
-					{
-						id: 'sys_001',
-						title: '系统通知',
-						content: '您的账户已通过实名认证，可以正常接单了',
-						time: new Date(Date.now() - 2 * 60 * 60 * 1000),
-						isRead: false,
-						type: 'system'
-					},
-					{
-						id: 'sys_002',
-						title: '安全提醒',
-						content: '为了您的账户安全，请定期修改密码',
-						time: new Date(Date.now() - 24 * 60 * 60 * 1000),
-						isRead: true,
-						type: 'system'
-					}
-				],
-				announcements: [
-					{
-						id: 'ann_001',
-						title: '平台公告',
-						content: '春节期间配送费调整通知，详情请查看',
-						time: new Date(Date.now() - 12 * 60 * 60 * 1000),
-						isRead: false,
-						type: 'announcement'
-					}
-				],
-				orderGroupChats: [
-					{
-						id: 'order_group_001',
-						orderId: 'ORD2024123456',
-						orderTitle: '星巴克咖啡配送',
-						participants: ['商家', '顾客', '骑手'],
-						lastMessage: '顾客：请问大概还有多久到？',
-						time: new Date(Date.now() - 30 * 60 * 1000),
-						isRead: false,
-						type: 'orderGroup',
-						unreadCount: 2
-					},
-					{
-						id: 'order_group_002',
-						orderId: 'ORD2024123455',
-						orderTitle: '麦当劳外卖配送',
-						participants: ['商家', '顾客', '骑手'],
-						lastMessage: '商家：订单已准备好，请尽快取餐',
-						time: new Date(Date.now() - 2 * 60 * 60 * 1000),
-						isRead: true,
-						type: 'orderGroup',
-						unreadCount: 0
-					},
-					{
-						id: 'order_group_003',
-						orderId: 'ORD2024123454',
-						orderTitle: '肯德基配送订单',
-						participants: ['商家', '顾客', '骑手'],
-						lastMessage: '骑手：我已到达楼下，请下来取餐',
-						time: new Date(Date.now() - 5 * 60 * 60 * 1000),
-						isRead: false,
-						type: 'orderGroup',
-						unreadCount: 1
-					}
-				],
-				hasUnreadService: true,
-				lastServiceTime: '昨天',
-				lastServiceMessage: '您好，有什么可以帮助您的吗？'
-			}
-		},
+import { getSessionList, markSessionAsRead, SESSION_STATUS } from '@/utils/api/session.js';
+import { USER_TYPE } from '@/utils/api/message.js';
+
+export default {
+	data() {
+		return {
+			activeTab: 'all',
+			currentUser: null,
+			loading: false,
+			sessions: [], // 真实会话列表
+			systemMessages: [],
+			announcements: [],
+			orderGroupChats: [],
+			hasUnreadService: false,
+			lastServiceTime: '',
+			lastServiceMessage: ''
+		};
+	},
+	
+	onLoad() {
+		this.initRiderInfo();
+		this.loadChatSessions();
+	},
+	
+	onShow() {
+		// 每次显示时刷新会话列�?		this.loadChatSessions();
+	},
 		
 		computed: {
 			allMessages() {
@@ -204,7 +159,165 @@
 			}
 		},
 		
-		methods: {
+	methods: {
+		// 初始化骑手信�?		async initRiderInfo() {
+			try {
+				const riderInfo = uni.getStorageSync('riderInfo');
+				const riderId = uni.getStorageSync('riderId');
+				
+				if (riderInfo) {
+					this.currentUser = riderInfo;
+				} else if (riderId) {
+					this.currentUser = { id: riderId, name: '骑手' };
+				}
+				
+				// 确保有ID字段
+				if (this.currentUser && !this.currentUser.id) {
+					const currentRiderId = this.currentUser.riderId || this.currentUser.riderBaseId || riderId;
+					if (currentRiderId) {
+						this.currentUser.id = currentRiderId;
+					}
+				}
+			} catch (error) {
+				console.error('获取骑手信息失败:', error);
+			}
+		},
+		
+		// 加载聊天会话列表
+		async loadChatSessions() {
+			if (!this.currentUser) {
+				console.warn('loadChatSessions: 骑手信息不存�?);
+				return;
+			}
+			
+			const riderId = uni.getStorageSync('riderId');
+			let currentRiderId = this.currentUser.id || this.currentUser.riderId || this.currentUser.riderBaseId;
+			if (!currentRiderId) {
+				currentRiderId = riderId;
+			}
+			
+			this.loading = true;
+			try {
+				// 查询1: 骑手作为发起方的会话
+				const params1 = {
+					fromType: USER_TYPE.RIDER,
+					fromId: currentRiderId,
+					sessionStatus: SESSION_STATUS.NORMAL,
+					pageSize: 50
+				};
+				
+				// 查询2: 骑手作为接收方的会话
+				const params2 = {
+					toType: USER_TYPE.RIDER,
+					toId: currentRiderId,
+					sessionStatus: SESSION_STATUS.NORMAL,
+					pageSize: 50
+				};
+				
+				// 并发查询
+				const [response1, response2] = await Promise.all([
+					getSessionList(params1),
+					getSessionList(params2)
+				]);
+				
+				let allSessions = [];
+			
+			if (response1.code === 200 && response1.data) {
+				allSessions = allSessions.concat(response1.data);
+			}
+			if (response2.code === 200 && response2.data) {
+				allSessions = allSessions.concat(response2.data);
+			}
+			
+			if (allSessions.length > 0) {
+				// 筛选正确的会话：骑手作为其中一方，用户作为另一�?				const validSessions = allSessions.filter(session => {
+					const isRiderFrom = session.fromType === 2 && String(session.fromId) === String(currentRiderId);
+					const isRiderTo = session.toType === 2 && String(session.toId) === String(currentRiderId);
+					const isUserFrom = session.fromType === 1;
+					const isUserTo = session.toType === 1;
+					
+					// 正确的会话：(骑手→用�? �?(用户→骑�?
+					return (isRiderFrom && isUserTo) || (isUserFrom && isRiderTo);
+				});
+				
+				// 按对话双方合并：同一组用户的会话只保留最新的
+				const dialogMap = new Map();
+				validSessions.forEach(session => {
+					// 找出对方的ID（不管是fromId还是toId�?					let otherUserId;
+					if (session.fromType === 1) {
+						otherUserId = String(session.fromId);
+					} else if (session.toType === 1) {
+						otherUserId = String(session.toId);
+					}
+					
+					if (!otherUserId) {
+						return;
+					}
+					
+					// 使用对方ID�?5位作为key（同一个用户）
+					const dialogKey = otherUserId.substring(0, 15);
+					
+					// 如果已存在，比较时间，保留最新的
+					if (dialogMap.has(dialogKey)) {
+						const existing = dialogMap.get(dialogKey);
+						const existingTime = new Date(existing.lastMsgTime || 0);
+						const currentTime = new Date(session.lastMsgTime || 0);
+						
+						if (currentTime > existingTime) {
+							session.sessionId = String(session.sessionId || '');
+							session.fromId = String(session.fromId || '');
+							session.toId = String(session.toId || '');
+							dialogMap.set(dialogKey, session);
+						}
+					} else {
+						session.sessionId = String(session.sessionId || '');
+						session.fromId = String(session.fromId || '');
+						session.toId = String(session.toId || '');
+						dialogMap.set(dialogKey, session);
+					}
+				});
+				
+				this.sessions = Array.from(dialogMap.values())
+					.sort((a, b) => new Date(b.lastMsgTime) - new Date(a.lastMsgTime));
+			} else {
+				this.sessions = [];
+			}
+		} catch (error) {
+			console.error('加载会话失败:', error);
+		} finally {
+			this.loading = false;
+		}
+		},
+		
+		// 打开聊天
+		async openChat(item) {
+			// 标记已读
+			if (item.unreadCount > 0) {
+				try {
+					await markSessionAsRead(String(item.sessionId));
+					item.unreadCount = 0;
+				} catch (error) {
+					console.error('标记已读失败:', error);
+				}
+			}
+			
+			// 跳转到聊天页�?			const params = {
+				sessionId: String(item.sessionId),
+				fromType: String(item.fromType),
+				fromId: String(item.fromId),
+				toType: String(item.toType),
+				toId: String(item.toId),
+				title: encodeURIComponent(`用户 ${item.toId}`)
+			};
+			
+			const queryString = Object.keys(params)
+				.map(key => `${key}=${params[key]}`)
+				.join('&');
+			
+			uni.navigateTo({
+				url: `/pages/message/chat?${queryString}`
+			});
+		},
 			formatTime(time) {
 				const now = new Date();
 				const msgTime = new Date(time);
@@ -226,21 +339,17 @@
 			},
 			
 			viewMessage(message) {
-				// 标记为已读
-				message.isRead = true;
+				// 标记为已�?				message.isRead = true;
 				
-				// 跳转到消息详情页面
-				uni.navigateTo({
+				// 跳转到消息详情页�?				uni.navigateTo({
 					url: `/pages/message/message-detail?id=${message.id}&type=${message.type}`
 				});
 			},
 			
 			openCustomerService() {
-				// 标记客服消息为已读
-				this.hasUnreadService = false;
+				// 标记客服消息为已�?				this.hasUnreadService = false;
 				
-				// 跳转到客服聊天页面
-				uni.navigateTo({
+				// 跳转到客服聊天页�?				uni.navigateTo({
 					url: '/pages/message/customer-service'
 				});
 			},
@@ -250,24 +359,22 @@
 			},
 			
 			viewGroupChat(orderGroup) {
-				// 标记订单群聊为已读
-				orderGroup.isRead = true;
+				// 标记订单群聊为已�?				orderGroup.isRead = true;
 				orderGroup.unreadCount = 0;
 				
-				// 跳转到订单群聊页面（暂时显示提示）
-				uni.showToast({
+				// 跳转到订单群聊页面（暂时显示提示�?				uni.showToast({
 					title: `订单${orderGroup.orderId}群聊功能开发中`,
 					icon: 'none'
 				});
 			},
 			
 			clearAllMessages() {
-				const tabName = this.activeTab === 'all' ? '所有消息' : 
-								this.activeTab === 'group' ? '群聊消息' : '系统通知';
-								
+				const tabName = this.activeTab === 'all' ? '所有消�? : 
+							this.activeTab === 'group' ? '群聊消息' : '系统通知';
+							
 				uni.showModal({
 					title: '清空消息',
-					content: `确定要清空${tabName}吗？此操作不可恢复。`,
+					content: `确定要清�?{tabName}吗？此操作不可恢复。`,
 					confirmColor: '#ff4d4f',
 					success: (res) => {
 						if (res.confirm) {
@@ -282,7 +389,7 @@
 							}
 							
 							uni.showToast({
-								title: `已清空${tabName}`,
+								title: `已清�?{tabName}`,
 								icon: 'success'
 							});
 						}
@@ -301,7 +408,7 @@
 		padding-bottom: 120rpx;
 	}
 
-	/* 导航栏 */
+	/* 导航�?*/
 	.nav-bar {
 		position: fixed;
 		top: 0;
@@ -334,7 +441,7 @@
 		padding: 8rpx 16rpx;
 	}
 
-	/* 标签页导航 */
+	/* 标签页导�?*/
 	.tab-bar {
 		display: flex;
 		background-color: #ffffff;
@@ -532,7 +639,7 @@
 		flex-shrink: 0;
 	}
 
-	/* 空状态 */
+	/* 空状�?*/
 	.empty-state {
 		display: flex;
 		flex-direction: column;
@@ -585,4 +692,3 @@
 		border-left: 6rpx solid #0ea5e9;
 	}
 </style>
-

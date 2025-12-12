@@ -66,8 +66,6 @@ async function request(options) {
 		}
 	}
 	
-	// uni.request 不需要预先构建配置对象
-	
 	try {
 		// 显示加载提示
 		if (showLoading) {
@@ -77,17 +75,35 @@ async function request(options) {
 			});
 		}
 		
-		// 尝试使用原生 XMLHttpRequest 作为备选方案
-		if (false) { // 暂时禁用，用于测试
-			return requestWithXHR(fullUrl, method, data, requestHeaders);
-		}
-		
 		// 使用 uni.request 发送请求
 		const response = await new Promise((resolve, reject) => {
+			// 对于POST/PUT请求，手动序列化data为JSON字符串，保持大整数为字符串
+			let requestData;
+			const httpMethod = method.toUpperCase();
+			
+			if (httpMethod === 'GET') {
+				requestData = {};
+			} else {
+				// 将data序列化为JSON字符串，确保大整数ID保持为字符串格式
+				requestData = JSON.stringify(data);
+				// 如果data中包含大整数ID，需要设置正确的Content-Type
+				if (!requestHeaders['Content-Type']) {
+					requestHeaders['Content-Type'] = 'application/json';
+				}
+			}
+			
+			console.log('🚀 发送请求:', {
+				url: fullUrl,
+				method: httpMethod,
+				originalData: data,
+				requestData: requestData,
+				headers: requestHeaders
+			});
+			
 			uni.request({
 				url: fullUrl,
-				method: method.toUpperCase(),
-				data: method.toUpperCase() === 'GET' ? {} : data,
+				method: httpMethod,
+				data: requestData,
 				header: requestHeaders,
 				dataType: 'text', // 获取原始文本，避免自动JSON解析
 				success: (res) => {
@@ -144,7 +160,7 @@ async function request(options) {
  * @returns {*} 解析后的对象
  */
 function parseJsonWithLargeIntegers(jsonString) {
-	// ID类字段列表
+	// ID类字段列表（需要转换为字符串的大整数ID）
 	const idFields = [
 		'orderMainId',
 		'orderId', 
@@ -154,7 +170,13 @@ function parseJsonWithLargeIntegers(jsonString) {
 		'merchantId',
 		'userBaseId',
 		'riderBaseId',
-		'merchantBaseId'
+		'merchantBaseId',
+		// 聊天相关ID
+		'sessionId',
+		'messageId',
+		'toId',
+		'fromId',
+		'chatSessionId'
 	];
 	
 	// 先用正则表达式预处理，将大整数ID字段转换为字符串
@@ -190,7 +212,13 @@ function processLargeIntegers(data) {
 		'merchantId',
 		'userBaseId',
 		'riderBaseId',
-		'merchantBaseId'
+		'merchantBaseId',
+		// 聊天相关ID
+		'sessionId',
+		'messageId',
+		'toId',
+		'fromId',
+		'chatSessionId'
 	];
 	
 	// 递归处理对象
@@ -225,6 +253,13 @@ function processLargeIntegers(data) {
  * 处理响应数据
  */
 function handleResponse(result) {
+	console.log('📥 后端响应:', {
+		code: result.code,
+		msg: result.msg,
+		data: result.data,
+		fullResult: result
+	});
+	
 	// 根据code判断请求是否成功
 	if (result.code === 200) {
 		return result;
@@ -237,6 +272,12 @@ function handleResponse(result) {
 	}
 	
 	// 其他错误
+	console.error('❌ 业务错误:', {
+		code: result.code,
+		msg: result.msg,
+		data: result.data
+	});
+	
 	// 钱包相关错误不显示通用错误提示，让具体页面处理
 	if (!(result.msg && result.msg.includes('未找到钱包信息'))) {
 		uni.showToast({
