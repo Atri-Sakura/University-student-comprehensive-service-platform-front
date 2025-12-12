@@ -218,6 +218,30 @@
         <view class="edit-modal-body address-modal-body">
           <view class="address-form">
             <view class="form-item">
+              <text class="form-label">省份</text>
+              <input 
+                class="form-input"
+                v-model="addressInfo.province"
+                placeholder="请输入省份"
+              />
+            </view>
+            <view class="form-item">
+              <text class="form-label">城市</text>
+              <input 
+                class="form-input"
+                v-model="addressInfo.city"
+                placeholder="请输入城市"
+              />
+            </view>
+            <view class="form-item">
+              <text class="form-label">区/县</text>
+              <input 
+                class="form-input"
+                v-model="addressInfo.district"
+                placeholder="请输入区/县"
+              />
+            </view>
+            <view class="form-item">
               <text class="form-label">详细地址</text>
               <textarea 
                 class="form-textarea" 
@@ -334,6 +358,9 @@ export default {
       addressInfo: {
         merchantBaseId: null,
         merchantAddressId: null,
+        province: '',
+        city: '',
+        district: '',
         detailAddress: ''
       },
       hasAddress: false, // 标记是否已有地址
@@ -437,6 +464,9 @@ export default {
           this.addressInfo = {
             merchantBaseId: addr.merchantBaseId || this.merchantBaseId,
             merchantAddressId: addr.merchantAddressId || null,
+            province: addr.province || '',
+            city: addr.city || '',
+            district: addr.district || '',
             detailAddress: addr.detailAddress || ''
           };
           this.hasAddress = true; // 标记已有地址
@@ -698,6 +728,13 @@ export default {
      */
     async confirmAddressEdit() {
       // 验证必填字段
+      if (!this.addressInfo.province || !this.addressInfo.city || !this.addressInfo.district) {
+        uni.showToast({
+          title: '请选择省市区',
+          icon: 'none'
+        });
+        return;
+      }
       if (!this.addressInfo.detailAddress || !this.addressInfo.detailAddress.trim()) {
         uni.showToast({
           title: '请填写详细地址',
@@ -714,6 +751,9 @@ export default {
         // 准备保存数据
         const saveData = {
           merchantBaseId: this.merchantBaseId,
+          province: this.addressInfo.province,
+          city: this.addressInfo.city,
+          district: this.addressInfo.district,
           detailAddress: this.addressInfo.detailAddress.trim()
         };
         
@@ -777,10 +817,16 @@ export default {
      * 获取完整地址字符串
      */
     getFullAddress() {
-      if (!this.addressInfo.detailAddress) {
+      const parts = [
+        this.addressInfo.province,
+        this.addressInfo.city,
+        this.addressInfo.district,
+        this.addressInfo.detailAddress
+      ].filter(Boolean);
+      if (!parts.length) {
         return '暂未设置店铺地址';
       }
-      return this.addressInfo.detailAddress;
+      return parts.join(' ');
     },
     
     /**
@@ -796,7 +842,10 @@ export default {
     loadAddressFromLocal() {
       const saved = uni.getStorageSync('addressInfo');
       if (saved) {
-        this.addressInfo = saved;
+        this.addressInfo = {
+          ...this.addressInfo,
+          ...saved
+        };
       }
     },
     
