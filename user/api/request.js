@@ -106,7 +106,7 @@ const 请求 = (options) => {
 		let finalHeader = { ...header };
 		
 		// 检查是否为评价商家的API路径
-		const isMerchantEvaluation = options。url === '/platform/evaluation/add';
+		const isMerchantEvaluation = options.url === '/platform/evaluation/add';
 		
 		if (isMerchantEvaluation) {
 			// 评价商家的API使用@ModelAttribute接收参数，需要表单格式
