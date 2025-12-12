@@ -85,7 +85,7 @@ function safeParseBigInt(jsonString) {
  * 封装uni.request请求
  * @param {Object} options 请求配置
  */
-const request = (options) => {
+const 请求 = (options) => {
 	return new Promise((resolve, reject) => {
 		// 获取token
 		const token = uni.getStorageSync('token');
@@ -101,19 +101,24 @@ const request = (options) => {
 			header['Authorization'] = 'Bearer ' + token;
 		}
 		
-		const fullUrl = BASE_URL + options.url;
-		const requestData = options.data || {};
-		
-		// 对于包含大整数ID的请求，确保数据以JSON字符串形式发送
+		// 处理不同类型的请求数据格式
 		let finalData = requestData;
 		let finalHeader = { ...header };
 		
-		if (requestData && typeof requestData === 'object' && requestData.userAddressId) {
+		// 检查是否为评价商家的API路径
+		const isMerchantEvaluation = options。url === '/platform/evaluation/add';
+		
+		if (isMerchantEvaluation) {
+			// 评价商家的API使用@ModelAttribute接收参数，需要表单格式
+			finalHeader['Content-Type'] = 'application/x-www-form-urlencoded';
+			// 不需要JSON.stringify，直接使用对象形式，uni.request会自动处理
+		} else if (requestData && typeof requestData === 'object' && requestData.userAddressId) {
+			// 其他包含大整数ID的请求，使用JSON格式
 			finalData = JSON.stringify(requestData);
 			finalHeader['Content-Type'] = 'application/json';
 		}
 		
-		uni.request({
+		uni.请求({
 			url: fullUrl,
 			method: options.method || 'GET',
 			data: finalData,
