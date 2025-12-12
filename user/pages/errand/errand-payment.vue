@@ -160,6 +160,7 @@ export default {
       navHeight: 0,
       preOrderNo: '', // 预订单号
       orderInfo: {},
+      backendTotalAmount: 0, // 后端返回的总金额
       selectedPayment: 0, // 默认选择余额支付
       paymentMethods: [],
       loading: false,
@@ -181,9 +182,9 @@ export default {
     discountAmount() {
       return parseFloat(this.orderInfo.discountAmount || 0);
     },
-    // 总价（跑腿订单只需支付服务费）
+    // 总价（使用后端返回的准确金额）
     totalPrice() {
-      return this.serviceFee - this.discountAmount;
+      return this.backendTotalAmount || (this.serviceFee - this.discountAmount);
     }
   },
   onLoad(options) {
@@ -216,6 +217,8 @@ export default {
         deliveryFee: savedOrder.deliveryFee || 0,
         goodsAmount: savedOrder.goodsAmount || 0
       };
+      // 保存后端返回的总金额
+      this.backendTotalAmount = savedOrder.totalAmount || 0;
     }
   },
   methods: {
@@ -313,18 +316,18 @@ export default {
     // 执行支付
     async payOrder(payType, payPassword) {
       try {
-        // 从本地存储获取地址ID和金额
+        // 从本地存储获取地址ID
         const prepayOrder = uni.getStorageSync('errandPrepayOrder');
         
-        // 使用计算属性的总价
-        const payAmount = prepayOrder?.totalAmount || this.totalPrice;
+        // 必须使用后端返回的总金额，确保金额一致
+        const payAmount = this.backendTotalAmount;
         
         // 按照后端PayOrderDTO结构构建支付数据
         const payData = {
           preOrderNo: this.preOrderNo, // 预订单号
           payPassword: payPassword, // 支付密码
           payType: 1, // 支付方式：1-余额支付
-          payAmount: payAmount, // 支付金额（使用后端返回的金额）
+          payAmount: payAmount, // 支付金额（必须使用后端返回的金额）
           userAddressId: prepayOrder?.deliverAddressId // 用户地址ID
         };
         
