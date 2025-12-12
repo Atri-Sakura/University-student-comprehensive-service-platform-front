@@ -46,10 +46,6 @@
         <text class="info-icon">📋</text>
         <text class="info-title">订单信息</text>
       </view>
-      <!-- 调试信息 -->
-      <view class="debug-info" style="display: none;">
-        <text>orderData: {{ JSON.stringify(orderData) }}</text>
-      </view>
       <view class="info-item">
         <text class="info-label">订单编号</text>
         <text class="info-value">{{ orderInfo.orderNo }}</text>
@@ -59,12 +55,24 @@
         <text class="info-value">{{ orderData && orderData.orderErrandDetailList && orderData.orderErrandDetailList.length > 0 ? orderData.orderErrandDetailList[0].goodsDesc : '暂无任务内容' }}</text>
       </view>
       <view class="info-item">
-        <text class="info-label">配送路线</text>
-        <text class="info-value">{{ orderInfo.deliveryRoute }}</text>
-      </view>
-      <view class="info-item">
         <text class="info-label">任务报酬</text>
         <text class="info-value reward">{{ orderInfo.reward }}</text>
+      </view>
+    </view>
+
+    <!-- 地址信息卡片 -->
+    <view class="info-card">
+      <view class="info-header">
+        <text class="info-icon">📍</text>
+        <text class="info-title">地址信息</text>
+      </view>
+      <view class="info-item">
+        <text class="info-label">出发地</text>
+        <text class="info-value">{{ orderData.pickAddress || '未设置' }}</text>
+      </view>
+      <view class="info-item">
+        <text class="info-label">收货地址</text>
+        <text class="info-value">{{ orderData.deliverAddress || '未设置' }}</text>
       </view>
     </view>
 
@@ -173,8 +181,7 @@ export default {
               orderNo: orderData.orderNo || this.orderNo,
               // 使用解析后的goodsDesc字段作为任务内容
               taskContent: taskContent || orderData.taskContent || orderData.taskDesc || '',
-              deliveryRoute: orderData.deliveryRoute || (orderData.pickAddress && orderData.deliverAddress ? `${orderData.pickAddress}到${orderData.deliverAddress}` : ''),
-              reward: orderData.deliveryFeeAmount ? `¥${orderData.deliveryFeeAmount}` : ''
+              reward: this.formatOrderAmount(orderData)
             }
             
             // 调试：检查最终的orderInfo
@@ -289,6 +296,11 @@ export default {
       return descMap[status] || '';
     },
     
+    // 格式化订单金额
+    formatOrderAmount(orderData) {
+      const amount = orderData.totalAmount || orderData.payAmount || 0;
+      return amount > 0 ? `¥${Number(amount).toFixed(2)}` : '¥0.00';
+    }
 
   }
 };
