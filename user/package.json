@@ -18,7 +18,9 @@
   ],
   "author": "",
   "license": "MIT",
-  "dependencies": {},
+  "dependencies": {
+    "protobufjs": "^7.2.5"
+  },
   "devDependencies": {}
 }
 

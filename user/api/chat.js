@@ -65,8 +65,6 @@ export const addMessage = (messageData) => {
     version: 1
   }
   
-  console.log('addMessage 发送数据:', data);
-  
   return request.post('/platform/chat/message', data)
 }
 

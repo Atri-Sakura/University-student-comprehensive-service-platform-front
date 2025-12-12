@@ -92,10 +92,12 @@
 import { getMessageList, addMessage, updateMessage, markMessagesAsRead, MSG_TYPE, MSG_STATUS, USER_TYPE } from '@/api/chat.js';
 import { getOrCreateSession, updateSessionLastMessage, increaseUnreadCount } from '@/api/session.js';
 import { getUserInfo } from '@/api/user.js';
+import wsManager from '@/utils/websocket-protobuf-manager.js';
 
 export default {
   data() {
     return {
+      isRefreshed: false,  // 标记是否是刷新后进入
       chatInfo: {
         id: '',
         sessionId: '',
