@@ -6,7 +6,12 @@
     <view class="order-list">
       <view class="order-item" v-for="(order, index) in orders" :key="order.orderNo" @click="viewOrderDetail(order.orderNo)">
         <view class="order-content">
-          <image class="food-image" :src="order.imageUrl || '/static/default-food.png'" mode="aspectFill"></image>
+          <image 
+            class="food-image" 
+            :src="getOrderImage(order)" 
+            mode="aspectFill"
+            @error="handleImageError"
+          ></image>
           <view class="order-details">
             <view class="food-name">{{ getOrderGoodsName(order) }}</view>
             <view class="order-info">
@@ -84,10 +89,14 @@ export default {
                   }
                   return order;
                 } catch (error) {
+                  console.error('获取订单详情失败:', error);
                   return order;
                 }
               })
             );
+            
+            // 批量获取所有订单的商品图片
+            await this.batchLoadGoodsImages(detailedOrders);
             
             // 更新订单列表
             this.orders = detailedOrders;
@@ -149,6 +158,64 @@ export default {
       return statusMap[status] || '未知状态'
     },
     
+    // 批量获取所有订单的商品图片
+    async batchLoadGoodsImages(orders) {
+      // 收集所有需要查询的商品ID（去重）
+      const goodsIdsSet = new Set();
+      orders.forEach(order => {
+        if (order.orderTakeoutDetailList && order.orderTakeoutDetailList.length > 0) {
+          order.orderTakeoutDetailList.forEach(detail => {
+            if (detail.goodsId && !detail.mainImage) {
+              goodsIdsSet.add(detail.goodsId);
+            }
+          });
+        }
+      });
+      
+      if (goodsIdsSet.size === 0) {
+        return;
+      }
+      
+      // 批量查询商品图片
+      const goodsImagesMap = {};
+      const imagePromises = Array.from(goodsIdsSet).map(async (goodsId) => {
+        try {
+          const goodsRes = await api.food.getGoodsDetail(goodsId);
+          if (goodsRes && goodsRes.code === 200 && goodsRes.data) {
+            const images = goodsRes.data.images || [];
+            // 获取主图（isMain=1的图片）或第一张图片
+            const mainImage = images.find(img => img.isMain === 1)?.imageUrl || 
+                            (images.length > 0 ? images[0].imageUrl : null);
+            goodsImagesMap[goodsId] = {
+              mainImage: mainImage,
+              images: images
+            };
+          }
+        } catch (error) {
+          console.warn(`获取商品${goodsId}的图片失败:`, error);
+          goodsImagesMap[goodsId] = {
+            mainImage: null,
+            images: []
+          };
+        }
+      });
+      
+      await Promise.all(imagePromises);
+      
+      // 将图片信息添加到对应的订单明细中
+      orders.forEach(order => {
+        if (order.orderTakeoutDetailList && order.orderTakeoutDetailList.length > 0) {
+          const firstDetail = order.orderTakeoutDetailList[0];
+          if (firstDetail.goodsId && goodsImagesMap[firstDetail.goodsId]) {
+            const imageInfo = goodsImagesMap[firstDetail.goodsId];
+            order.imageUrl = imageInfo.mainImage;
+            firstDetail.mainImage = imageInfo.mainImage;
+            firstDetail.images = imageInfo.images;
+          }
+        }
+      });
+    },
+    
     // 获取订单商品名称
     getOrderGoodsName(order) {
       // 尝试从各种可能的路径获取商品名称
@@ -202,6 +269,35 @@ export default {
       }
       
       return goodsName;
+    },
+    
+    // 获取订单商品图片
+    getOrderImage(order) {
+      // 优先使用订单的imageUrl
+      if (order.imageUrl) {
+        return order.imageUrl;
+      }
+      
+      // 从订单明细中获取图片
+      if (order.orderTakeoutDetailList && order.orderTakeoutDetailList.length > 0) {
+        const firstDetail = order.orderTakeoutDetailList[0];
+        if (firstDetail.mainImage) {
+          return firstDetail.mainImage;
+        }
+        if (firstDetail.images && firstDetail.images.length > 0) {
+          const mainImg = firstDetail.images.find(img => img.isMain === 1);
+          return mainImg ? mainImg.imageUrl : firstDetail.images[0].imageUrl;
+        }
+      }
+      
+      // 默认图片
+      return '/static/default-food.png';
+    },
+    
+    // 图片加载错误处理
+    handleImageError(e) {
+      console.warn('订单商品图片加载失败:', e);
+      // 可以在这里设置默认图片
     }
   }
 };
@@ -317,4 +413,5 @@ export default {
 }
 
 
+</style>
 </style>
