@@ -147,5 +147,6 @@ export default {
 	deliverOrder,
 	completeOrder,
 	getHistoryOrders,
+	reportException,
 	getOrderStatistics
 };
