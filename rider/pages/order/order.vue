@@ -85,7 +85,7 @@
 </template>
 
 <script>
-	import { getAvailableOrders, getMyOrders, riderAcceptOrder， riderPickupOrder, riderDeliverOrder } from '@/utils/api/index.js';
+	import { getAvailableOrders, getMyOrders, riderAcceptOrder, riderPickupOrder, riderDeliverOrder } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -205,11 +205,18 @@
 						});
 					}
 					
+					console.log('📦 API响应:', JSON.stringify(response));
+					
 					if (response.code === 200) {
 					// 转换后端数据格式为前端格式
 					// 后端直接返回 {code, msg, total, rows}，没有 data 包装
 					const rows = response.rows || [];
+					console.log('📦 订单数据rows:', JSON.stringify(rows));
+					console.log('📦 订单数量:', rows.length);
 					this.orders = rows.map(item => this.convertOrderData(item, isAvailableList));
+					console.log('📦 转换后订单:', JSON.stringify(this.orders));
+				} else {
+					console.log('❌ API返回错误:', response.code, response.msg);
 				}
 				} catch (error) {
 					console.error('加载订单失败:', error);

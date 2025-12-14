@@ -8,7 +8,8 @@ import { API_BASE_URL } from '../config.js';
 
 // API路径
 const RIDER_API = {
-	BASE_INFO: '/api/rider/base/info',          // 查询骑手基本信息
+	BASE_INFO: '/api/rider/base/info',          // 查询骑手基本信息（脱敏）
+	FULL_INFO: '/rider/info',                   // 查询骑手完整信息（包含auditStatus）
 	BASE_UPDATE: '/api/rider/base/update',      // 修改骑手基本信息
 	PASSWORD_UPDATE: '/api/rider/base/password', // 修改骑手密码
 	QUALIFICATION_UPLOAD: '/rider/qualificationCertification/upload' // 资质认证上传
@@ -20,6 +21,16 @@ const RIDER_API = {
 export async function getRiderBaseInfo() {
 	return request({
 		url: RIDER_API.BASE_INFO,
+		method: 'GET'
+	});
+}
+
+/**
+ * 查询骑手完整信息（包含审核状态等）
+ */
+export async function getRiderFullInfo() {
+	return request({
+		url: RIDER_API.FULL_INFO,
 		method: 'GET'
 	});
 }
@@ -194,6 +205,7 @@ export async function uploadQualificationCertification(frontFilePath, backFilePa
 
 export default {
 	getRiderBaseInfo,
+	getRiderFullInfo,
 	updateRiderBaseInfo,
 	updateRiderPassword,
 	uploadQualificationCertification

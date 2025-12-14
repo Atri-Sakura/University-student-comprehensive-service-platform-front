@@ -31,6 +31,7 @@ export const {
 // 骑手信息相关
 export const {
 	getRiderBaseInfo,
+	getRiderFullInfo,
 	updateRiderBaseInfo,
 	updateRiderPassword,
 	uploadQualificationCertification

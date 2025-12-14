@@ -31,23 +31,23 @@
 			<text class="card-title">认证流程</text>
 			<view class="process-steps">
 				<view class="step-item">
-					<view class="step-number completed">1</view>
+					<view class="step-number" :class="step1Class">1</view>
 					<view class="step-content">
 						<text class="step-title">身份信息验证</text>
 						<text class="step-desc">上传身份证正反面照片进行实名认证</text>
 					</view>
-					<text class="step-status completed">已完成</text>
+					<text class="step-status" :class="step1Class">{{ step1StatusText }}</text>
 				</view>
 				
 				<view class="step-line"></view>
 				
 				<view class="step-item">
-					<view class="step-number current">2</view>
+					<view class="step-number" :class="step2Class">2</view>
 					<view class="step-content">
 						<text class="step-title">认证完成</text>
 						<text class="step-desc">审核通过后即可获得认证标识</text>
 					</view>
-					<text class="step-status reviewing">审核中</text>
+					<text class="step-status" :class="step2Class">{{ step2StatusText }}</text>
 				</view>
 			</view>
 		</view>
@@ -116,7 +116,7 @@
 </template>
 
 <script>
-	import { uploadQualificationCertification, getRiderBaseInfo } from '@/utils/api/index.js';
+	import { uploadQualificationCertification, getRiderFullInfo } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -167,6 +167,50 @@
 			// 是否可以提交
 			canSubmit() {
 				return this.idCardFront && this.idCardBack && this.idCardNumber && this.idCardNumber.length === 18 && !this.submitting;
+			},
+			
+			// 步骤1状态样式
+			step1Class() {
+				if (this.certificationStatus === 'pending') {
+					return 'current';
+				}
+				return 'completed';
+			},
+			
+			// 步骤1状态文本
+			step1StatusText() {
+				if (this.certificationStatus === 'pending') {
+					return '待提交';
+				}
+				return '已完成';
+			},
+			
+			// 步骤2状态样式
+			step2Class() {
+				if (this.certificationStatus === 'pending') {
+					return 'waiting';
+				} else if (this.certificationStatus === 'reviewing') {
+					return 'reviewing';
+				} else if (this.certificationStatus === 'approved') {
+					return 'completed';
+				} else if (this.certificationStatus === 'rejected') {
+					return 'rejected';
+				}
+				return 'waiting';
+			},
+			
+			// 步骤2状态文本
+			step2StatusText() {
+				if (this.certificationStatus === 'pending') {
+					return '待审核';
+				} else if (this.certificationStatus === 'reviewing') {
+					return '审核中';
+				} else if (this.certificationStatus === 'approved') {
+					return '已通过';
+				} else if (this.certificationStatus === 'rejected') {
+					return '未通过';
+				}
+				return '待审核';
 			}
 		},
 		methods: {
@@ -176,19 +220,54 @@
 				
 				this.loading = true;
 				try {
-					const response = await getRiderBaseInfo();
+					const response = await getRiderFullInfo();
+					console.log('📦 骑手信息响应:', response);
 					
 					if (response.code === 200 && response.data) {
-						const accountStatus = response.data.accountStatus || 0;
+						// 打印完整数据，查看实际字段名
+						console.log('📦 完整骑手数据:', JSON.stringify(response.data));
 						
-						// 根据 accountStatus 映射认证状态
-						if (accountStatus === 1) {
-							// 已认证
-							this.certificationStatus = 'approved';
+						// 后端字段可能是 auditStatus 而不是 accountStatus
+						// audit_status: 0-待审核, 1-已通过
+						const auditStatus = response.data.auditStatus;
+						const accountStatus = response.data.accountStatus;
+						console.log('📦 auditStatus:', auditStatus);
+						console.log('📦 accountStatus:', accountStatus);
+						
+						// 使用 auditStatus（审核状态）来判断认证状态
+						// audit_status: 0-待审核, 1-已通过
+						// 注意：后端接口目前没有返回 auditStatus，需要后端添加此字段
+						if (auditStatus !== undefined && auditStatus !== null) {
+							// 根据审核状态映射认证状态
+							switch (auditStatus) {
+								case 0:
+									// 待审核（已提交，等待审核）
+									this.certificationStatus = 'reviewing';
+									break;
+								case 1:
+									// 已通过
+									this.certificationStatus = 'approved';
+									break;
+								case 2:
+									// 审核不通过
+									this.certificationStatus = 'rejected';
+									break;
+								default:
+									// 未提交认证
+									this.certificationStatus = 'pending';
+									break;
+							}
 						} else {
-							// 未认证，默认为待提交
-							this.certificationStatus = 'pending';
+							// 后端未返回 auditStatus，根据是否有身份证信息判断
+							// 如果有 idCard 说明已提交过认证
+							if (response.data.idCard) {
+								this.certificationStatus = 'reviewing'; // 已提交，待审核
+							} else {
+								this.certificationStatus = 'pending'; // 未提交
+							}
+							console.warn('⚠️ 后端未返回 auditStatus 字段，请联系后端添加');
 						}
+						console.log('📦 映射后的认证状态:', this.certificationStatus);
 					}
 				} catch (error) {
 					console.error('获取认证状态失败:', error);
@@ -520,6 +599,18 @@
 		background-color: #1890ff;
 	}
 
+	.step-number.waiting {
+		background-color: #d9d9d9;
+	}
+
+	.step-number.reviewing {
+		background-color: #fa8c16;
+	}
+
+	.step-number.rejected {
+		background-color: #ff4d4f;
+	}
+
 	.step-content {
 		flex: 1;
 		margin-right: 20rpx;
@@ -552,9 +643,24 @@
 		color: #52c41a;
 	}
 
+	.step-status.current {
+		background-color: #e6f7ff;
+		color: #1890ff;
+	}
+
 	.step-status.reviewing {
 		background-color: #fff7e6;
 		color: #fa8c16;
+	}
+
+	.step-status.waiting {
+		background-color: #f5f5f5;
+		color: #999999;
+	}
+
+	.step-status.rejected {
+		background-color: #fff2f0;
+		color: #ff4d4f;
 	}
 
 	.step-line {

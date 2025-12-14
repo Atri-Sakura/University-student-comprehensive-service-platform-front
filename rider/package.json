@@ -20,7 +20,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "protobufjs": "^7.2.5"
-  },
-  "devDependencies": {}
+    "protobufjs": "^7.5.4"
+  }
 }
