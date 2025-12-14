@@ -210,7 +210,9 @@ export default {
         // 防抖定时器
         searchTimer: null,
         // 原始商品列表，用于搜索时恢复
-        originalFoods: []
+        originalFoods: [],
+        // 所有店铺的购物车商品（用于保存时合并）
+        allCartItems: []
       };
     },
   computed: {
@@ -683,27 +685,36 @@ export default {
     loadCartData() {
       const cartData = uni.getStorageSync('foodCart');
       if (cartData && cartData.items) {
-        // 只保留当前餐厅的商品
+        // 加载所有商品，但只显示当前餐厅的
+        this.allCartItems = cartData.items;
         this.cartItems = cartData.items.filter(item => item.restaurantId === this.restaurant.id);
       } else {
+        this.allCartItems = [];
         this.cartItems = [];
       }
     },
     
     // 保存购物车数据
     saveCartData() {
+      // 获取其他店铺的商品
+      const otherItems = (this.allCartItems || []).filter(item => item.restaurantId !== this.restaurant.id);
+      // 合并当前店铺和其他店铺的商品
+      const allItems = [...otherItems, ...this.cartItems];
+      // 更新allCartItems
+      this.allCartItems = allItems;
+      
       uni.setStorageSync('foodCart', {
         restaurant: this.restaurant,
-        items: this.cartItems,
+        items: allItems,
         totalAmount: this.totalAmount,
         totalCount: this.totalCount
       });
     },
     
-    // 清空购物车
+    // 清空购物车（只清空当前店铺）
     clearCart() {
-      // 只清空当前餐厅的商品
-      this.cartItems = this.cartItems.filter(item => item.restaurantId !== this.restaurant.id);
+      // 清空当前餐厅的商品
+      this.cartItems = [];
       this.saveCartData();
       this.showCart = false;
       uni.showToast({
@@ -721,6 +732,11 @@ export default {
         this.cartItems.push({
           ...food,
           restaurantId: this.restaurant.id,
+          // 保存店铺信息，供外卖列表页购物车弹窗使用
+          restaurantName: this.restaurant.name,
+          restaurantImage: this.restaurant.image,
+          restaurantMinOrder: this.restaurant.minOrder,
+          restaurantDeliveryFee: this.restaurant.deliveryFee,
           count: 1
         });
       }

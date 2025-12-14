@@ -132,6 +132,77 @@
       <text class="cart-count">{{ cartCount }}</text>
       <text class="cart-text">去结算</text>
     </view>
+
+    <!-- 购物车弹窗 -->
+    <view class="cart-modal-overlay" v-if="showCartModal" @click="closeCartModal">
+      <view class="cart-modal" @click.stop>
+        <!-- 弹窗头部 -->
+        <view class="cart-modal-header">
+          <text class="cart-modal-title">购物车</text>
+          <view class="cart-modal-actions">
+            <text class="cart-modal-clear" @click="confirmClearCart">清空</text>
+            <text class="cart-modal-close" @click="closeCartModal">✕</text>
+          </view>
+        </view>
+
+        <!-- 购物车内容 -->
+        <scroll-view scroll-y class="cart-modal-body" v-if="groupedCartItems.length > 0">
+          <!-- 按店铺分组 -->
+          <view class="cart-restaurant-group" v-for="group in groupedCartItems" :key="group.restaurantId">
+            <!-- 店铺头部 -->
+            <view class="cart-restaurant-header" @click="goToRestaurant(group.restaurantId)">
+              <image class="cart-restaurant-logo" :src="getValidImageUrl(group.restaurant.image)" mode="aspectFill"></image>
+              <view class="cart-restaurant-info">
+                <text class="cart-restaurant-name">{{ group.restaurant.name }}</text>
+                <text class="cart-restaurant-tip" v-if="!group.minOrderMet">还差¥{{ group.remainingAmount.toFixed(2) }}起送</text>
+              </view>
+              <text class="cart-restaurant-arrow">›</text>
+            </view>
+
+            <!-- 商品列表 -->
+            <view class="cart-item" v-for="item in group.items" :key="item.id">
+              <image class="cart-item-image" :src="getValidImageUrl(item.image)" mode="aspectFill"></image>
+              <view class="cart-item-info">
+                <text class="cart-item-name">{{ item.name }}</text>
+                <text class="cart-item-price">¥{{ item.price.toFixed(2) }}</text>
+              </view>
+              <view class="cart-item-actions">
+                <text class="cart-item-btn" @click="decreaseCartItem(item, group)">-</text>
+                <text class="cart-item-count">{{ item.count }}</text>
+                <text class="cart-item-btn" @click="increaseCartItem(item, group)">+</text>
+              </view>
+            </view>
+
+            <!-- 店铺小计 -->
+            <view class="cart-restaurant-footer">
+              <view class="cart-subtotal">
+                <text class="cart-subtotal-label">小计：</text>
+                <text class="cart-subtotal-value">¥{{ group.subtotal.toFixed(2) }}</text>
+                <text class="cart-delivery-fee" v-if="group.restaurant.deliveryFee">（配送费¥{{ group.restaurant.deliveryFee }}）</text>
+              </view>
+              <view class="cart-checkout-btn" :class="{ disabled: !group.minOrderMet }" @click="checkoutRestaurant(group)">
+                <text>去结算</text>
+              </view>
+            </view>
+          </view>
+        </scroll-view>
+
+        <!-- 空购物车状态 -->
+        <view class="cart-empty" v-else>
+          <text class="cart-empty-icon">🛒</text>
+          <text class="cart-empty-text">购物车是空的</text>
+          <text class="cart-empty-hint">快去挑选美食吧~</text>
+        </view>
+
+        <!-- 弹窗底部 -->
+        <view class="cart-modal-footer" v-if="groupedCartItems.length > 0">
+          <view class="cart-total-info">
+            <text class="cart-total-count">共{{ cartCount }}件商品</text>
+            <text class="cart-total-amount">合计：¥{{ cartTotalAmount.toFixed(2) }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -160,7 +231,9 @@ export default {
       ],
       merchants: [], // 从API获取的商家列表
       goodsMap: {}, // 以商家ID为键，商品列表为值的映射
-      cartCount: 0
+      cartCount: 0,
+      showCartModal: false, // 购物车弹窗显示状态
+      cartItems: [] // 购物车商品列表
     };
   },
   
@@ -183,6 +256,8 @@ export default {
     // 页面显示时刷新商家列表数据，确保月售数量是最新的
     // 这样可以确保从支付页面返回时，能看到最新的商家月售数据
     this.loadGoodsList();
+    // 刷新购物车数据
+    this.loadCartData();
   },
   computed: {
     // 将商家和对应的商品列表组合
@@ -270,6 +345,51 @@ export default {
       
       console.log('restaurants计算属性 - mappedRestaurants:', mappedRestaurants);
       return mappedRestaurants;
+    },
+    
+    // 按店铺分组的购物车商品
+    groupedCartItems() {
+      if (!this.cartItems || this.cartItems.length === 0) {
+        return [];
+      }
+      
+      // 按店铺ID分组
+      const groupMap = new Map();
+      this.cartItems.forEach(item => {
+        const restaurantId = item.restaurantId;
+        if (!groupMap.has(restaurantId)) {
+          groupMap.set(restaurantId, {
+            restaurantId: restaurantId,
+            restaurant: {
+              id: restaurantId,
+              name: item.restaurantName || '未知店铺',
+              image: item.restaurantImage || '/static/images/default-food.svg',
+              minOrder: item.restaurantMinOrder || 0,
+              deliveryFee: item.restaurantDeliveryFee || 0
+            },
+            items: [],
+            subtotal: 0,
+            itemCount: 0
+          });
+        }
+        groupMap.get(restaurantId).items.push(item);
+      });
+      
+      // 计算每个店铺的小计和起送状态
+      const groups = Array.from(groupMap.values()).map(group => {
+        group.subtotal = group.items.reduce((sum, item) => sum + item.price * item.count, 0);
+        group.itemCount = group.items.reduce((sum, item) => sum + item.count, 0);
+        group.minOrderMet = group.subtotal >= group.restaurant.minOrder;
+        group.remainingAmount = group.minOrderMet ? 0 : group.restaurant.minOrder - group.subtotal;
+        return group;
+      });
+      
+      return groups;
+    },
+    
+    // 购物车总金额
+    cartTotalAmount() {
+      return this.cartItems.reduce((sum, item) => sum + item.price * item.count, 0);
     },
     
     filteredRestaurants() {
@@ -690,9 +810,128 @@ export default {
     
     // 查看购物车
     viewCart() {
-      uni.showToast({
-        title: '查看购物车',
-        icon: 'none'
+      this.loadCartData();
+      this.showCartModal = true;
+    },
+    
+    // 关闭购物车弹窗
+    closeCartModal() {
+      this.showCartModal = false;
+    },
+    
+    // 加载购物车数据
+    loadCartData() {
+      const cartData = uni.getStorageSync('foodCart');
+      if (cartData && cartData.items && cartData.items.length > 0) {
+        this.cartItems = cartData.items;
+        this.cartCount = cartData.items.reduce((sum, item) => sum + item.count, 0);
+      } else {
+        this.cartItems = [];
+        this.cartCount = 0;
+      }
+    },
+    
+    // 保存购物车数据
+    saveCartData() {
+      if (this.cartItems.length > 0) {
+        // 获取第一个商品的店铺信息作为当前店铺（兼容现有结构）
+        const firstItem = this.cartItems[0];
+        uni.setStorageSync('foodCart', {
+          restaurant: {
+            id: firstItem.restaurantId,
+            name: firstItem.restaurantName,
+            image: firstItem.restaurantImage,
+            minOrder: firstItem.restaurantMinOrder,
+            deliveryFee: firstItem.restaurantDeliveryFee
+          },
+          items: this.cartItems,
+          totalAmount: this.cartTotalAmount,
+          totalCount: this.cartCount
+        });
+      } else {
+        uni.removeStorageSync('foodCart');
+      }
+      // 更新购物车数量
+      this.cartCount = this.cartItems.reduce((sum, item) => sum + item.count, 0);
+    },
+    
+    // 增加购物车商品数量
+    increaseCartItem(item, group) {
+      const cartItem = this.cartItems.find(i => i.id === item.id && i.restaurantId === item.restaurantId);
+      if (cartItem) {
+        cartItem.count++;
+        this.saveCartData();
+      }
+    },
+    
+    // 减少购物车商品数量
+    decreaseCartItem(item, group) {
+      const index = this.cartItems.findIndex(i => i.id === item.id && i.restaurantId === item.restaurantId);
+      if (index !== -1) {
+        if (this.cartItems[index].count > 1) {
+          this.cartItems[index].count--;
+        } else {
+          this.cartItems.splice(index, 1);
+        }
+        this.saveCartData();
+        
+        // 如果购物车为空，关闭弹窗
+        if (this.cartItems.length === 0) {
+          this.showCartModal = false;
+        }
+      }
+    },
+    
+    // 跳转到店铺详情
+    goToRestaurant(restaurantId) {
+      this.showCartModal = false;
+      uni.navigateTo({
+        url: `/pages/food/food-detail?restaurantId=${restaurantId}`
+      });
+    },
+    
+    // 结算指定店铺的商品
+    checkoutRestaurant(group) {
+      if (!group.minOrderMet) {
+        uni.showToast({
+          title: `还差¥${group.remainingAmount.toFixed(2)}起送`,
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 保存该店铺的购物车数据
+      uni.setStorageSync('foodCart', {
+        restaurant: group.restaurant,
+        items: group.items,
+        totalAmount: group.subtotal + group.restaurant.deliveryFee,
+        totalCount: group.itemCount
+      });
+      
+      this.showCartModal = false;
+      
+      // 跳转到订单确认页面
+      uni.navigateTo({
+        url: '/pages/food/order-confirm'
+      });
+    },
+    
+    // 确认清空购物车
+    confirmClearCart() {
+      uni.showModal({
+        title: '提示',
+        content: '确定要清空购物车吗？',
+        success: (res) => {
+          if (res.confirm) {
+            this.cartItems = [];
+            this.saveCartData();
+            this.showCartModal = false;
+            uni.showToast({
+              title: '购物车已清空',
+              icon: 'success'
+            });
+          }
+        }
       });
     }
   }
@@ -1179,5 +1418,267 @@ export default {
 .cart-text {
   font-size: 28rpx;
   font-weight: 500;
+}
+
+/* 购物车弹窗样式 */
+.cart-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+}
+
+.cart-modal {
+  width: 100%;
+  max-height: 70vh;
+  background-color: #FFFFFF;
+  border-radius: 30rpx 30rpx 0 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cart-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.cart-modal-title {
+  font-size: 34rpx;
+  font-weight: bold;
+  color: #333333;
+}
+
+.cart-modal-actions {
+  display: flex;
+  align-items: center;
+}
+
+.cart-modal-clear {
+  font-size: 28rpx;
+  color: #999999;
+  margin-right: 30rpx;
+}
+
+.cart-modal-close {
+  font-size: 36rpx;
+  color: #999999;
+  padding: 10rpx;
+}
+
+.cart-modal-body {
+  flex: 1;
+  max-height: 50vh;
+  padding: 0 20rpx;
+}
+
+/* 店铺分组 */
+.cart-restaurant-group {
+  margin: 20rpx 0;
+  background-color: #FAFAFA;
+  border-radius: 16rpx;
+  overflow: hidden;
+}
+
+.cart-restaurant-header {
+  display: flex;
+  align-items: center;
+  padding: 20rpx;
+  background-color: #FFFFFF;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.cart-restaurant-logo {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 10rpx;
+  margin-right: 20rpx;
+}
+
+.cart-restaurant-info {
+  flex: 1;
+}
+
+.cart-restaurant-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333333;
+  display: block;
+}
+
+.cart-restaurant-tip {
+  font-size: 24rpx;
+  color: #FF6B6B;
+  margin-top: 6rpx;
+  display: block;
+}
+
+.cart-restaurant-arrow {
+  font-size: 36rpx;
+  color: #CCCCCC;
+}
+
+/* 购物车商品项 */
+.cart-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx;
+  background-color: #FFFFFF;
+  border-bottom: 1rpx solid #F5F5F5;
+}
+
+.cart-item:last-child {
+  border-bottom: none;
+}
+
+.cart-item-image {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 10rpx;
+  margin-right: 20rpx;
+}
+
+.cart-item-info {
+  flex: 1;
+}
+
+.cart-item-name {
+  font-size: 28rpx;
+  color: #333333;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cart-item-price {
+  font-size: 28rpx;
+  color: #FF6B6B;
+  font-weight: 600;
+  margin-top: 8rpx;
+  display: block;
+}
+
+.cart-item-actions {
+  display: flex;
+  align-items: center;
+}
+
+.cart-item-btn {
+  width: 50rpx;
+  height: 50rpx;
+  line-height: 46rpx;
+  text-align: center;
+  font-size: 32rpx;
+  color: #5DCDFF;
+  border: 2rpx solid #5DCDFF;
+  border-radius: 50%;
+}
+
+.cart-item-count {
+  font-size: 28rpx;
+  color: #333333;
+  min-width: 60rpx;
+  text-align: center;
+}
+
+/* 店铺小计 */
+.cart-restaurant-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx;
+  background-color: #FFFFFF;
+  border-top: 1rpx solid #F0F0F0;
+}
+
+.cart-subtotal {
+  display: flex;
+  align-items: center;
+}
+
+.cart-subtotal-label {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+.cart-subtotal-value {
+  font-size: 32rpx;
+  color: #FF6B6B;
+  font-weight: bold;
+}
+
+.cart-delivery-fee {
+  font-size: 22rpx;
+  color: #999999;
+  margin-left: 10rpx;
+}
+
+.cart-checkout-btn {
+  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
+  color: #FFFFFF;
+  font-size: 26rpx;
+  padding: 16rpx 40rpx;
+  border-radius: 30rpx;
+}
+
+.cart-checkout-btn.disabled {
+  background: #CCCCCC;
+}
+
+/* 空购物车 */
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100rpx 40rpx;
+}
+
+.cart-empty-icon {
+  font-size: 100rpx;
+  margin-bottom: 30rpx;
+}
+
+.cart-empty-text {
+  font-size: 32rpx;
+  color: #666666;
+  margin-bottom: 15rpx;
+}
+
+.cart-empty-hint {
+  font-size: 26rpx;
+  color: #999999;
+}
+
+/* 弹窗底部 */
+.cart-modal-footer {
+  padding: 20rpx 30rpx;
+  border-top: 1rpx solid #F0F0F0;
+  background-color: #FFFFFF;
+}
+
+.cart-total-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cart-total-count {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+.cart-total-amount {
+  font-size: 32rpx;
+  color: #FF6B6B;
+  font-weight: bold;
 }
 </style>
