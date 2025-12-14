@@ -120,6 +120,7 @@
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
 import api from '@/api/index.js';
+import foodApi from '@/api/food.js';
 
 export default {
   components: {
@@ -428,7 +429,7 @@ export default {
         
         if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
           // 完整映射后端返回的所有字段，确保前端能正确显示所有信息
-          this.recommendList = res.data.map(item => {
+          const mappedList = res.data.map(item => {
             console.log('单个外卖项数据:', item);
             // 处理图片URL，优先使用mainImageUrl，否则使用默认图片
             let imageUrl = item.mainImageUrl;
@@ -470,7 +471,11 @@ export default {
               tagCodes: item.tagCodes || ''
             };
           });
-          console.log('处理后的推荐外卖列表:', this.recommendList);
+          
+          // 验证商家是否存在，过滤掉商家不存在的商品
+          const validList = await this.filterValidMerchants(mappedList);
+          this.recommendList = validList;
+          console.log('处理后的推荐外卖列表（已过滤商家不存在的商品）:', this.recommendList);
         } else if (res && res.code === 500 && res.message === '用户未登录') {
           console.warn('用户未登录，无法获取推荐外卖');
           this.recommendList = [];
@@ -484,6 +489,65 @@ export default {
         this.recommendList = [];
         return null;
       }
+    },
+    
+    // 验证并过滤掉商家不存在的商品
+    async filterValidMerchants(foodList) {
+      if (!foodList || foodList.length === 0) {
+        return [];
+      }
+      
+      console.log('开始验证商家是否存在，共', foodList.length, '个商品');
+      
+      // 创建带超时的验证函数
+      const validateMerchantWithTimeout = (merchantId, timeout = 3000) => {
+        return Promise.race([
+          foodApi.getMerchantDetail(merchantId),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('验证超时')), timeout)
+          )
+        ]);
+      };
+      
+      // 并行验证所有商家是否存在，使用Promise.allSettled确保所有请求都能完成
+      const validationPromises = foodList.map(async (item) => {
+        const merchantId = item.restaurantId || item.merchantBaseId;
+        
+        // 如果没有商家ID，直接过滤掉
+        if (!merchantId) {
+          console.warn('商品缺少商家ID，已过滤:', item.goodsName);
+          return { item, isValid: false };
+        }
+        
+        try {
+          // 验证商家是否存在（带超时控制）
+          const merchantRes = await validateMerchantWithTimeout(merchantId);
+          
+          // 如果商家存在且返回成功
+          if (merchantRes && merchantRes.code === 200 && merchantRes.data) {
+            return { item, isValid: true };
+          } else {
+            console.warn('商家不存在，已过滤商品:', item.goodsName, '商家ID:', merchantId);
+            return { item, isValid: false };
+          }
+        } catch (error) {
+          console.warn('验证商家失败（可能是超时或网络错误），已过滤商品:', item.goodsName, '商家ID:', merchantId, '错误:', error.message);
+          // 验证失败时，为了安全起见，过滤掉该商品
+          return { item, isValid: false };
+        }
+      });
+      
+      // 等待所有验证完成（使用allSettled确保即使部分失败也能继续）
+      const validationResults = await Promise.allSettled(validationPromises);
+      
+      // 处理结果，只保留商家存在的商品
+      const validItems = validationResults
+        .filter(result => result.status === 'fulfilled' && result.value.isValid)
+        .map(result => result.value.item);
+      
+      console.log('商家验证完成，有效商品数量:', validItems.length, '/', foodList.length);
+      
+      return validItems;
     },
     
     // 获取推荐二手商品
