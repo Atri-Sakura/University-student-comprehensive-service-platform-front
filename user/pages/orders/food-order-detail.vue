@@ -26,7 +26,26 @@
       <view v-else>
         <!-- 商品信息卡片 -->
         <view class="order-card">
-
+          <!-- 商品列表 -->
+          <view v-if="order.orderTakeoutDetailList && order.orderTakeoutDetailList.length > 0" class="goods-list">
+            <view class="goods-item" v-for="(item, index) in order.orderTakeoutDetailList" :key="index">
+              <image 
+                class="goods-image" 
+                :src="getGoodsImage(item)" 
+                mode="aspectFill"
+                @error="handleImageError"
+              ></image>
+              <view class="goods-info">
+                <text class="goods-name">{{ item.goodsName || '商品' }}</text>
+                <text class="goods-spec" v-if="item.goodsSpec">{{ item.goodsSpec }}</text>
+                <view class="goods-price-row">
+                  <text class="goods-price">¥{{ item.goodsPrice || 0 }}</text>
+                  <text class="goods-quantity">x{{ item.quantity || 1 }}</text>
+                </view>
+              </view>
+              <view class="goods-subtotal">¥{{ (item.subtotal || item.goodsPrice * item.quantity || 0).toFixed(2) }}</view>
+            </view>
+          </view>
           
           <!-- 订单信息列表 -->
           <view class="order-info-list">
@@ -204,7 +223,14 @@ export default {
         
         if (res && res.code === 200) {
           // 处理后端返回的数据
-          this.order = this.processOrderData(res.data)
+          const processedOrder = this.processOrderData(res.data)
+          
+          // 批量获取商品图片
+          if (processedOrder.orderTakeoutDetailList && processedOrder.orderTakeoutDetailList.length > 0) {
+            await this.loadGoodsImages(processedOrder.orderTakeoutDetailList)
+          }
+          
+          this.order = processedOrder
         } else {
           console.error('获取订单详情失败:', res.message)
           this.error = res.message || '获取订单详情失败'
@@ -215,6 +241,75 @@ export default {
       } finally {
         this.loading = false
       }
+    },
+    
+    // 批量获取商品图片
+    async loadGoodsImages(orderDetailList) {
+      // 提取所有商品ID并去重
+      const goodsIds = [...new Set(
+        orderDetailList
+          .map(item => item.goodsId)
+          .filter(id => id != null && id !== '')
+      )]
+      
+      if (goodsIds.length === 0) {
+        return
+      }
+      
+      // 批量查询商品图片
+      const goodsImagesMap = {}
+      const imagePromises = goodsIds.map(async (goodsId) => {
+        try {
+          const goodsRes = await api.food.getGoodsDetail(goodsId)
+          if (goodsRes && goodsRes.code === 200 && goodsRes.data) {
+            const images = goodsRes.data.images || []
+            // 获取主图（isMain=1的图片）或第一张图片
+            const mainImage = images.find(img => img.isMain === 1)?.imageUrl || 
+                            (images.length > 0 ? images[0].imageUrl : null)
+            goodsImagesMap[goodsId] = {
+              mainImage: mainImage,
+              images: images
+            }
+          }
+        } catch (error) {
+          console.warn(`获取商品${goodsId}的图片失败:`, error)
+          goodsImagesMap[goodsId] = {
+            mainImage: null,
+            images: []
+          }
+        }
+      })
+      
+      await Promise.all(imagePromises)
+      
+      // 将图片信息添加到订单明细中
+      orderDetailList.forEach(detail => {
+        if (detail.goodsId && goodsImagesMap[detail.goodsId]) {
+          detail.mainImage = goodsImagesMap[detail.goodsId].mainImage
+          detail.images = goodsImagesMap[detail.goodsId].images
+        }
+      })
+    },
+    
+    // 获取商品图片
+    getGoodsImage(item) {
+      // 优先使用已加载的图片
+      if (item.mainImage) {
+        return item.mainImage
+      }
+      // 如果有图片数组，取第一张
+      if (item.images && item.images.length > 0) {
+        const mainImg = item.images.find(img => img.isMain === 1)
+        return mainImg ? mainImg.imageUrl : item.images[0].imageUrl
+      }
+      // 默认图片
+      return '/static/default-food.png'
+    },
+    
+    // 图片加载错误处理
+    handleImageError(e) {
+      console.warn('商品图片加载失败:', e)
+      // 可以在这里设置默认图片
     },
     
     // 处理订单数据，将后端返回的数据转换为页面需要的格式
@@ -510,6 +605,78 @@ export default {
   margin-bottom: 30rpx;
   box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
   position: relative;
+}
+
+/* 商品列表样式 */
+.goods-list {
+  margin-bottom: 30rpx;
+}
+
+.goods-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #F0F0F0;
+}
+
+.goods-item:last-child {
+  border-bottom: none;
+}
+
+.goods-image {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 10rpx;
+  margin-right: 20rpx;
+  background-color: #F5F5F5;
+}
+
+.goods-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.goods-name {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goods-spec {
+  font-size: 24rpx;
+  color: #999;
+  margin-bottom: 8rpx;
+}
+
+.goods-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.goods-price {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.goods-quantity {
+  font-size: 26rpx;
+  color: #999;
+}
+
+.goods-subtotal {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-left: 20rpx;
+  min-width: 100rpx;
+  text-align: right;
 }
 
 /* 商品基本信息 */
