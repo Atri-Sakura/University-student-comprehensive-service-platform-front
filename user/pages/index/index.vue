@@ -147,6 +147,11 @@ export default {
     // 加载所有数据
     this.loadAllData();
   },
+  onShow() {
+    // 页面显示时刷新推荐外卖数据，确保月售数量是最新的
+    // 这样可以确保从支付页面返回首页时，能看到最新的销量数据
+    this.getTakeoutRecommendations();
+  },
   methods: {
     // 加载所有数据
     async loadAllData() {
@@ -459,6 +464,18 @@ export default {
             const merchantGoodsId = item.merchantGoodsId ? fixKnownId(safeStringifyId(item.merchantGoodsId)) : null;
             const restaurantId = item.restaurantId ? fixKnownId(safeStringifyId(item.restaurantId)) : merchantBaseId;
             
+            // 处理销量字段，支持多种可能的字段名
+            let salesCount = 0;
+            if (item.salesCount !== undefined && item.salesCount !== null) {
+              salesCount = Number(item.salesCount) || 0;
+            } else if (item.sales_count !== undefined && item.sales_count !== null) {
+              salesCount = Number(item.sales_count) || 0;
+            } else if (item.monthlySales !== undefined && item.monthlySales !== null) {
+              salesCount = Number(item.monthlySales) || 0;
+            } else if (item.monthlySalesCount !== undefined && item.monthlySalesCount !== null) {
+              salesCount = Number(item.monthlySalesCount) || 0;
+            }
+            
             return {
               ...item,
               // 确保基础字段存在并处理
@@ -471,8 +488,8 @@ export default {
               // 评分相关字段
               avgRating: item.avgRating || 0,
               ratingCount: item.ratingCount || 0,
-              // 销量信息
-              salesCount: item.salesCount || 0,
+              // 销量信息 - 使用处理后的销量值
+              salesCount: salesCount,
               // 导航所需字段 - 使用修复后的ID
               id: fixKnownId(safeStringifyId(item.id || item.merchantGoodsId || Math.floor(Math.random() * 1000))),
               // 确保商家ID使用字符串类型，避免大数字精度丢失问题

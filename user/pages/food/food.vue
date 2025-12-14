@@ -49,7 +49,7 @@
           </view>
           
           <!-- 商家列表滚动区域 -->
-          <scroll-view scroll-y class="restaurant-list">
+          <scroll-view scroll-y class="restaurant-list" :style="{ height: contentHeight + 'px' }">
 
           <!-- 商家项 -->
           <view v-if="filteredRestaurants.length > 0">
@@ -100,8 +100,13 @@
               
               <!-- 商家推荐商品 -->
               <view class="restaurant-foods" v-if="restaurant.foods && restaurant.foods.length > 0">
-                <view class="food-item" v-for="(food, index) in restaurant.foods.slice(0, 2)" :key="food.id">
-                  <image class="food-image" :src="food.image" mode="aspectFill"></image>
+                <view class="food-item" v-for="(food, index) in restaurant.foods.slice(0, 2)" :key="food.id || index">
+                  <image 
+                    class="food-image" 
+                    :src="getValidImageUrl(food.image || food.mainImageUrl || food.imageUrl)" 
+                    mode="aspectFill"
+                    @error="handleImageError($event, index, 'goods')">
+                  </image>
                   <view class="food-info">
                     <text class="food-name">{{ food.goodsName }}</text>
                     <text class="food-price">¥{{ food.price }}</text>
@@ -139,6 +144,7 @@ export default {
     return {
       statusBarHeight: 0,
       navHeight: 0,
+      contentHeight: 0, // 内容区域高度
       searchKeyword: '',
       selectedCategory: '全部', // 选中的分类名称，默认为"全部"分类
         filter: {
@@ -165,7 +171,17 @@ export default {
     // 计算导航栏高度（默认44px + 状态栏高度）
     this.navHeight = systemInfo.statusBarHeight + 44;
     
+    // 计算内容区域高度（屏幕高度 - 导航栏 - 搜索栏 - 筛选栏）
+    // 筛选栏高度约80rpx，转换为px（假设1rpx = 0.5px）
+    const filterBarHeight = 40; // 筛选栏高度（px）
+    this.contentHeight = systemInfo.windowHeight - this.navHeight - 80 - filterBarHeight;
+    
     // 页面加载时初始化加载商品列表
+    this.loadGoodsList();
+  },
+  onShow() {
+    // 页面显示时刷新商家列表数据，确保月售数量是最新的
+    // 这样可以确保从支付页面返回时，能看到最新的商家月售数据
     this.loadGoodsList();
   },
   computed: {
@@ -181,14 +197,66 @@ export default {
         // 使用getValidImageUrl方法处理商家logo URL
         let logoUrl = this.getValidImageUrl(merchant.logo);
         
+        // 计算商家所有商品的总月售（累加所有商品的销量）
+        let totalMonthSales = 0;
+        if (merchantGoods && merchantGoods.length > 0) {
+          // 调试：输出第一个商品的字段，帮助排查问题
+          if (merchantGoods.length > 0) {
+            console.log(`商家${merchant.merchantBaseId}的第一个商品数据:`, merchantGoods[0]);
+            console.log(`商家${merchant.merchantBaseId}的第一个商品所有字段:`, Object.keys(merchantGoods[0]));
+          }
+          
+          totalMonthSales = merchantGoods.reduce((sum, goods, index) => {
+            // 支持多种销量字段名
+            let goodsSales = 0;
+            if (goods.salesCount !== undefined && goods.salesCount !== null) {
+              goodsSales = Number(goods.salesCount) || 0;
+            } else if (goods.sales_count !== undefined && goods.sales_count !== null) {
+              goodsSales = Number(goods.sales_count) || 0;
+            } else if (goods.monthlySales !== undefined && goods.monthlySales !== null) {
+              goodsSales = Number(goods.monthlySales) || 0;
+            } else if (goods.monthlySalesCount !== undefined && goods.monthlySalesCount !== null) {
+              goodsSales = Number(goods.monthlySalesCount) || 0;
+            }
+            
+            // 调试：输出每个商品的销量信息
+            if (index === 0) {
+              console.log(`商家${merchant.merchantBaseId}的商品销量字段检查:`, {
+                salesCount: goods.salesCount,
+                sales_count: goods.sales_count,
+                monthlySales: goods.monthlySales,
+                monthlySalesCount: goods.monthlySalesCount,
+                计算出的销量: goodsSales
+              });
+            }
+            
+            return sum + goodsSales;
+          }, 0);
+          
+          console.log(`商家${merchant.merchantBaseId}的总月售:`, totalMonthSales);
+        }
+        
+        // 如果商品列表为空或总销量为0，尝试使用商家本身的月售字段作为备选
+        if (totalMonthSales === 0) {
+          if (merchant.monthSales !== undefined && merchant.monthSales !== null) {
+            totalMonthSales = Number(merchant.monthSales) || 0;
+          } else if (merchant.month_sales !== undefined && merchant.month_sales !== null) {
+            totalMonthSales = Number(merchant.month_sales) || 0;
+          } else if (merchant.salesCount !== undefined && merchant.salesCount !== null) {
+            totalMonthSales = Number(merchant.salesCount) || 0;
+          } else if (merchant.sales_count !== undefined && merchant.sales_count !== null) {
+            totalMonthSales = Number(merchant.sales_count) || 0;
+          }
+        }
+        
         // 完整映射后端返回的商家字段
         return {
           id: merchant.merchantBaseId,
           name: merchant.merchantName || '未命名商家',
           image: logoUrl,
           rating: merchant.rating || 0,
-            sales: merchant.monthSales || 0,
-            tags: [], // 不再使用经营范围作为标签
+          sales: totalMonthSales, // 使用计算出的总月售
+          tags: [], // 不再使用经营范围作为标签
           foods: merchantGoods,
           // 添加后端返回的其他商家字段
           businessHours: merchant.businessHours || '00:00-24:00',
@@ -226,6 +294,15 @@ export default {
     }
   },
   methods: {
+    // 处理图片加载错误
+    handleImageError(event, index, type) {
+      console.log('图片加载失败:', { event, index, type });
+      // 设置默认占位图
+      if (event && event.target) {
+        event.target.src = '/static/images/default-food.svg';
+      }
+    },
+    
     // 获取有效图片URL
     getValidImageUrl(url) {
       console.log('原始URL输入:', url);
@@ -392,20 +469,82 @@ export default {
             
             let goodsList = [];
             if (goodsResponse && goodsResponse.code === 200) {
-              // 处理商品数据的分页结构
-              if (goodsResponse.data && goodsResponse.data.rows && Array.isArray(goodsResponse.data.rows)) {
+              // 处理商品数据的分页结构，支持多种返回格式
+              // 1. 顶层rows字段（如：{code: 200, rows: [...]}）
+              if (goodsResponse.rows && Array.isArray(goodsResponse.rows)) {
+                goodsList = goodsResponse.rows;
+                console.log(`商家${merchant.merchantBaseId}的商品使用顶层rows字段，长度:`, goodsList.length);
+              }
+              // 2. data.rows字段（标准分页结构）
+              else if (goodsResponse.data && goodsResponse.data.rows && Array.isArray(goodsResponse.data.rows)) {
                 goodsList = goodsResponse.data.rows;
-                console.log(`商家${merchant.merchantBaseId}的商品使用分页数据，rows长度:`, goodsList.length);
-              } else if (goodsResponse.data && Array.isArray(goodsResponse.data)) {
+                console.log(`商家${merchant.merchantBaseId}的商品使用data.rows字段，长度:`, goodsList.length);
+              }
+              // 3. data直接是数组
+              else if (goodsResponse.data && Array.isArray(goodsResponse.data)) {
                 goodsList = goodsResponse.data;
                 console.log(`商家${merchant.merchantBaseId}的商品直接返回数组，长度:`, goodsList.length);
               }
             }
             
             // 完整映射后端返回的商品字段，确保前端能正确显示所有信息
-            const mappedGoods = goodsList.map(item => {
+            const mappedGoods = goodsList.map((item, index) => {
+              // 调试：输出第一个商品的原始数据
+              if (index === 0) {
+                console.log(`商家${merchant.merchantBaseId}的商品原始数据示例:`, item);
+                console.log(`商家${merchant.merchantBaseId}的商品原始数据所有字段:`, Object.keys(item));
+              }
+              
+              // 处理销量字段，支持多种可能的字段名，保留原始值
+              let salesCount = 0;
+              if (item.salesCount !== undefined && item.salesCount !== null) {
+                salesCount = Number(item.salesCount) || 0;
+              } else if (item.sales_count !== undefined && item.sales_count !== null) {
+                salesCount = Number(item.sales_count) || 0;
+              }
+              
+              // 处理商品图片URL，支持多种可能的字段名
+              let goodsImageUrl = '';
+              // 优先使用mainImageUrl（后端查询的主图）
+              if (item.mainImageUrl && typeof item.mainImageUrl === 'string' && item.mainImageUrl.trim() !== '') {
+                goodsImageUrl = item.mainImageUrl.trim();
+              } 
+              // 其次使用imageUrl
+              else if (item.imageUrl && typeof item.imageUrl === 'string' && item.imageUrl.trim() !== '') {
+                goodsImageUrl = item.imageUrl.trim();
+              } 
+              // 再次使用image
+              else if (item.image && typeof item.image === 'string' && item.image.trim() !== '') {
+                goodsImageUrl = item.image.trim();
+              } 
+              // 最后尝试从imageList中获取
+              else if (item.imageList && Array.isArray(item.imageList) && item.imageList.length > 0) {
+                const firstImage = item.imageList[0];
+                if (firstImage && typeof firstImage === 'string' && firstImage.trim() !== '') {
+                  goodsImageUrl = firstImage.trim();
+                } else if (firstImage && firstImage.imageUrl && typeof firstImage.imageUrl === 'string' && firstImage.imageUrl.trim() !== '') {
+                  goodsImageUrl = firstImage.imageUrl.trim();
+                }
+              }
+              
+              // 如果还是没有图片URL，使用默认占位图
+              if (!goodsImageUrl || goodsImageUrl === '') {
+                goodsImageUrl = '/static/images/default-food.svg';
+              }
+              
+              // 调试：输出图片URL处理结果（仅第一个商品）
+              if (index === 0) {
+                console.log(`商家${merchant.merchantBaseId}的商品图片处理:`, {
+                  mainImageUrl: item.mainImageUrl,
+                  imageUrl: item.imageUrl,
+                  image: item.image,
+                  imageList: item.imageList,
+                  最终图片URL: goodsImageUrl
+                });
+              }
+              
               return {
-                ...item,
+                ...item, // 先展开所有原始字段，确保不丢失任何数据
                 // 确保基础字段存在并处理
                 goodsName: item.goodsName || '未命名商品',
                 // 价格相关字段
@@ -419,102 +558,50 @@ export default {
                 threeStarRate: item.threeStarRate,
                 twoStarRate: item.twoStarRate,
                 oneStarRate: item.oneStarRate,
-                // 销量和月售字段
-                salesCount: item.salesCount || 0,
+                // 销量和月售字段 - 使用处理后的值，但保留原始字段
+                salesCount: salesCount || item.salesCount || 0,
+                sales_count: item.sales_count || salesCount || 0,
                 monthlySales: item.monthlySales || 0,
+                monthlySalesCount: item.monthlySalesCount || 0,
+                // 图片字段 - 使用处理后的图片URL
+                image: goodsImageUrl,
+                mainImageUrl: goodsImageUrl,
+                imageUrl: goodsImageUrl,
                 // 其他字段
                 stock: item.stock || 0,
-                image: item.image || '',
                 description: item.description || '',
                 status: item.status || 1,
                 categoryId: item.categoryId,
                 categoryName: item.categoryName,
                 avgScore: item.avgScore || 4.5,
-                monthlySalesCount: item.monthlySalesCount || 0,
                 totalSalesCount: item.totalSalesCount || 0,
                 inventory: item.inventory || 0
               };
             });
             
-            // 存储商家的商品列表到goodsMap
-            this.goodsMap[merchant.merchantBaseId] = mappedGoods;
+            // 按销量排序商品（销量高的在前）
+            mappedGoods.sort((a, b) => {
+              const salesA = a.salesCount || a.sales_count || a.monthlySales || a.monthlySalesCount || 0;
+              const salesB = b.salesCount || b.sales_count || b.monthlySales || b.monthlySalesCount || 0;
+              return Number(salesB) - Number(salesA); // 降序排列
+            });
+            
+            // 存储商家的商品列表到goodsMap（已按销量排序）
+            // 使用Vue.set确保响应式更新，触发计算属性重新计算
+            this.$set(this.goodsMap, merchant.merchantBaseId, mappedGoods);
           } catch (error) {
             console.error(`获取商家${merchant.merchantBaseId}的商品失败:`, error);
             // 即使获取失败，也将空数组存储到goodsMap，避免后续出错
-            this.goodsMap[merchant.merchantBaseId] = [];
+            this.$set(this.goodsMap, merchant.merchantBaseId, []);
           }
         }
         
         console.log('商品加载完成，goodsMap:', this.goodsMap);
         
-        // 遍历商家，获取每个商家的商品列表
-        for (const merchant of this.merchants) {
-          try {
-            const goodsResponse = await foodApi.getMerchantGoodsList(merchant.merchantBaseId);
-            console.log(`goodsResponse for merchant ${merchant.merchantBaseId}:`, goodsResponse);
-            
-            let goodsList = [];
-            if (goodsResponse && goodsResponse.code === 200 && goodsResponse.data && Array.isArray(goodsResponse.data)) {
-              goodsList = goodsResponse.data;
-            }
-            // 不添加任何默认商品，直接使用后端返回的数据
-            console.log(`Goods count for merchant ${merchant.merchantBaseId}:`, goodsList.length);
-            
-            // 完整映射后端返回的商品字段，确保前端能正确显示所有信息
-            const mappedGoods = goodsList.map(item => {
-              return {
-                ...item,
-                // 确保基础字段存在并处理
-                goodsName: item.goodsName || '未命名商品',
-                // 价格相关字段
-                price: item.price || 0,
-                originalPrice: item.originalPrice || null,
-                // 评分相关字段 - 优先使用后端返回的真实数据
-                avgRating: item.avgRating,
-                ratingCount: item.ratingCount,
-                fiveStarRate: item.fiveStarRate,
-                fourStarRate: item.fourStarRate,
-                threeStarRate: item.threeStarRate,
-                twoStarRate: item.twoStarRate,
-                oneStarRate: item.oneStarRate,
-                // 销量信息
-                salesCount: item.salesCount || 0,
-                // 状态信息
-                onSale: item.onSale || false,
-                status: item.status || 1,
-                // 库存信息
-                stock: item.stock || 0,
-                // 分类信息 - 优先使用后端返回的真实数据
-                category: item.category,
-                subCategory: item.subCategory,
-                tagCodes: item.tagCodes,
-                // 描述信息 - 优先使用后端返回的真实数据
-                description: item.description,
-                remark: item.remark,
-                // 商家信息
-                merchantBaseId: item.merchantBaseId || null,
-                merchantGoodsId: item.merchantGoodsId || null,
-                // 图片信息
-                image: item.mainImageUrl || item.imageUrl || '/static/images/default-food.svg',
-                // 时间信息
-                createTime: item.createTime || '',
-                updateTime: item.updateTime || '',
-                // 导航所需字段
-                id: item.merchantGoodsId || Math.floor(Math.random() * 10000)
-              };
-            });
-            
-            // 将映射后的商品列表存入goodsMap，键为商家ID
-            this.goodsMap[merchant.merchantBaseId] = mappedGoods;
-          } catch (error) {
-            console.error(`Failed to get goods for merchant ${merchant.merchantBaseId}:`, error);
-            // API调用失败时，不添加默认商品
-            this.goodsMap[merchant.merchantBaseId] = [];
-          }
-        }
-        
-        console.log('Final merchants:', this.merchants);
-        console.log('Final goodsMap:', this.goodsMap);
+        // 强制更新视图，确保计算属性重新计算商家月售
+        this.$nextTick(() => {
+          this.$forceUpdate();
+        });
         
       } catch (error) {
         console.error('加载商品列表失败:', error);
@@ -716,6 +803,7 @@ export default {
 /* 分类列表 */
 .category-list {
   width: 200rpx;
+  height: 100%;
   background-color: #F5F5F5;
   flex-shrink: 0;
 }
@@ -757,6 +845,7 @@ export default {
 /* 商家列表 */
 .restaurant-list {
   flex: 1;
+  height: 100%;
   background-color: #fafafa;
   padding: 10rpx;
   box-sizing: border-box;
@@ -1028,6 +1117,8 @@ export default {
   display: flex;
   flex-direction: column;
   background-color: #fafafa;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* 空状态提示 */
