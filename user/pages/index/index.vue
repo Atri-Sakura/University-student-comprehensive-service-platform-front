@@ -121,6 +121,8 @@
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
 import api from '@/api/index.js';
 import foodApi from '@/api/food.js';
+import { processApiResponseIds, safeStringifyId } from '@/utils/id-utils.js';
+import { fixKnownId } from '@/utils/id-fix-helper.js';
 
 export default {
   components: {
@@ -428,9 +430,21 @@ export default {
         const res = await api.indexPage.getTakeoutRecommendations();
         
         if (res && res.code === 200 && res.data && Array.isArray(res.data)) {
+          // 首先使用processApiResponseIds处理所有ID字段，确保大整数ID被转换为字符串
+          const processedData = processApiResponseIds(res.data, [
+            'id',
+            'merchantBaseId',
+            'merchantGoodsId',
+            'merchantId',
+            'goodsId',
+            'restaurantId',
+            'userBaseId'
+          ]);
+          
           // 完整映射后端返回的所有字段，确保前端能正确显示所有信息
-          const mappedList = res.data.map(item => {
+          const mappedList = processedData.map(item => {
             console.log('单个外卖项数据:', item);
+            
             // 处理图片URL，优先使用mainImageUrl，否则使用默认图片
             let imageUrl = item.mainImageUrl;
             // 如果有imageList且是数组，也可以考虑使用第一张图片
@@ -439,6 +453,11 @@ export default {
             }
             // 使用getValidImageUrl函数处理图片URL
             const finalImageUrl = this.getValidImageUrl(imageUrl);
+            
+            // 获取并修复商家ID（使用fixKnownId修复已知的精度丢失问题）
+            const merchantBaseId = item.merchantBaseId ? fixKnownId(safeStringifyId(item.merchantBaseId)) : null;
+            const merchantGoodsId = item.merchantGoodsId ? fixKnownId(safeStringifyId(item.merchantGoodsId)) : null;
+            const restaurantId = item.restaurantId ? fixKnownId(safeStringifyId(item.restaurantId)) : merchantBaseId;
             
             return {
               ...item,
@@ -454,13 +473,13 @@ export default {
               ratingCount: item.ratingCount || 0,
               // 销量信息
               salesCount: item.salesCount || 0,
-              // 导航所需字段
-              id: String(item.id || item.merchantGoodsId || Math.floor(Math.random() * 1000)),
+              // 导航所需字段 - 使用修复后的ID
+              id: fixKnownId(safeStringifyId(item.id || item.merchantGoodsId || Math.floor(Math.random() * 1000))),
               // 确保商家ID使用字符串类型，避免大数字精度丢失问题
-              // 所有商家相关ID都转换为字符串
-              restaurantId: item.restaurantId ? String(item.restaurantId) : (item.merchantBaseId ? String(item.merchantBaseId) : null),
-              merchantBaseId: item.merchantBaseId ? String(item.merchantBaseId) : null,
-              merchantGoodsId: item.merchantGoodsId || null,
+              // 所有商家相关ID都转换为字符串并修复已知问题
+              restaurantId: restaurantId,
+              merchantBaseId: merchantBaseId,
+              merchantGoodsId: merchantGoodsId,
               // 分类信息
               category: item.category || '',
               subCategory: item.subCategory || '',
@@ -472,10 +491,9 @@ export default {
             };
           });
           
-          // 验证商家是否存在，过滤掉商家不存在的商品
-          const validList = await this.filterValidMerchants(mappedList);
-          this.recommendList = validList;
-          console.log('处理后的推荐外卖列表（已过滤商家不存在的商品）:', this.recommendList);
+          // 直接使用映射后的列表，后端已确保数据有效性
+          this.recommendList = mappedList;
+          console.log('处理后的推荐外卖列表:', this.recommendList);
         } else if (res && res.code === 500 && res.message === '用户未登录') {
           console.warn('用户未登录，无法获取推荐外卖');
           this.recommendList = [];
@@ -489,65 +507,6 @@ export default {
         this.recommendList = [];
         return null;
       }
-    },
-    
-    // 验证并过滤掉商家不存在的商品
-    async filterValidMerchants(foodList) {
-      if (!foodList || foodList.length === 0) {
-        return [];
-      }
-      
-      console.log('开始验证商家是否存在，共', foodList.length, '个商品');
-      
-      // 创建带超时的验证函数
-      const validateMerchantWithTimeout = (merchantId, timeout = 3000) => {
-        return Promise.race([
-          foodApi.getMerchantDetail(merchantId),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('验证超时')), timeout)
-          )
-        ]);
-      };
-      
-      // 并行验证所有商家是否存在，使用Promise.allSettled确保所有请求都能完成
-      const validationPromises = foodList.map(async (item) => {
-        const merchantId = item.restaurantId || item.merchantBaseId;
-        
-        // 如果没有商家ID，直接过滤掉
-        if (!merchantId) {
-          console.warn('商品缺少商家ID，已过滤:', item.goodsName);
-          return { item, isValid: false };
-        }
-        
-        try {
-          // 验证商家是否存在（带超时控制）
-          const merchantRes = await validateMerchantWithTimeout(merchantId);
-          
-          // 如果商家存在且返回成功
-          if (merchantRes && merchantRes.code === 200 && merchantRes.data) {
-            return { item, isValid: true };
-          } else {
-            console.warn('商家不存在，已过滤商品:', item.goodsName, '商家ID:', merchantId);
-            return { item, isValid: false };
-          }
-        } catch (error) {
-          console.warn('验证商家失败（可能是超时或网络错误），已过滤商品:', item.goodsName, '商家ID:', merchantId, '错误:', error.message);
-          // 验证失败时，为了安全起见，过滤掉该商品
-          return { item, isValid: false };
-        }
-      });
-      
-      // 等待所有验证完成（使用allSettled确保即使部分失败也能继续）
-      const validationResults = await Promise.allSettled(validationPromises);
-      
-      // 处理结果，只保留商家存在的商品
-      const validItems = validationResults
-        .filter(result => result.status === 'fulfilled' && result.value.isValid)
-        .map(result => result.value.item);
-      
-      console.log('商家验证完成，有效商品数量:', validItems.length, '/', foodList.length);
-      
-      return validItems;
     },
     
     // 获取推荐二手商品
