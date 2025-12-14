@@ -133,14 +133,12 @@ export default {
     const cartData = uni.getStorageSync('foodCart');
     if (cartData) {
       this.restaurant = cartData.restaurant || {};
-      // 确保配送费正确，防止旧数据影响
-      if (this.restaurant.deliveryFee === 5) {
-        this.restaurant.deliveryFee = 3;
-        console.log('修正配送费从5元为3元');
-      }
       this.cartItems = cartData.items || [];
       // 模拟优惠计算
       this.calculateDiscount();
+      
+      // 从商家详情API重新获取配送费，确保数据一致性
+      this.loadMerchantDeliveryFee();
     }
     
     // 从后端API加载默认地址，不再从本地存储获取
@@ -297,6 +295,51 @@ export default {
       this.discountAmount = 0;
     },
     
+    // 从商家详情API重新获取配送费，确保数据一致性
+    async loadMerchantDeliveryFee() {
+      if (!this.restaurant || !this.restaurant.id) {
+        console.warn('商家ID不存在，无法获取配送费');
+        return;
+      }
+      
+      try {
+        console.log('从商家详情API获取配送费，商家ID:', this.restaurant.id);
+        const merchantRes = await foodApi.getMerchantDetail(this.restaurant.id);
+        
+        if (merchantRes && merchantRes.code === 200 && merchantRes.data) {
+          // 提取商家信息
+          let merchantInfo = null;
+          if (merchantRes.data && typeof merchantRes.data === 'object' && !Array.isArray(merchantRes.data)) {
+            merchantInfo = merchantRes.data;
+          } else if (merchantRes.data && Array.isArray(merchantRes.data.rows) && merchantRes.data.rows.length > 0) {
+            merchantInfo = merchantRes.data.rows[0];
+          } else if (Array.isArray(merchantRes.rows) && merchantRes.rows.length > 0) {
+            merchantInfo = merchantRes.rows[0];
+          } else if (Array.isArray(merchantRes.data) && merchantRes.data.length > 0) {
+            merchantInfo = merchantRes.data[0];
+          }
+          
+          if (merchantInfo) {
+            // 更新配送费，使用API返回的最新值
+            const latestDeliveryFee = merchantInfo.deliveryFee || merchantInfo.shippingFee || this.restaurant.deliveryFee || 0;
+            if (this.restaurant.deliveryFee !== latestDeliveryFee) {
+              console.log('配送费已更新:', this.restaurant.deliveryFee, '->', latestDeliveryFee);
+              this.restaurant.deliveryFee = latestDeliveryFee;
+            } else {
+              console.log('配送费无需更新，当前值:', latestDeliveryFee);
+            }
+          } else {
+            console.warn('无法从API响应中提取商家信息');
+          }
+        } else {
+          console.warn('获取商家详情失败，使用本地存储的配送费:', merchantRes?.msg || merchantRes?.message);
+        }
+      } catch (error) {
+        console.error('获取商家配送费失败:', error);
+        // 获取失败时，继续使用本地存储的配送费
+      }
+    },
+    
     // 从后端API加载默认地址
     async loadDefaultAddress() {
       try {
@@ -401,8 +444,8 @@ export default {
       userId = String(userId);
       console.log('创建预支付订单时的用户ID:', userId);
       
-      // 明确修正配送费，确保发送给后端的是3元
-        const correctedDeliveryFee = 3;
+      // 使用当前商家对象中的配送费（已从API获取最新值）
+        const deliveryFee = this.restaurant.deliveryFee || 0;
         
         // 根据后端CreateOrderDTO验证要求，构建完全符合规范的订单数据
         const orderData = {
@@ -419,10 +462,10 @@ export default {
           merchantName: this.restaurant.name,
           restaurantId: this.restaurant.id,
           restaurantName: this.restaurant.name,
-          // 确保发送给后端的restaurant对象中的配送费也是修正后的3元
+          // 使用从API获取的最新配送费
           restaurant: {
             ...this.restaurant,
-            deliveryFee: correctedDeliveryFee
+            deliveryFee: deliveryFee
           },
           
           // 地址信息 - 包含所有后端可能需要的字段，确保字段有值
@@ -462,16 +505,16 @@ export default {
           // 添加前端计算的金额字段，确保支付页面使用一致的金额
           // 确保所有金额都保留两位小数，与支付页面保持一致
           itemsTotal: parseFloat(this.itemsTotal.toFixed(2)),
-          // 明确使用修正后的配送费3元
-          deliveryFee: parseFloat(correctedDeliveryFee.toFixed(2)),
+          // 使用从API获取的最新配送费
+          deliveryFee: parseFloat(deliveryFee.toFixed(2)),
           discountAmount: parseFloat(this.discountAmount.toFixed(2)),
-          // 重新计算总金额，确保使用修正后的配送费
-          totalAmount: parseFloat((this.itemsTotal + correctedDeliveryFee - this.discountAmount).toFixed(2))
+          // 重新计算总金额，确保使用最新的配送费
+          totalAmount: parseFloat((this.itemsTotal + deliveryFee - this.discountAmount).toFixed(2))
         };
         
-        console.log('明确修正配送费为3元，发送给后端的订单数据:', {
-          '修正后的配送费': correctedDeliveryFee,
-          '修正后的总金额': orderData.totalAmount,
+        console.log('发送给后端的订单数据（配送费已从API获取）:', {
+          '配送费': deliveryFee,
+          '总金额': orderData.totalAmount,
           '商品总价': orderData.itemsTotal,
           '优惠金额': orderData.discountAmount
         });
