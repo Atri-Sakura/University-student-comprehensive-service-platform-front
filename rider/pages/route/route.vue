@@ -50,63 +50,148 @@
 			</view>
 			
 			<scroll-view class="orders-scroll" scroll-y="true">
-				<!-- 配送订单卡片 -->
-				<view 
-					class="order-item" 
-					v-for="(order, index) in activeOrders" 
-					:key="order.id"
-					@tap="selectOrder(order)"
-					:class="{ active: selectedOrderId === order.id }"
-				>
-					<!-- 左侧序号徽章 -->
-					<view class="order-left">
-						<view class="order-badge" :style="{ backgroundColor: order.color }">
-							<text class="badge-text">{{ index + 1 }}</text>
-						</view>
-						<view class="order-line" :style="{ backgroundColor: order.color }" v-if="index < activeOrders.length - 1"></view>
-					</view>
-					
-					<!-- 中间内容区 -->
-					<view class="order-content">
-						<view class="order-header">
-							<view class="order-type-wrapper">
-								<text class="order-type-icon">{{ order.type === 'pickup' ? '📦' : '📍' }}</text>
-								<text class="order-type-text">{{ order.type === 'pickup' ? '取货' : '送货' }}</text>
+				<!-- 取货地列表 -->
+				<view class="group-section">
+					<text class="group-title">取货地</text>
+					<view 
+						class="order-item" 
+						v-for="(order, index) in pickupOrders" 
+						:key="order.id"
+						@tap="selectOrder(order)"
+						:class="{ active: selectedOrderId === order.id }"
+					>
+						<!-- 左侧序号徽章 -->
+						<view class="order-left">
+							<view class="order-badge" :style="{ backgroundColor: order.color }">
+								<text class="badge-text">{{ index + 1 }}</text>
 							</view>
-							<view class="order-tag" :style="{ backgroundColor: order.color }">
-								<text class="tag-text">{{ order.statusText }}</text>
+							<view class="order-line" :style="{ backgroundColor: order.color }" v-if="index < pickupOrders.length - 1"></view>
+						</view>
+						
+						<!-- 中间内容区 -->
+						<view class="order-content">
+							<view class="order-header">
+								<view class="order-type-wrapper">
+									<text class="order-type-icon">📦</text>
+									<text class="order-type-text">取货</text>
+								</view>
+								<view class="order-tag" :style="{ backgroundColor: order.color }">
+									<text class="tag-text">{{ order.statusText }}</text>
+								</view>
+							</view>
+							
+					<view class="order-address-row">
+						<text class="address-icon">🏠</text>
+						<text class="order-address">{{ order.address }}</text>
+					</view>
+					<view class="order-address-row">
+						<text class="address-icon">👤</text>
+						<text class="order-address">{{ order.name ? maskName(order.name) : '—' }}</text>
+					</view>
+							
+							<view class="order-info-row">
+								<view class="info-item time">
+									<text class="info-icon">⏰</text>
+									<text class="info-text">{{ order.time }}</text>
+								</view>
+								<view class="info-item distance">
+									<text class="info-icon">📏</text>
+									<text class="info-text">{{ order.distance }}</text>
+								</view>
 							</view>
 						</view>
 						
-						<view class="order-address-row">
-							<text class="address-icon">🏠</text>
-							<text class="order-address">{{ order.address }}</text>
-						</view>
-						
-						<view class="order-info-row">
-							<view class="info-item time">
-								<text class="info-icon">⏰</text>
-								<text class="info-text">{{ order.time }}</text>
+						<!-- 右侧操作按钮 -->
+						<view class="order-actions">
+							<view class="action-btn" @tap.stop="callPhone(order)">
+								<text class="action-icon">📞</text>
 							</view>
-							<view class="info-item distance">
-								<text class="info-icon">📏</text>
-								<text class="info-text">{{ order.distance }}</text>
+							<view class="action-btn" @tap.stop="navigateTo(order)">
+								<text class="action-icon">🧭</text>
 							</view>
 						</view>
 					</view>
-					
-					<!-- 右侧操作按钮 -->
-					<view class="order-actions">
-						<view class="action-btn" @tap.stop="callPhone(order)">
-							<text class="action-icon">📞</text>
-						</view>
+
+					<!-- 空状态（取货地） -->
+					<view class="empty-state" v-if="pickupOrders.length === 0">
+						<text class="empty-icon">📦</text>
+						<text class="empty-text">暂无取货任务</text>
 					</view>
 				</view>
-				
-				<!-- 空状态 -->
-				<view class="empty-state" v-if="activeOrders.length === 0">
-					<text class="empty-icon">📦</text>
-					<text class="empty-text">暂无配送任务</text>
+
+				<!-- 目的地列表 -->
+				<view class="group-section">
+					<text class="group-title">目的地</text>
+					<view 
+						class="order-item" 
+						v-for="(order, index) in targetOrders" 
+						:key="order.id"
+						@tap="selectOrder(order)"
+						:class="{ active: selectedOrderId === order.id }"
+					>
+						<!-- 左侧序号徽章 -->
+						<view class="order-left">
+							<view class="order-badge" :style="{ backgroundColor: order.color }">
+								<text class="badge-text">{{ index + 1 }}</text>
+							</view>
+							<view class="order-line" :style="{ backgroundColor: order.color }" v-if="index < targetOrders.length - 1"></view>
+						</view>
+						
+						<!-- 中间内容区 -->
+						<view class="order-content">
+							<view class="order-header">
+								<view class="order-type-wrapper">
+									<text class="order-type-icon">📍</text>
+									<text class="order-type-text">送货</text>
+								</view>
+								<view class="order-tag" :style="{ backgroundColor: order.color }">
+									<text class="tag-text">{{ order.statusText }}</text>
+								</view>
+							</view>
+							
+					<view class="order-address-row">
+						<text class="address-icon">🏠</text>
+						<text class="order-address">{{ order.address }}</text>
+					</view>
+					<view class="order-address-row">
+						<text class="address-icon">👤</text>
+						<text class="order-address">{{ order.name ? maskName(order.name) : '—' }}</text>
+					</view>
+							
+							<view class="order-info-row">
+								<view class="info-item time">
+									<text class="info-icon">⏰</text>
+									<text class="info-text">{{ order.time }}</text>
+								</view>
+								<view class="info-item distance">
+									<text class="info-icon">📏</text>
+									<text class="info-text">{{ order.distance }}</text>
+								</view>
+							</view>
+						</view>
+						
+						<!-- 右侧操作按钮 -->
+						<view class="order-actions">
+							<view class="action-btn" @tap.stop="callPhone(order)">
+								<text class="action-icon">📞</text>
+							</view>
+							<view class="action-btn" @tap.stop="navigateTo(order)">
+								<text class="action-icon">🧭</text>
+							</view>
+						</view>
+					</view>
+
+					<!-- 空状态（目的地） -->
+					<view class="empty-state" v-if="targetOrders.length === 0">
+						<text class="empty-icon">📍</text>
+						<text class="empty-text">暂无送货任务</text>
+					</view>
+				</view>
+
+				<!-- 全局空状态（无任何任务） -->
+				<view class="empty-state" v-if="pickupOrders.length === 0 && targetOrders.length === 0">
+					<text class="empty-icon">🗂️</text>
+					<text class="empty-text">暂无任何配送任务</text>
 				</view>
 			</scroll-view>
 		</view>
@@ -116,6 +201,7 @@
 </template>
 
 <script>
+    import { getPickupCoords, getTargetCoords } from '../../utils/api/index.js'
 	export default {
 		data() {
 			return {
@@ -139,61 +225,11 @@
 				amapMarkers: [],
 				amapPolylines: [],
 				// #endif
-				// 活动订单列表
-				activeOrders: [
-					{
-						id: 'A001',
-						type: 'pickup',
-						address: '星巴克咖啡（人民广场店）',
-						time: '15分钟内',
-						distance: '1.2km',
-						status: 'pending',
-						statusText: '待取货',
-						color: '#FF9800',
-						phone: '13800138001',
-						latitude: 31.234706,
-						longitude: 121.475644
-					},
-					{
-						id: 'A002',
-						type: 'delivery',
-						address: '南京东路123号8楼',
-						time: '30分钟内',
-						distance: '2.5km',
-						status: 'pending',
-						statusText: '待送达',
-						color: '#FF9800',
-						phone: '13900139001',
-						latitude: 31.238706,
-						longitude: 121.480644
-					},
-					{
-						id: 'B001',
-						type: 'pickup',
-						address: '麦当劳（淮海路店）',
-						time: '20分钟内',
-						distance: '1.8km',
-						status: 'pending',
-						statusText: '待取货',
-						color: '#4CAF50',
-						phone: '13800138002',
-						latitude: 31.228706,
-						longitude: 121.468644
-					},
-					{
-						id: 'B002',
-						type: 'delivery',
-						address: '复兴中路456号',
-						time: '35分钟内',
-						distance: '3.2km',
-						status: 'pending',
-						statusText: '待送达',
-						color: '#4CAF50',
-						phone: '13900139002',
-						latitude: 31.225706,
-						longitude: 121.465644
-					}
-				],
+				// 活动订单列表（由后端数据构建）
+				activeOrders: [],
+				// 分组订单列表
+				pickupOrders: [],
+				targetOrders: [],
 				// 地图标记点
 				markers: [],
 				// 路线
@@ -205,11 +241,7 @@
 			console.log('订单数量:', this.activeOrders.length);
 			
 			// #ifndef H5
-			// 非H5端：初始化uni-app原生地图标记和路线
-			this.initMapMarkers();
-			this.drawRoute();
-			console.log('标记点数量:', this.markers.length);
-			console.log('路线数量:', this.polyline.length);
+			// 非H5端：等待拉取后端数据再绘制
 			// #endif
 			
 			// #ifdef H5
@@ -221,10 +253,207 @@
 			});
 			// #endif
 			
-			// 获取骑手当前位置
+			// 获取骑手当前位置后拉取后端路线数据
 			this.getRiderLocation();
+			this.fetchRoadData();
 		},
 		methods: {
+			// 拉取后端路线数据并构建订单
+			async fetchRoadData() {
+				try {
+					const [pickupRes, targetRes] = await Promise.all([
+						getPickupCoords(),
+						getTargetCoords()
+					]);
+
+					const pickupArray = this.extractCoordArray(pickupRes, ['取货地经纬度', 'pickup', 'data', 'coords']);
+					const targetArray = this.extractCoordArray(targetRes, ['目的地经纬度', 'target', 'data', 'coords']);
+					const pickupContacts = this.extractContactArray(pickupRes, ['顾客姓名和电话', 'contacts', 'data.contacts']);
+					const targetContacts = this.extractContactArray(targetRes, ['顾客姓名和电话', 'contacts', 'data.contacts']);
+					const pickupTimes = this.extractTimeArray(pickupRes, ['送达时间', 'deliveryTimes', 'data.times']);
+					const targetTimes = this.extractTimeArray(targetRes, ['送达时间', 'deliveryTimes', 'data.times']);
+
+					// 分别构建两类订单
+					const pickupOrders = [];
+					pickupArray.forEach((pt, i) => {
+						const dist = this.calcDistance(this.riderLocation.latitude, this.riderLocation.longitude, pt.latitude, pt.longitude);
+						const timeStr = this.formatTimeString(pickupTimes[i]);
+						const contact = pickupContacts[i] || {};
+						pickupOrders.push({
+							id: `A${String(i + 1).padStart(3, '0')}`,
+							type: 'pickup',
+							address: `取货点 ${i + 1}`,
+							time: timeStr,
+							distance: this.formatDistance(dist),
+							status: 'pending',
+							statusText: '待取货',
+							color: '#FF9800',
+							name: contact.name || '',
+							phone: contact.phone || '',
+							latitude: pt.latitude,
+							longitude: pt.longitude
+						});
+					});
+
+					const targetOrders = [];
+					targetArray.forEach((pt, i) => {
+						const dist = this.calcDistance(this.riderLocation.latitude, this.riderLocation.longitude, pt.latitude, pt.longitude);
+						const timeStr = this.formatTimeString(targetTimes[i]);
+						const contact = targetContacts[i] || {};
+						targetOrders.push({
+							id: `B${String(i + 1).padStart(3, '0')}`,
+							type: 'delivery',
+							address: `目的地 ${i + 1}`,
+							time: timeStr,
+							distance: this.formatDistance(dist),
+							status: 'pending',
+							statusText: '待送达',
+							color: '#4CAF50',
+							name: contact.name || '',
+							phone: contact.phone || '',
+							latitude: pt.latitude,
+							longitude: pt.longitude
+						});
+					});
+
+					// 赋值到页面状态
+					this.pickupOrders = pickupOrders;
+					this.targetOrders = targetOrders;
+					this.activeOrders = [...pickupOrders, ...targetOrders];
+
+					// 初始化地图标记和路线
+					this.initMapMarkers();
+					this.drawRoute();
+
+					// #ifdef H5
+					if (this.amapInstance) {
+						this.addAmapMarkers();
+						this.drawAmapRoute();
+					}
+					// #endif
+				} catch (e) {
+					console.error('路线数据获取失败:', e);
+					uni.showToast({ title: '路线数据获取失败', icon: 'none' });
+				}
+			},
+
+			// 提取并解析经纬度数组（兼容奇怪结构）
+			extractCoordArray(res, possibleKeys = []) {
+				if (!res) return [];
+				let raw = null;
+				for (const k of possibleKeys) {
+					if (res[k]) { raw = res[k]; break; }
+				}
+				// 如果没有命中，尝试 res.data
+				if (!raw && res.data) raw = res.data;
+				return this.parseCoordArray(raw);
+			},
+
+			// 提取顾客姓名和电话数组（与坐标索引对应）
+			extractContactArray(res, possibleKeys = []) {
+				if (!res) return [];
+				let raw = null;
+				for (const k of possibleKeys) {
+					if (res[k]) { raw = res[k]; break; }
+				}
+				if (!raw && res.data && Array.isArray(res.data.contacts)) raw = res.data.contacts;
+				if (!Array.isArray(raw)) return [];
+				const contacts = [];
+				raw.forEach(item => {
+					if (item && typeof item === 'object') {
+						const keys = Object.keys(item);
+						if (keys.length > 0) {
+							const name = keys[0];
+							const phone = item[name];
+							contacts.push({ name, phone });
+						} else {
+							contacts.push({ name: '', phone: '' });
+						}
+					} else {
+						contacts.push({ name: '', phone: '' });
+					}
+				});
+				return contacts;
+			},
+
+			// 提取送达时间数组（与坐标索引对应）
+			extractTimeArray(res, possibleKeys = []) {
+				if (!res) return [];
+				let raw = null;
+				for (const k of possibleKeys) {
+					if (res[k]) { raw = res[k]; break; }
+				}
+				if (!raw && res.data && Array.isArray(res.data.times)) raw = res.data.times;
+				if (!Array.isArray(raw)) return [];
+				return raw;
+			},
+
+				// 将后端时间字符串格式化为易读文案
+				formatTimeString(val) {
+					if (!val) return '—';
+					try {
+						const d = new Date(val);
+						if (isNaN(d.getTime())) return '—';
+						const pad = (n) => String(n).padStart(2, '0');
+						const Y = d.getFullYear();
+						const M = pad(d.getMonth() + 1);
+						const D = pad(d.getDate());
+						const h = pad(d.getHours());
+						const m = pad(d.getMinutes());
+						return `${Y}-${M}-${D} ${h}:${m}`;
+					} catch (_) {
+						return '—';
+					}
+				},
+
+				// 姓名脱敏：仅显示姓氏（支持常见复姓），如“田涛”->“田某”
+				maskName(name) {
+					if (!name || typeof name !== 'string') return '—';
+					const compounds = [
+						'欧阳','太史','司马','上官','东方','独孤','南宫','夏侯','诸葛','闻人','赫连','皇甫','公孙','慕容','轩辕','令狐','钟离','宇文','长孙','鲜于','闾丘','子车','司徒','司空','亓官','司寇','公羊','澹台','公冶','宗政','濮阳','淳于','仲孙','太叔','申屠','公孙','公良','公伯','公仲','公子'
+					];
+					const firstTwo = name.slice(0, 2);
+					const surname = compounds.includes(firstTwo) ? firstTwo : name.slice(0, 1);
+					return `${surname}*`;
+				},
+
+			// 将数组 [{"lat": lon}, {...}] 解析为 [{latitude, longitude}]
+			parseCoordArray(rawArray) {
+				const coords = [];
+				if (Array.isArray(rawArray)) {
+					rawArray.forEach(obj => {
+						if (obj && typeof obj === 'object') {
+							const keys = Object.keys(obj);
+							if (keys.length > 0) {
+								const latStr = keys[0];
+								const lonVal = obj[latStr];
+								const lat = Number(latStr);
+								const lon = Number(lonVal);
+								if (!isNaN(lat) && !isNaN(lon)) {
+									coords.push({ latitude: lat, longitude: lon });
+								}
+							}
+						}
+					});
+				}
+				return coords;
+			},
+
+			// 计算两点距离（米）
+			calcDistance(lat1, lon1, lat2, lon2) {
+				const toRad = d => d * Math.PI / 180;
+				const R = 6371000; // 地球半径
+				const dLat = toRad(lat2 - lat1);
+				const dLon = toRad(lon2 - lon1);
+				const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+				const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+				return R * c;
+			},
+
+			formatDistance(meters) {
+				if (meters < 1000) return `${Math.round(meters)}m`;
+				return `${(meters/1000).toFixed(1)}km`;
+			},
 			// 初始化地图标记点
 			initMapMarkers() {
 				const markers = [];
@@ -404,6 +633,33 @@
 					this.amapInstance.setCenter([order.longitude, order.latitude]);
 					this.amapInstance.setZoom(16);
 				}
+				// #endif
+			},
+
+			// 开始导航到订单点（高德导航）
+			navigateTo(order) {
+				if (!order) return;
+				const name = order.address || (order.type === 'pickup' ? '取货点' : '目的地');
+				const h5Url = `https://uri.amap.com/navigation?to=${order.longitude},${order.latitude},${encodeURIComponent(name)}&mode=car&src=campus-life&coordinate=gaode`;
+
+				// #ifdef APP-PLUS
+				try {
+					const platform = uni.getSystemInfoSync().platform;
+					const scheme = platform === 'android'
+						? `androidamap://navi?sourceApplication=CampusRider&poiname=${encodeURIComponent(name)}&lat=${order.latitude}&lon=${order.longitude}&dev=0&style=2`
+						: `iosamap://navi?sourceApplication=CampusRider&poiname=${encodeURIComponent(name)}&lat=${order.latitude}&lon=${order.longitude}&dev=0&style=2`;
+					plus.runtime.openURL(scheme, (e) => {
+						// 若未安装APP，回退到H5
+						plus.runtime.openURL(h5Url);
+					});
+				} catch (err) {
+					// 回退到H5链接
+					plus.runtime.openURL(h5Url);
+				}
+				// #endif
+
+				// #ifdef H5
+				window.location.href = h5Url;
 				// #endif
 			},
 			
