@@ -207,6 +207,15 @@ export const getOrderDetail = (orderNo) => {
 }
 
 /**
+ * 获取卖家订单列表（作为卖家出售的商品订单）
+ * @param {Object} params 查询参数（可选）
+ * @returns {Promise}
+ */
+export const getSellerOrderList = (params = {}) => {
+	return http.get('/api/user/secondhandGoods/order/seller/list', params)
+}
+
+/**
  * 生成唯一请求ID（用于幂等性）
  * @returns {String}
  */
@@ -223,6 +232,7 @@ export default {
 	payOrder,
 	confirmOrder,
 	getOrderDetail,
+	getSellerOrderList,
 	chooseGoodsImages,
 	generateRequestId
 }
