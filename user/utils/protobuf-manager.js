@@ -3,20 +3,30 @@
  * 使用 protobufjs 库处理二进制消息
  */
 
-// uni-app兼容的导入方式
-let protobuf;
-try {
-  protobuf = require('protobufjs');
-} catch (e) {
-  console.error('❌ 无法加载protobufjs，尝试使用minimal版本');
+import { CHAT_MESSAGE_PROTO_SCHEMA, MSG_TYPE, USER_TYPE } from './protobuf-schema.js';
+
+// uni-app兼容的导入方式 - 使用静态import（webpack会处理）
+// 注意：如果webpack配置不支持，可能需要配置resolve.alias
+let protobuf = null;
+
+// 尝试多种方式加载protobufjs
+if (typeof window !== 'undefined' && window.uni) {
+  // uni-app环境，尝试require
   try {
-    protobuf = require('protobufjs/minimal');
-  } catch (e2) {
-    console.error('❌ protobufjs加载完全失败:', e2);
-    throw new Error('请先安装protobufjs: npm install protobufjs');
+    protobuf = require('protobufjs');
+    console.log('✅ protobufjs加载成功（require）');
+  } catch (e) {
+    console.warn('⚠️ require方式失败，将在init时尝试动态加载');
+  }
+} else {
+  // 非uni-app环境，直接require
+  try {
+    protobuf = require('protobufjs');
+    console.log('✅ protobufjs加载成功（require）');
+  } catch (e) {
+    console.warn('⚠️ require方式失败，将在init时尝试动态加载');
   }
 }
-import { CHAT_MESSAGE_PROTO_SCHEMA, MSG_TYPE, USER_TYPE } from './protobuf-schema.js';
 
 class ProtobufManager {
   constructor() {
@@ -35,6 +45,18 @@ class ProtobufManager {
     }
 
     try {
+      // 确保protobuf已加载
+      if (!protobuf) {
+        try {
+          // 尝试动态import
+          const protobufModule = await import('protobufjs');
+          protobuf = protobufModule.default || protobufModule;
+          console.log('✅ protobufjs动态加载成功');
+        } catch (e) {
+          console.error('❌ protobufjs加载失败:', e);
+          throw new Error('请先安装protobufjs: npm install protobufjs。如果已安装，请重启开发服务器。');
+        }
+      }
       
       // 手动构建protobuf类型定义
       const root = new protobuf.Root();

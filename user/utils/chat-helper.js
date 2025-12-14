@@ -6,7 +6,7 @@ import { USER_TYPE } from '@/api/session.js'
  * 打开与商家的聊天
  * @param {String} merchantId - 商家ID
  * @param {String} merchantName - 商家名称
- * @param {String} merchantPhone - 商家电话（可选）
+ * @param {String} merchantPhone - 商家电话（可选，已废弃，保留以兼容旧代码）
  */
 export async function openChatWithMerchant(merchantId, merchantName = '商家', merchantPhone = '') {
   if (!merchantId) {
@@ -17,47 +17,15 @@ export async function openChatWithMerchant(merchantId, merchantName = '商家', 
     return false
   }
   
-  // 显示选择框：电话联系或消息联系
-  return new Promise((resolve) => {
-    uni.showActionSheet({
-      itemList: ['电话联系', '消息联系'],
-      success: async (res) => {
-        if (res.tapIndex === 0) {
-          // 电话联系
-          const phoneNumber = merchantPhone || '400-123-4567'
-          uni.makePhoneCall({
-            phoneNumber: phoneNumber,
-            success: () => {
-              console.log('拨打商家电话成功')
-              resolve(true)
-            },
-            fail: (err) => {
-              console.error('拨打商家电话失败:', err)
-              uni.showToast({
-                title: '拨打电话失败',
-                icon: 'none'
-              })
-              resolve(false)
-            }
-          })
-        } else if (res.tapIndex === 1) {
-          // 消息联系
-          const result = await startChatSession(merchantId, merchantName)
-          resolve(result)
-        }
-      },
-      fail: () => {
-        resolve(false)
-      }
-    })
-  })
+  // 直接打开聊天页面
+  return await startChatSession(merchantId, merchantName)
 }
 
 /**
  * 打开与骑手的聊天
  * @param {String} riderId - 骑手ID
  * @param {String} riderName - 骑手名称
- * @param {String} riderPhone - 骑手电话（可选）
+ * @param {String} riderPhone - 骑手电话（可选，已废弃，保留以兼容旧代码）
  */
 export async function openChatWithRider(riderId, riderName = '骑手', riderPhone = '') {
   if (!riderId) {
@@ -68,48 +36,8 @@ export async function openChatWithRider(riderId, riderName = '骑手', riderPhon
     return false
   }
   
-  // 显示选择框：电话联系或消息联系
-  return new Promise((resolve) => {
-    uni.showActionSheet({
-      itemList: ['电话联系', '消息联系'],
-      success: async (res) => {
-        if (res.tapIndex === 0) {
-          // 电话联系
-          if (!riderPhone) {
-            uni.showToast({
-              title: '骑手电话不可用',
-              icon: 'none'
-            })
-            resolve(false)
-            return
-          }
-          
-          uni.makePhoneCall({
-            phoneNumber: riderPhone,
-            success: () => {
-              console.log('拨打骑手电话成功')
-              resolve(true)
-            },
-            fail: (err) => {
-              console.error('拨打骑手电话失败:', err)
-              uni.showToast({
-                title: '拨打电话失败',
-                icon: 'none'
-              })
-              resolve(false)
-            }
-          })
-        } else if (res.tapIndex === 1) {
-          // 消息联系
-          const result = await startChatSessionWithRider(riderId, riderName)
-          resolve(result)
-        }
-      },
-      fail: () => {
-        resolve(false)
-      }
-    })
-  })
+  // 直接打开聊天页面
+  return await startChatSessionWithRider(riderId, riderName)
 }
 
 /**

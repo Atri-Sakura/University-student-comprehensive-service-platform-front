@@ -138,6 +138,8 @@
 <script>
 // 导入订单API
 import api from '@/api/index.js'
+// 导入消息系统辅助函数
+import { openChatWithRider, openChatWithMerchant } from '@/utils/chat-helper.js'
 
 export default {
   data() {
@@ -159,6 +161,9 @@ export default {
         riderName: '',
         riderPhone: '',
         riderNickname: '',
+        riderId: '', // 骑手ID
+        merchantId: '', // 商家ID
+        merchantBaseId: '', // 商家基础ID
         orderStatus: 0,
         payType: '',
         totalAmount: '0.00',
@@ -218,10 +223,20 @@ export default {
       let productName = orderData.productName || ''
       let quantity = orderData.quantity || 1
       let merchantName = ''
+      let merchantId = ''
+      let merchantBaseId = ''
       if (orderData.orderTakeoutDetailList && orderData.orderTakeoutDetailList.length > 0) {
         productName = orderData.orderTakeoutDetailList[0].goodsName || ''
         quantity = orderData.orderTakeoutDetailList[0].quantity || 1
         merchantName = orderData.orderTakeoutDetailList[0].merchantName || ''
+        merchantId = orderData.orderTakeoutDetailList[0].merchantId || ''
+        merchantBaseId = orderData.orderTakeoutDetailList[0].merchantBaseId || orderData.orderTakeoutDetailList[0].merchantId || ''
+      }
+      
+      // 如果没有从明细中获取到商家ID，尝试从订单主表获取
+      if (!merchantId && !merchantBaseId) {
+        merchantId = orderData.merchantId || orderData.merchantBaseId || ''
+        merchantBaseId = orderData.merchantBaseId || orderData.merchantId || ''
       }
       
       // 根据后端返回的实际字段进行映射
@@ -242,6 +257,9 @@ export default {
         riderName: orderData.riderName || '',
         riderPhone: orderData.riderPhone || '',
         riderNickname: orderData.riderNickname || '',
+        riderId: orderData.riderId || orderData.riderBaseId || '',
+        merchantId: merchantId,
+        merchantBaseId: merchantBaseId,
         orderStatus: orderData.orderStatus || 1,
         payType: orderData.payType || '',
         totalAmount: (orderData.totalAmount || 0).toFixed(2),
@@ -298,30 +316,43 @@ export default {
     
 
     
-    // 联系骑手
-    contactRider() {
-      uni.makePhoneCall({
-        phoneNumber: this.order.riderPhone.replace(/\*/g, '1'),
-        success: () => {
-          console.log('联系骑手成功')
-        },
-        fail: () => {
-          console.log('联系骑手失败')
-        }
-      })
+    // 联系骑手 - 使用消息系统
+    async contactRider() {
+      if (!this.order.riderId) {
+        uni.showToast({
+          title: '无法获取骑手信息',
+          icon: 'none'
+        })
+        return
+      }
+      
+      // 使用消息系统打开与骑手的聊天
+      await openChatWithRider(
+        String(this.order.riderId),
+        this.order.riderNickname || this.order.riderName || '骑手',
+        this.order.riderPhone || ''
+      )
     },
     
-    // 联系商家
-    contactMerchant() {
-      uni.makePhoneCall({
-        phoneNumber: '400-123-4567',
-        success: () => {
-          console.log('联系商家成功')
-        },
-        fail: () => {
-          console.log('联系商家失败')
-        }
-      })
+    // 联系商家 - 使用消息系统
+    async contactMerchant() {
+      // 优先使用merchantBaseId，如果没有则使用merchantId
+      const merchantId = this.order.merchantBaseId || this.order.merchantId
+      
+      if (!merchantId) {
+        uni.showToast({
+          title: '无法获取商家信息',
+          icon: 'none'
+        })
+        return
+      }
+      
+      // 使用消息系统打开与商家的聊天
+      await openChatWithMerchant(
+        String(merchantId),
+        this.order.merchantName || '商家',
+        '' // 商家电话，如果需要可以从订单数据中获取
+      )
     },
     
 
