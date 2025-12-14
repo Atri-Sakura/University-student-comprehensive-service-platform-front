@@ -94,8 +94,8 @@
             <text v-if="deliveryInfo.phone" class="delivery-phone">({{ deliveryInfo.phone }})</text>
           </text>
           <view class="delivery-rating">
-            <text class="star">★★★★★</text>
-            <text class="rating-score">{{ deliveryInfo.rating }}</text>
+            <text v-for="i in 5" :key="i" class="star" :class="{ filled: i <= Math.round(deliveryInfo.rating || 0) }">★</text>
+            <text class="rating-score">{{ deliveryInfo.rating || 0 }}</text>
           </view>
         </view>
         <button class="contact-button" @click="contactDelivery">联系</button>
@@ -190,8 +190,14 @@ export default {
             // 提取配送员信息
             this.deliveryInfo = {
               name: orderData.deliveryName || orderData.riderName || orderData.riderNickname || '',
-              rating: orderData.deliveryRating || orderData.riderRating || '',
-              phone: orderData.deliveryPhone || orderData.riderPhone || ''
+              rating: 0, // 默认评分为0，后续通过接口获取
+              phone: orderData.deliveryPhone || orderData.riderPhone || '',
+              riderId: orderData.riderId || null
+            }
+            
+            // 如果有骑手ID，获取骑手的平均评分
+            if (this.deliveryInfo.riderId) {
+              this.loadRiderRating(this.deliveryInfo.riderId)
             }
             
 
@@ -300,6 +306,21 @@ export default {
     formatOrderAmount(orderData) {
       const amount = orderData.totalAmount || orderData.payAmount || 0;
       return amount > 0 ? `¥${Number(amount).toFixed(2)}` : '¥0.00';
+    },
+    
+    // 获取骑手平均评分
+    async loadRiderRating(riderId) {
+      try {
+        const res = await api.order.getRiderEvaluationStatistics(riderId)
+        if (res && res.code === 200 && res.data) {
+          // 更新骑手评分
+          this.deliveryInfo.rating = res.data.avgRating || 0
+          console.log('骑手平均评分:', this.deliveryInfo.rating)
+        }
+      } catch (err) {
+        console.error('获取骑手评分失败:', err)
+        // 获取失败时保持默认值0
+      }
     }
 
   }
@@ -577,8 +598,12 @@ export default {
 
 .star {
   font-size: 24rpx;
+  color: #e0e0e0;
+  margin-right: 2rpx;
+}
+
+.star.filled {
   color: #ffd700;
-  margin-right: 8rpx;
 }
 
 .rating-score {

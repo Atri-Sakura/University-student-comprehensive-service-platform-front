@@ -72,6 +72,15 @@ const orderApi = {
    */
   getErrandOrderDetail: (orderNo) => {
     return 请求.get(`/user/order/errandOrder/${orderNo}`)
+  },
+  
+  /**
+   * 获取骑手评分统计信息
+   * @param {Number} riderBaseId - 骑手ID
+   * @returns {Promise} - 返回骑手评分统计数据（包含avgRating平均评分）
+   */
+  getRiderEvaluationStatistics: (riderBaseId) => {
+    return 请求.get(`/user/riderEvaluation/statistics/${riderBaseId}`)
   }
 }
 
