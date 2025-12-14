@@ -29,7 +29,10 @@
 		<view class="today-income-section">
 			<text class="section-title">今日收入</text>
 			<view class="income-card">
-				<text class="income-label">配送收入</text>
+				<view class="income-info">
+					<text class="income-label">配送收入</text>
+					<text class="income-orders">今日完成 {{ todayOrders }} 单</text>
+				</view>
 				<text class="income-amount">+¥{{ todayIncome }}</text>
 			</view>
 		</view>
@@ -37,7 +40,7 @@
 		<!-- 最近交易 -->
 		<view class="transaction-section">
 			<text class="section-title">最近交易</text>
-			<view class="transaction-list">
+			<view class="transaction-list" v-if="transactions.length > 0">
 				<view class="transaction-item" v-for="(item, index) in transactions" :key="index">
 					<view class="transaction-info">
 						<text class="transaction-title">{{ item.title }}</text>
@@ -48,47 +51,27 @@
 					</text>
 				</view>
 			</view>
+			<view class="no-transactions" v-else>
+				<text class="no-transactions-icon">📝</text>
+				<text class="no-transactions-text">暂无交易记录</text>
+			</view>
 		</view>
 	</view>
 </template>
 
 <script>
-	import { getWalletBalance } from '../../utils/api/wallet.js';
+	import { getWalletBalance, getRiderWalletFlow } from '../../utils/api/wallet.js';
 	
 	export default {
 		data() {
 			return {
 				balance: '0.00',
 				withdrawable: '0.00',
-				todayIncome: '256.80',
+				todayIncome: '0.00', // 今日订单收入
+				todayOrders: 0, // 今日订单数量
 				loading: false,
 				walletCreated: false, // 标记钱包是否已创建，避免无限循环
-				transactions: [
-					{
-						title: '订单配送收入',
-						time: '今天 14:30',
-						amount: '18.50',
-						type: 'income'
-					},
-					{
-						title: '订单配送收入',
-						time: '今天 13:15',
-						amount: '22.00',
-						type: 'income'
-					},
-					{
-						title: '订单配送收入',
-						time: '今天 12:08',
-						amount: '15.80',
-						type: 'income'
-					},
-					{
-						title: '提现到银行卡',
-						time: '昨天 16:45',
-						amount: '500.00',
-						type: 'expense'
-					}
-				]
+				transactions: []
 			}
 		},
 		onLoad() {
@@ -119,6 +102,9 @@
 							this.walletCreated = false;
 							uni.removeStorageSync('rider_wallet_created');
 						}
+						
+						// 加载钱包流水记录
+						await this.loadWalletFlow();
 					}
 				} catch (error) {
 					console.error('获取钱包余额失败:', error);
@@ -141,6 +127,155 @@
 					}
 				} finally {
 					this.loading = false;
+				}
+			},
+			
+			// 加载钱包流水记录
+			async loadWalletFlow() {
+				try {
+					const result = await getRiderWalletFlow();
+					// 检查响应结构
+					console.log('钱包流水接口响应:', result);
+					
+					// 获取当前日期（用于判断今日交易）
+					const today = new Date();
+					// 使用统一的日期格式进行比较（格式：YYYY-MM-DD）
+					const todayYear = today.getFullYear();
+					const todayMonth = String(today.getMonth() + 1).padStart(2, '0');
+					const todayDay = String(today.getDate()).padStart(2, '0');
+					const todayStr = `${todayYear}-${todayMonth}-${todayDay}`;
+					
+					// 处理API响应：从data字段获取交易记录数组
+				const flowData = result.data || [];
+				
+				console.log('钱包流水接口响应完整结果:', result);
+				console.log('处理后的流水数据:', flowData);
+				console.log('流水数据长度:', flowData.length);
+				console.log('今日日期:', todayStr);
+				
+				// 遍历flowData，输出每条记录的详细信息
+				flowData.forEach((item, index) => {
+					console.log(`第${index}条流水记录:`, {
+						remark: item.remark,
+						amount: item.amount,
+						tradeType: item.tradeType,
+						tradeTime: item.tradeTime
+					});
+				});
+					
+					if (flowData && flowData.length > 0) {
+						
+						// 初始化今日订单计数器和收入
+						let todayOrders = 0;
+						let todayIncomeTotal = 0;
+						
+						// 将后端返回的流水数据转换为前端需要的格式
+						let transactions = flowData.map(item => {
+							// 确定交易类型：根据tradeType或amount判断
+							const type = (item.tradeType === 1 || item.amount > 0) ? 'income' : 'expense';
+							// 格式化金额，保留两位小数
+							const amount = Math.abs(item.amount).toFixed(2);
+							// 格式化时间（使用tradeTime字段作为时间来源）
+							let time;
+							let date;
+							try {
+								// 使用tradeTime字段作为时间来源
+								const tradeTime = item.tradeTime;
+								
+								// 如果tradeTime存在且是有效的日期字符串，则解析为日期
+								if (tradeTime) {
+									date = new Date(tradeTime);
+								} else {
+									// 否则使用当前时间
+									date = new Date();
+								}
+								
+								// 检查时间是否为默认值（如08:00:00或00:00:00）
+								const isDefaultTime = (date.getHours() === 8 || date.getHours() === 0) && 
+														date.getMinutes() === 0 && 
+														date.getSeconds() === 0;
+									
+								if (isDefaultTime) {
+									// 如果是默认时间，只显示日期
+									time = date.toLocaleDateString('zh-CN', {
+										year: 'numeric',
+										month: '2-digit',
+										day: '2-digit'
+									});
+								} else {
+									// 否则显示完整的日期和时间
+									time = date.toLocaleString('zh-CN', {
+										year: 'numeric',
+										month: '2-digit',
+										day: '2-digit',
+										hour: '2-digit',
+										minute: '2-digit'
+									});
+								}
+								
+								// 检查是否是今日的订单收入
+								const tradeYear = date.getFullYear();
+								const tradeMonth = String(date.getMonth() + 1).padStart(2, '0');
+								const tradeDay = String(date.getDate()).padStart(2, '0');
+								const tradeDate = `${tradeYear}-${tradeMonth}-${tradeDay}`;
+								
+								// 调试日志：检查每个交易记录的属性
+								console.log('交易记录:', {
+									tradeDate, 
+									todayStr, 
+									type, 
+									remark: item.remark, 
+									amount: item.amount
+								});
+								
+								// 检查是否是今日的订单配送收入
+								if (tradeDate === todayStr && type === 'income' && item.remark && 
+									(item.remark.includes('订单收入') || item.remark.includes('订单配送收入'))) {
+									todayOrders++;
+									todayIncomeTotal += parseFloat(item.amount);
+									console.log('匹配到今日订单收入:', item.amount);
+								}
+							} catch (e) {
+								// 如果日期格式不正确，直接使用原始字符串
+								time = item.tradeTime;
+								// 设置默认日期对象
+								date = new Date();
+							}
+							
+							return {
+								title: item.remark || '交易', // 使用remark字段作为交易标题
+								time: time,
+								amount: amount,
+								type: type,
+								rawTime: date.getTime() // 保存时间戳用于排序
+							};
+						});
+						
+						// 按交易时间降序排序
+						transactions.sort((a, b) => new Date(b.rawTime) - new Date(a.rawTime));
+						
+						// 只保留最新的5条交易记录
+						this.transactions = transactions.slice(0, 5);
+						
+						// 更新今日订单数量和收入
+						this.todayOrders = todayOrders;
+						this.todayIncome = todayIncomeTotal.toFixed(2);
+						
+						console.log('转换并截取后的交易数据:', this.transactions);
+						console.log('今日订单数量:', todayOrders);
+						console.log('今日订单收入:', todayIncomeTotal.toFixed(2));
+					} else {
+						console.log('暂无交易记录');
+						// 如果没有数据，重置今日订单统计
+						this.todayOrders = 0;
+						this.todayIncome = '0.00';
+						this.transactions = [];
+					}
+				} catch (error) {
+					console.error('获取钱包流水失败:', error);
+					// 如果获取失败，重置今日订单统计
+					this.todayOrders = 0;
+					this.todayIncome = '0.00';
 				}
 			},
 			
@@ -334,10 +469,21 @@
 		box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
 	}
 
+	.income-info {
+		display: flex;
+		flex-direction: column;
+		gap: 8rpx;
+	}
+
 	.income-label {
 		font-size: 32rpx;
 		color: #333;
 		font-weight: 500;
+	}
+
+	.income-orders {
+		font-size: 26rpx;
+		color: #999;
 	}
 
 	.income-amount {
@@ -402,6 +548,28 @@
 
 	.transaction-amount.expense {
 		color: #ff4d4f;
+	}
+	
+	/* 暂无交易记录 */
+	.no-transactions {
+		background-color: #ffffff;
+		border-radius: 16rpx;
+		padding: 80rpx 30rpx;
+		text-align: center;
+		box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+	}
+	
+	.no-transactions-icon {
+		font-size: 80rpx;
+		display: block;
+		margin-bottom: 20rpx;
+		opacity: 0.5;
+	}
+	
+	.no-transactions-text {
+		font-size: 28rpx;
+		color: #999;
+		font-weight: 500;
 	}
 </style>
 
