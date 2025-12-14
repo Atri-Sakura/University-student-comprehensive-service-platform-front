@@ -3,7 +3,7 @@
  * 包含提现等功能
  */
 
-import { 请求 } from '../api.js';
+import { request } from '../api.js';
 
 // ========== API 路径配置 ==========
 const WALLET_API = {
