@@ -55,49 +55,161 @@ export default {
     this.getSecondHandOrders();
   },
   methods: {
-    // 获取二手交易订单列表
+    // 获取二手交易订单列表（同时获取买家和卖家的订单）
     async getSecondHandOrders() {
       try {
         this.loading = true;
         // 显示加载提示
         uni.showLoading({ title: '加载中...' });
         
-        // 调用API获取所有订单，然后筛选出二手交易订单(order_type=3)
-        const res = await api.order.getOrderList();
-        
-        if (res && res.code === 200) {
-          // 获取订单数据数组
-          const orderList = res.rows || res.data || [];
+        // 1. 获取买家订单（作为买家购买的订单）
+        const buyerRes = await api.order.getOrderList();
+        let buyerOrders = [];
+        if (buyerRes && buyerRes.code === 200) {
+          const orderList = buyerRes.rows || buyerRes.data || [];
           // 筛选出二手交易订单(orderType=3)
-          const secondHandOrders = orderList.filter(item => item.orderType === 3);
+          buyerOrders = orderList.filter(item => item.orderType === 3);
+        }
+        
+        // 2. 获取用户发布的商品列表（包括已售出的商品）
+        let myGoodsIds = [];
+        try {
+          // 获取用户发布的商品，包括已售出的（status=2）
+          const goodsRes = await api.secondhandGoods.getGoodsList({ pageNum: 1, pageSize: 1000 });
+          if (goodsRes && goodsRes.code === 200) {
+            const goodsList = goodsRes.rows || goodsRes.data || [];
+            // 获取所有已售出的商品ID（status=2表示已售）
+            myGoodsIds = goodsList
+              .filter(item => item.status === 2 || item.status === '2')
+              .map(item => item.id || item.goodsId || item.secondhandGoodsId)
+              .filter(id => id != null);
+          }
+        } catch (error) {
+          console.warn('获取用户发布的商品失败:', error);
+        }
+        
+        // 3. 获取所有买家订单的详情，检查哪些订单的商品属于用户发布的
+        const orderMap = new Map();
+        
+        // 先添加所有买家订单
+        buyerOrders.forEach(order => {
+          if (order.orderNo) {
+            orderMap.set(order.orderNo, { ...order, role: 'buyer' });
+          }
+        });
+        
+        // 4. 对每个买家订单获取详情，检查商品ID是否属于用户发布的商品
+        const orderDetails = await Promise.all(
+          buyerOrders
+            .filter(order => order && order.orderNo) // 先过滤掉没有orderNo的订单
+            .map(async (order) => {
+            try {
+              const detailRes = await api.order.getSecondHandOrderDetail(order.orderNo);
+              if (detailRes && detailRes.code === 200 && detailRes.data) {
+                return { orderNo: order.orderNo, detail: detailRes.data };
+              }
+              return null;
+            } catch (error) {
+              console.error('获取订单详情失败:', order?.orderNo, error);
+              return null;
+            }
+          })
+        );
+        
+        // 5. 检查订单详情中的商品ID，如果属于用户发布的商品，则标记为卖家订单
+        orderDetails
+          .filter(item => item != null && item.orderNo && item.detail) // 过滤掉null值
+          .forEach(({ orderNo, detail }) => {
+          if (!detail || !orderNo) return;
           
-          // 对每个二手交易订单调用详情接口获取完整信息
-          const detailedOrders = await Promise.all(
-            secondHandOrders.map(async (order) => {
-              try {
-                // 调用二手交易订单详情接口
-                const detailRes = await api.order.getSecondHandOrderDetail(order.orderNo);
-                if (detailRes && detailRes.code === 200) {
-                  // 将详情数据合并到原订单对象中
-                  const mergedOrder = { ...order, ...detailRes.data };
-                  return mergedOrder;
+          // 从订单详情中获取商品ID
+          const goodsId = detail.goodsId || detail.goods_id;
+          
+          // 如果商品ID在用户发布的商品列表中，说明这是卖家订单
+          if (goodsId) {
+            const goodsIdStr = String(goodsId);
+            const goodsIdNum = Number(goodsId);
+            const isMyGoods = myGoodsIds.some(id => 
+              String(id) === goodsIdStr || Number(id) === goodsIdNum
+            );
+            
+            if (isMyGoods) {
+              const existingOrder = orderMap.get(orderNo);
+              if (existingOrder) {
+                // 如果已经是买家订单，标记为both，否则标记为seller
+                existingOrder.role = existingOrder.role === 'buyer' ? 'both' : 'seller';
+              } else {
+                // 如果不在买家订单列表中，添加为卖家订单
+                orderMap.set(orderNo, { ...detail, orderNo, role: 'seller' });
+              }
+            }
+          }
+        });
+        
+        // 6. 尝试通过卖家订单接口获取（如果后端有的话）
+        try {
+          const sellerRes = await api.secondhandGoods.getSellerOrderList();
+          if (sellerRes && sellerRes.code === 200) {
+            const sellerOrders = sellerRes.rows || sellerRes.data || [];
+            sellerOrders.forEach(order => {
+              if (order.orderNo) {
+                if (!orderMap.has(order.orderNo)) {
+                  orderMap.set(order.orderNo, { ...order, role: 'seller' });
+                } else {
+                  const existingOrder = orderMap.get(order.orderNo);
+                  existingOrder.role = existingOrder.role === 'buyer' ? 'both' : 'seller';
                 }
-                return order;
-              } catch (error) {
-                console.error('获取二手交易订单详情失败:', error);
+              }
+            });
+          }
+        } catch (error) {
+          // 如果卖家订单接口不存在，忽略错误
+          console.log('卖家订单接口不存在或失败，使用商品匹配方式:', error);
+        }
+        
+        // 7. 转换为数组并获取完整详情
+        const allOrders = Array.from(orderMap.values());
+        
+        // 对每个订单获取完整详情（如果还没有详情的话）
+        const detailedOrders = await Promise.all(
+          allOrders.map(async (order) => {
+            try {
+              // 如果订单已经有详情数据（goodsName等），直接返回
+              if (order.goodsName && order.mainImageUrl) {
                 return order;
               }
-            })
-          );
-          
-          // 更新订单列表
-          this.orders = detailedOrders;
-        } else {
-          console.warn('API返回状态异常:', res);
-          uni.showToast({ 
-            title: res?.msg || res?.message || '获取订单失败', 
-            icon: 'none' 
-          });
+              
+              // 否则调用详情接口获取完整信息
+              const detailRes = await api.order.getSecondHandOrderDetail(order.orderNo);
+              if (detailRes && detailRes.code === 200) {
+                // 将详情数据合并到原订单对象中，保留角色信息
+                const mergedOrder = { ...order, ...detailRes.data, role: order.role || 'buyer' };
+                return mergedOrder;
+              }
+              return order;
+            } catch (error) {
+              console.error('获取订单详情失败:', order.orderNo, error);
+              return order;
+            }
+          })
+        );
+        
+        // 8. 按创建时间倒序排序
+        detailedOrders.sort((a, b) => {
+          const timeA = new Date(a.createTime || 0).getTime();
+          const timeB = new Date(b.createTime || 0).getTime();
+          return timeB - timeA;
+        });
+        
+        // 9. 更新订单列表
+        this.orders = detailedOrders;
+        
+        console.log('获取到的订单数量:', detailedOrders.length);
+        console.log('买家订单数量:', buyerOrders.length);
+        console.log('用户发布的商品ID列表:', myGoodsIds);
+        
+        if (detailedOrders.length === 0) {
+          console.log('没有找到二手交易订单');
         }
       } catch (error) {
         console.error('获取二手交易订单失败:', error);
