@@ -78,9 +78,9 @@
 			<view class="customer-card">
 				<view class="customer-header">
 					<view class="customer-title-section">
-						<text class="card-title">顾客信息</text>
-						<view class="customer-name">{{ orderInfo.customerName }}</view>
-					</view>
+							<text class="card-title">顾客信息</text>
+							<view class="customer-name">{{ maskCustomerName(orderInfo.customerName) }}</view>
+						</view>
 					<button class="contact-btn" @tap="contactCustomer">
 						<text class="contact-icon">📞</text>
 						<text class="contact-text">联系</text>
@@ -268,9 +268,11 @@ export default {
 							deliveryTime: this.formatDeliveryTime(order),
 							deliveryFee: order.deliveryFeeAmount?.toFixed(2) || order.deliveryFee?.toFixed(2) || '0.00',
 							merchant: order.merchantName || order.pickName || order.shopName,
-						merchantAddress: order.merchantAddress || order.pickAddress || order.shopAddress,
+							merchantPhone: order.merchantPhone || order.pickPhone || order.shopPhone,
+							merchantAddress: order.merchantAddress || order.pickAddress || order.shopAddress,
 							merchantDistance: this.calculateDistance(order),
-							customerName: order.userNickname || order.customerName || order.deliverName,
+							customerName: order.deliverContact || order.userNickname || order.customerName || order.deliverName,
+							customerPhone: order.deliverPhone || order.customerPhone,
 							customerAddress: order.customerAddress || order.deliverAddress,
 							customerNote: order.customerNote || order.remark,
 							estimatedDistance: order.estimatedDistance,
@@ -374,16 +376,33 @@ export default {
 			return widths[this.orderStatus] || '25%';
 		},
 		
+		// 脱敏顾客姓名：只显示姓氏，名字用星号代替
+		maskCustomerName(name) {
+			if (!name || name.length <= 1) return name;
+			return name.charAt(0) + '*'.repeat(name.length - 1);
+		},
+		
+		// 脱敏电话号码：显示前3位和后4位，中间用星号代替
+		maskPhoneNumber(phone) {
+			if (!phone || phone.length < 7) return phone;
+			return phone.substring(0, 3) + '****' + phone.substring(phone.length - 4);
+		},
+		
 		contactMerchant() {
 			uni.showModal({
 				title: '联系商家',
-				content: `商家：${this.orderInfo.merchant}\n地址：${this.orderInfo.merchantAddress}`,
+				content: `商家：${this.orderInfo.merchant}\n电话：${this.orderInfo.merchantPhone || '暂未提供'}`,
 				confirmText: '拨打电话',
 				cancelText: '取消',
 				success: (res) => {
-					if (res.confirm) {
+					if (res.confirm && this.orderInfo.merchantPhone) {
 						uni.makePhoneCall({
-							phoneNumber: '13800138000'
+							phoneNumber: this.orderInfo.merchantPhone
+						});
+					} else if (!this.orderInfo.merchantPhone) {
+						uni.showToast({
+							title: '商家电话暂未提供',
+							icon: 'none'
 						});
 					}
 				}
@@ -391,15 +410,25 @@ export default {
 		},
 		
 		contactCustomer() {
+			// 对顾客名称和电话进行脱敏处理
+			const maskedName = this.maskCustomerName(this.orderInfo.customerName);
+			const maskedPhone = this.maskPhoneNumber(this.orderInfo.customerPhone);
+			
 			uni.showModal({
 				title: '联系顾客',
-				content: `顾客：${this.orderInfo.customerName}\n地址：${this.orderInfo.customerAddress}`,
+				content: `顾客：${maskedName}\n电话：${maskedPhone || '暂未提供'}`,
 				confirmText: '拨打电话',
 				cancelText: '取消',
 				success: (res) => {
-					if (res.confirm) {
+					if (res.confirm && this.orderInfo.customerPhone) {
+						// 拨打电话时使用完整号码
 						uni.makePhoneCall({
-							phoneNumber: '13900139000'
+							phoneNumber: this.orderInfo.customerPhone
+						});
+					} else if (!this.orderInfo.customerPhone) {
+						uni.showToast({
+							title: '顾客电话暂未提供',
+							icon: 'none'
 						});
 					}
 				}
