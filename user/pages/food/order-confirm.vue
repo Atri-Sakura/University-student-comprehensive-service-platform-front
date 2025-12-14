@@ -421,6 +421,14 @@ export default {
       
       console.log('提交订单时的地址信息:', this.selectedAddress);
       
+      // 在提交订单前，再次从API获取最新的配送费，确保数据一致性
+      try {
+        await this.loadMerchantDeliveryFee();
+        console.log('提交订单前，已重新获取配送费:', this.restaurant.deliveryFee);
+      } catch (error) {
+        console.warn('提交订单前获取配送费失败，使用当前值:', error);
+      }
+      
       // 构建订单数据 - 使用新API格式
       const address = this.selectedAddress;
       
