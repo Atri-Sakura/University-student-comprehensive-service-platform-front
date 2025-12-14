@@ -15,6 +15,8 @@
 					<view class="order-tag" :class="orderInfo.type">{{ orderInfo.typeText }}</view>
 				</view>
 				<text class="order-merchant">{{ orderInfo.merchant }}</text>
+				<text class="order-customer">{{ orderInfo.customer }}</text>
+				<text class="order-address">{{ orderInfo.address }}</text>
 				<text class="order-status">当前状态：{{ statusText }}</text>
 			</view>
 
@@ -29,47 +31,7 @@
 				</view>
 			</view>
 
-			<!-- 异常描述 -->
-			<view class="description-card">
-				<view class="card-title">异常描述</view>
-				<textarea 
-					class="description-input" 
-					v-model="description"
-					placeholder="请详细描述遇到的异常情况，以便客服更好地为您处理..."
-					maxlength="500"
-					:show-confirm-bar="false"
-				></textarea>
-				<view class="char-count">{{ description.length }}/500</view>
-			</view>
-
-			<!-- 图片上传 -->
-			<view class="upload-card">
-				<view class="card-title">
-					<text>现场照片</text>
-					<text class="upload-tip">（选填，最多9张）</text>
-				</view>
-				
-				<view class="upload-grid">
-					<view 
-						class="upload-item" 
-						v-for="(image, index) in uploadedImages" 
-						:key="index"
-					>
-						<image class="upload-image" :src="image" mode="aspectFill"></image>
-						<view class="delete-btn" @tap="deleteImage(index)">
-							<text class="delete-icon">×</text>
-						</view>
-					</view>
-					
-					<view 
-						class="upload-add" 
-						v-if="uploadedImages.length < 9"
-						@tap="chooseImage"
-					>
-						<text class="add-plus">+</text>
-					</view>
-				</view>
-			</view>
+	
 
 		</view>
 
@@ -87,21 +49,28 @@
 </template>
 
 <script>
+import { getOrderDetail, reportException } from '../../utils/api/order.js';
+import { getRiderBaseInfo } from '../../utils/api/rider.js';
+
 export default {
 	data() {
-		return {
-			orderId: '',
-			orderStatus: '',
-			orderInfo: {
-				id: 'ORD2024123456',
-				type: 'takeout',
-				typeText: '外卖',
-				merchant: '星巴克咖啡（人民广场店）'
-			},
-			selectedType: '',
-			description: '',
-			uploadedImages: [],
-			submitting: false,
+			return {
+				orderId: '',
+				orderStatus: '',
+				rawOrderStatus: null, // 原始数字状态码
+				orderInfo: {
+			id: '',
+			type: '',
+			typeText: '',
+			merchant: '',
+			customer: '',
+			address: '',
+			totalPrice: 0
+		},
+		loading: false, // 加载状态
+		selectedType: '', // 存储英文键值（用于兼容现有逻辑）
+		selectedTypeName: '', // 新增：存储中文名称
+		submitting: false,
 			exceptionTypes: [
 				{ key: 'merchant_not_ready', name: '商家未准备好', icon: '⏰' },
 				{ key: 'merchant_closed', name: '商家已关门', icon: '🚪' },
@@ -110,8 +79,7 @@ export default {
 				{ key: 'wrong_address', name: '地址有误', icon: '📍' },
 				{ key: 'goods_issue', name: '商品问题', icon: '📦' },
 				{ key: 'weather_issue', name: '天气原因', icon: '🌧️' },
-				{ key: 'traffic_issue', name: '交通问题', icon: '🚧' },
-				{ key: 'other', name: '其他异常', icon: '❓' }
+				{ key: 'traffic_issue', name: '交通问题', icon: '🚧' }
 			]
 		}
 	},
@@ -119,36 +87,127 @@ export default {
 	computed: {
 		statusText() {
 			const statusMap = {
+				'new': '待接单',
 				'pickup': '待取货',
-				'delivery': '配送中'
+				'delivery': '配送中',
+				'completed': '已完成',
+				'cancelled': '已取消',
+				'rejected': '已拒单'
 			};
 			return statusMap[this.orderStatus] || '未知状态';
 		},
 		
 		selectedTypeText() {
-			const selectedTypeObj = this.exceptionTypes.find(type => type.key === this.selectedType);
-			return selectedTypeObj ? selectedTypeObj.name : '';
+			return this.selectedTypeName || '';
 		},
 		
 		canSubmit() {
-			return this.selectedType && this.description.trim();
+			// 只有选择了异常类型且订单状态为配送中时才能提交（后端要求order_status=3）
+			return this.selectedType && this.orderStatus === 'delivery';
 		}
 	},
 	
 	onLoad(options) {
-		if (options.orderId) {
-			this.orderId = options.orderId;
-			this.orderInfo.id = options.orderId;
-		}
-		if (options.status) {
-			this.orderStatus = options.status;
-		}
-	},
+			if (options.orderId) {
+				this.orderId = options.orderId;
+				this.loadOrderDetail(options.orderId);
+			}
+			if (options.status) {
+				this.orderStatus = options.status;
+			}
+		},
 	
 	methods: {
-		goBack() {
-			uni.navigateBack({ delta: 1 });
+		// 映射后端数字状态码到前端字符串状态
+		mapOrderStatus(statusCode) {
+			const statusMap = {
+				1: 'new',      // 待接单
+				2: 'pickup',   // 待取货
+				3: 'delivery', // 配送中
+				4: 'completed', // 已完成
+				5: 'cancelled', // 已取消
+				6: 'rejected'  // 已拒单
+			};
+			return statusMap[statusCode] || 'new';
 		},
+			
+			goBack() {
+				uni.navigateBack({ delta: 1 });
+			},
+			
+			// 加载订单详情
+			async loadOrderDetail(orderId) {
+				console.log('📥 loadOrderDetail 被调用，orderId:', orderId);
+				console.log('📥 loadOrderDetail orderId类型:', typeof orderId);
+				
+				// 验证orderId是否是订单号格式（以T开头）
+				if (/^T\d+$/.test(orderId)) {
+					console.error('❌ 错误：传递的是订单号而不是orderMainId:', orderId);
+					uni.showToast({
+						title: '参数错误，需传递orderMainId',
+						icon: 'error'
+					});
+					return;
+				}
+				
+				if (!orderId) {
+					uni.showToast({
+						title: '缺少订单ID',
+						icon: 'error'
+					});
+					return;
+				}
+				
+				try {
+					this.loading = true;
+					uni.showLoading({ title: '加载中...' });
+					
+					// 调用订单详情接口
+					console.log('📤 调用getOrderDetail接口，orderId:', orderId);
+					const res = await getOrderDetail(orderId);
+					console.log('📥 getOrderDetail接口返回:', res);
+					
+					// 处理后端返回的数据格式（后端可能直接返回rows而不是data）
+					const orderData = res.data || res.rows || {};
+					
+					if (res.code === 200 && orderData) {
+						// 保存原始数字状态码
+						this.rawOrderStatus = orderData.orderStatus;
+						
+						// 更新订单信息
+						this.orderInfo = {
+							id: orderData.orderNo || orderData.orderMainId || orderData.id || orderId,
+							type: orderData.orderType === 1 ? 'takeout' : 'express',
+							typeText: orderData.orderType === 1 ? '外卖' : '跑腿',
+							merchant: orderData.pickAddress || orderData.merchantName || orderData.merchant || '未知商家',
+							customer: orderData.customerName || orderData.customer || '',
+							address: orderData.deliverAddress || orderData.deliveryAddress || '',
+							totalPrice: orderData.totalPrice || 0
+						};
+						console.log('📥 更新后的orderInfo:', this.orderInfo);
+						console.log('📋 原始订单状态码:', this.rawOrderStatus);
+						
+						// 如果页面没有传入status，使用接口返回的状态（需要进行映射）
+						if (!this.orderStatus && orderData.orderStatus) {
+							this.orderStatus = this.mapOrderStatus(orderData.orderStatus);
+						}
+					} else {
+						uni.showToast({
+							title: res.message || '订单详情获取失败',
+							icon: 'error'
+						});
+					}
+				} catch (error) {
+					console.error('获取订单详情失败:', error);
+					uni.showToast({
+						title: '网络异常，请稍后重试',
+						icon: 'error'
+					});
+				} finally {
+					this.loading = false;
+					uni.hideLoading();
+				}
+			},
 		
 		showTypePicker() {
 			const typeNames = this.exceptionTypes.map(type => type.name);
@@ -157,127 +216,117 @@ export default {
 				itemList: typeNames,
 				success: (res) => {
 					const selectedTypeObj = this.exceptionTypes[res.tapIndex];
-					this.selectedType = selectedTypeObj.key;
+					this.selectedType = selectedTypeObj.key; // 保留英文键值（兼容现有逻辑）
+					this.selectedTypeName = selectedTypeObj.name; // 新增：存储中文名称
 				}
 			});
 		},
 		
-		chooseImage() {
-			const remainingCount = 9 - this.uploadedImages.length;
-			
-			uni.chooseImage({
-				count: remainingCount,
-				sizeType: ['compressed'],
-				sourceType: ['camera', 'album'],
-				success: (res) => {
-					this.uploadedImages.push(...res.tempFilePaths);
-				},
-				fail: (err) => {
-					uni.showToast({
-						title: '选择图片失败',
-						icon: 'none'
-					});
-				}
-			});
-		},
-		
-		deleteImage(index) {
-			uni.showModal({
-				title: '删除图片',
-				content: '确定要删除这张图片吗？',
-				success: (res) => {
-					if (res.confirm) {
-						this.uploadedImages.splice(index, 1);
-					}
-				}
-			});
-		},
-		
-		async uploadImages() {
-			if (this.uploadedImages.length === 0) {
-				return [];
-			}
-			
-			const uploadPromises = this.uploadedImages.map(imagePath => {
-				return new Promise((resolve, reject) => {
-					uni.uploadFile({
-						url: 'https://api.example.com/upload', // 替换为实际的上传接口
-						filePath: imagePath,
-						name: 'file',
-						success: (uploadRes) => {
-							try {
-								const data = JSON.parse(uploadRes.data);
-								resolve(data.url);
-							} catch (e) {
-								reject(e);
-							}
-						},
-						fail: reject
-					});
-				});
-			});
-			
-			try {
-				const imageUrls = await Promise.all(uploadPromises);
-				return imageUrls;
-			} catch (error) {
-				throw new Error('图片上传失败');
-			}
-		},
+
 		
 		async submitReport() {
-			if (!this.canSubmit) return;
-			
-			this.submitting = true;
-			
-			try {
-				// 上传图片
-				let imageUrls = [];
-				if (this.uploadedImages.length > 0) {
-					uni.showLoading({ title: '上传图片中...' });
-					imageUrls = await this.uploadImages();
-					uni.hideLoading();
+				if (!this.canSubmit) {
+					// 检查是否因为订单状态不符合条件
+					if (this.selectedType && this.orderStatus !== 'delivery') {
+						uni.showToast({
+							title: '只有配送中的订单才能提交异常报备',
+							icon: 'error'
+						});
+					}
+					return;
 				}
 				
-				// 提交报备数据
-				uni.showLoading({ title: '提交中...' });
+				this.submitting = true;
+				// 最后确认原始数字状态码
+				console.log('📋 提交前的原始数字状态码:', this.rawOrderStatus);
 				
-				const reportData = {
-					orderId: this.orderId,
-					orderStatus: this.orderStatus,
-					exceptionType: this.selectedType,
-					description: this.description,
-					images: imageUrls,
-					createTime: new Date().toISOString()
-				};
-				
-				// 模拟API调用
-				await new Promise(resolve => setTimeout(resolve, 2000));
-				
-				uni.hideLoading();
-				
-				// 提交成功
-				uni.showModal({
-					title: '提交成功',
-					content: '异常报备已提交，客服将在15分钟内联系您处理。',
-					showCancel: false,
-					success: () => {
-						// 返回上一页或订单列表
-						uni.navigateBack({ delta: 1 });
+				try {
+					// 提交报备数据
+					uni.showLoading({ title: '提交中...' });
+					
+					// 获取骑手信息
+					let riderId = '';
+					// 先尝试从本地缓存获取
+					const cachedRiderInfo = uni.getStorageSync('riderInfo');
+					if (cachedRiderInfo && cachedRiderInfo.riderId) {
+						riderId = cachedRiderInfo.riderId;
+					} else {
+						// 缓存中没有，从后端获取
+						const riderInfoRes = await getRiderBaseInfo();
+						if (riderInfoRes.code === 200 && riderInfoRes.data) {
+							riderId = riderInfoRes.data.riderBaseId;
+							// 保存到缓存
+							uni.setStorageSync('riderInfo', {
+								...riderInfoRes.data,
+								riderId: riderInfoRes.data.riderBaseId
+							});
+						} else {
+							uni.hideLoading();
+							throw new Error('获取骑手信息失败');
+						}
 					}
-				});
+					
+					// 检查当前订单状态
+						console.log('📋 当前订单状态:', this.orderStatus);
+						console.log('📋 原始数字状态码:', this.rawOrderStatus);
+						console.log('📋 订单ID类型:', typeof this.orderId);
+						console.log('📋 订单ID值:', this.orderId);
 				
-			} catch (error) {
-				uni.hideLoading();
-				uni.showModal({
-					title: '提交失败',
-					content: error.message || '网络异常，请稍后重试',
-					showCancel: false
-				});
-			} finally {
-				this.submitting = false;
+				// 构造后端期望的参数格式
+					// 直接使用存储的中文名称
+					console.log('📋 当前selectedType:', this.selectedType);
+					console.log('📋 当前selectedTypeName:', this.selectedTypeName);
+					const cancelReason = this.selectedTypeName;
+					console.log('📋 准备传递的异常类型:', cancelReason);
+					console.log('📋 cancelReason类型:', typeof cancelReason);
+					console.log('📋 cancelReason编码:', encodeURIComponent(cancelReason));
+					
+					const reportData = {
+						riderId: Number(riderId),  // 骑手ID
+						orderMainId: String(this.orderId),  // 订单主ID，确保是字符串类型
+						cancelReason: cancelReason  // 异常类型（报备原因），使用中文名称
+					};
+					
+					console.log('📤 提交异常报备数据:', reportData);
+					
+					// 调用真实API接口
+					const res = await reportException(reportData);
+					console.log('📥 异常报备接口返回:', res);
+					
+					uni.hideLoading();
+					
+					// 提交成功
+					if (res.code === 200 || res.success) {
+						uni.showModal({
+							title: '提交成功',
+							content: res.message || '异常报备已提交，客服将在15分钟内联系您处理。',
+							showCancel: false,
+							success: () => {
+								// 返回上一页或订单列表
+								uni.navigateBack({ delta: 1 });
+							}
+						});
+					} else {
+						// 提交失败
+						uni.showModal({
+							title: '提交失败',
+							content: res.message || '异常报备提交失败，请稍后重试。',
+							showCancel: false
+						});
+					}
+					
+				} catch (error) {
+					uni.hideLoading();
+					console.error('❌ 异常报备API调用失败:', error);
+					uni.showModal({
+						title: '提交失败',
+						content: error.message || '网络异常，请稍后重试',
+						showCancel: false
+					});
+				} finally {
+					this.submitting = false;
+				}
 			}
-		}
 	}
 }
 </script>
@@ -326,9 +375,7 @@ export default {
 
 	/* 卡片通用样式 */
 	.order-info-card,
-	.exception-card,
-	.description-card,
-	.upload-card {
+	.exception-card {
 		background-color: #ffffff;
 		border-radius: 16rpx;
 		padding: 30rpx;
@@ -384,6 +431,22 @@ export default {
 		display: block;
 	}
 
+	.order-customer {
+		font-size: 28rpx;
+		color: #666666;
+		margin-bottom: 12rpx;
+		display: block;
+	}
+
+	.order-address {
+		font-size: 26rpx;
+		color: #888888;
+		margin-bottom: 12rpx;
+		display: block;
+		line-height: 1.4;
+		word-break: break-all;
+	}
+
 	.order-status {
 		font-size: 26rpx;
 		color: #1890ff;
@@ -424,86 +487,7 @@ export default {
 		margin-left: 20rpx;
 	}
 
-	/* 异常描述 */
-	.description-input {
-		width: 100%;
-		min-height: 200rpx;
-		padding: 20rpx;
-		border: 2rpx solid #f0f0f0;
-		border-radius: 12rpx;
-		font-size: 28rpx;
-		color: #333333;
-		line-height: 1.6;
-		box-sizing: border-box;
-	}
 
-	.char-count {
-		text-align: right;
-		font-size: 24rpx;
-		color: #999999;
-		margin-top: 12rpx;
-	}
-
-	/* 图片上传 */
-	.upload-tip {
-		font-size: 24rpx;
-		color: #999999;
-		font-weight: normal;
-	}
-
-	.upload-grid {
-		display: grid;
-		grid-template-columns: repeat(3, 1fr);
-		gap: 20rpx;
-	}
-
-	.upload-item {
-		position: relative;
-		aspect-ratio: 1;
-		border-radius: 12rpx;
-		overflow: hidden;
-	}
-
-	.upload-image {
-		width: 100%;
-		height: 100%;
-	}
-
-	.delete-btn {
-		position: absolute;
-		top: 8rpx;
-		right: 8rpx;
-		width: 40rpx;
-		height: 40rpx;
-		background-color: rgba(0, 0, 0, 0.6);
-		border-radius: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.delete-icon {
-		font-size: 24rpx;
-		color: #ffffff;
-		font-weight: bold;
-	}
-
-	.upload-add {
-		aspect-ratio: 1;
-		border: 2rpx dashed #d9d9d9;
-		border-radius: 12rpx;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background-color: #fafafa;
-	}
-
-	.add-plus {
-		font-size: 80rpx;
-		color: #d9d9d9;
-		font-weight: 300;
-		line-height: 1;
-	}
 
 	/* 提交按钮 */
 	.submit-section {
