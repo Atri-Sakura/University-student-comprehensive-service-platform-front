@@ -42,7 +42,7 @@
 
       <!-- 详细评价区域 -->
       <view class="comment-section">
-        <text class="comment-label">详细评价（可选）</text>
+        <text class="comment-label">详细评价</text>
         <textarea 
           class="comment-input" 
           placeholder="请描述您的服务体验..."
