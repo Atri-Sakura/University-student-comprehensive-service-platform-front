@@ -3,7 +3,7 @@
  * 包含提现等功能
  */
 
-import { request } from '../api.js';
+import { 请求 } from '../api.js';
 
 // ========== API 路径配置 ==========
 const WALLET_API = {
@@ -12,7 +12,9 @@ const WALLET_API = {
 	// 获取钱包余额
 	GET_BALANCE: '/rider/wallet/balance',
 	// 获取交易记录（待后端实现）
-	GET_TRANSACTIONS: '/rider/finance/transactions'
+	GET_TRANSACTIONS: '/rider/finance/transactions',
+	// 骑手钱包流水查询
+	GET_WALLET_FLOW: '/api/rider/wallet/flow'
 };
 
 // ========== 钱包相关API ==========
@@ -24,7 +26,7 @@ const WALLET_API = {
  * @param {String} payPassword 支付密码（可选）
  */
 export async function withdrawByAlipay(amount, payChannel = 1, payPassword = '') {
-	return request({
+	return 请求({
 		url: WALLET_API.WITHDRAW_ALIPAY,
 		method: 'POST',
 		data: {
@@ -39,7 +41,7 @@ export async function withdrawByAlipay(amount, payChannel = 1, payPassword = '')
  * 获取钱包余额
  */
 export async function getWalletBalance() {
-	return await request({
+	return await 请求({
 		url: WALLET_API.GET_BALANCE,
 		method: 'GET'
 	});
@@ -52,8 +54,24 @@ export async function getWalletBalance() {
  * @param {Number} pageSize 每页数量
  */
 export async function getTransactions(page = 1, pageSize = 20) {
-	return request({
+	return 请求({
 		url: WALLET_API.GET_TRANSACTIONS,
+		method: 'GET',
+		data: {
+			page,
+			pageSize
+		}
+	});
+}
+
+/**
+ * 骑手钱包流水查询
+ * @param {Number} page 页码
+ * @param {Number} pageSize 每页数量
+ */
+export async function getRiderWalletFlow(page = 1, pageSize = 20) {
+	return 请求({
+		url: WALLET_API.GET_WALLET_FLOW,
 		method: 'GET',
 		data: {
 			page,
@@ -65,5 +83,6 @@ export async function getTransactions(page = 1, pageSize = 20) {
 export default {
 	withdrawByAlipay,
 	getWalletBalance,
-	getTransactions
+	getTransactions,
+	getRiderWalletFlow
 };
