@@ -71,9 +71,8 @@
 						<button class="exception-btn" @tap="reportException(order)">异常报备</button>
 						<button class="accept-btn" @tap="acceptOrder(order)">确认取货</button>
 					</template>
-					<!-- 待送达：联系顾客 + 异常报备 + 确认送达 -->
+					<!-- 待送达：异常报备 + 确认送达 -->
 					<template v-else-if="activeTab === 'delivery'">
-						<button class="contact-btn" @tap="contactCustomer(order)">联系顾客</button>
 						<button class="exception-btn" @tap="reportException(order)">异常报备</button>
 						<button class="accept-btn" @tap="acceptOrder(order)">确认送达</button>
 					</template>
