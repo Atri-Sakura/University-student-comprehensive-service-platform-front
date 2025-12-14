@@ -4,7 +4,7 @@
  * 待后端接口完成后实现
  */
 
-import { request } from '../api.js';
+import { 请求 } from '../api.js';
 
 // API路径
 const ORDER_API = {
@@ -24,7 +24,7 @@ const ORDER_API = {
  * @param {Number} pageSize 每页数量
  */
 export async function getNewOrders(page = 1, pageSize = 10) {
-	return request({
+	return 请求({
 		url: ORDER_API.NEW_ORDERS,
 		method: 'GET',
 		data: { page, pageSize }
@@ -41,7 +41,7 @@ export async function getOrderDetail(orderId) {
 	const url = `${ORDER_API.ORDER_DETAIL}/${orderId}`;
 	console.log('🔗 最终请求URL:', url);
 	
-	return request({
+	return 请求({
 		url: url,
 		method: 'GET'
 	});
@@ -52,7 +52,7 @@ export async function getOrderDetail(orderId) {
  * @param {String} orderId 订单ID
  */
 export async function acceptOrder(orderId) {
-	return request({
+	return 请求({
 		url: ORDER_API.ACCEPT_ORDER,
 		method: 'POST',
 		data: { orderId }
@@ -64,7 +64,7 @@ export async function acceptOrder(orderId) {
  * @param {String} orderId 订单ID
  */
 export async function pickupOrder(orderId) {
-	return request({
+	return 请求({
 		url: ORDER_API.PICKUP_ORDER,
 		method: 'POST',
 		data: { orderId }
@@ -76,7 +76,7 @@ export async function pickupOrder(orderId) {
  * @param {String} orderId 订单ID
  */
 export async function deliverOrder(orderId) {
-	return request({
+	return 请求({
 		url: ORDER_API.DELIVER_ORDER,
 		method: 'POST',
 		data: { orderId }
@@ -89,7 +89,7 @@ export async function deliverOrder(orderId) {
  * @param {String} deliveryCode 取餐码
  */
 export async function completeOrder(orderId, deliveryCode) {
-	return request({
+	return 请求({
 		url: ORDER_API.COMPLETE_ORDER,
 		method: 'POST',
 		data: { orderId, deliveryCode }
@@ -104,7 +104,7 @@ export async function completeOrder(orderId, deliveryCode) {
  * @param {Number} pageSize 每页数量
  */
 export async function getHistoryOrders(orderMain = {}, timeRange = null, page = 1, pageSize = 10) {
-	return request({
+	return 请求({
 		url: ORDER_API.HISTORY_ORDERS,
 		method: 'GET',
 		data: { ...orderMain, timeRange, page, pageSize }
@@ -117,10 +117,25 @@ export async function getHistoryOrders(orderMain = {}, timeRange = null, page = 
  * @param {String} endDate 结束日期
  */
 export async function getOrderStatistics(startDate, endDate) {
-	return request({
+	return 请求({
 		url: ORDER_API.ORDER_STATISTICS,
 		method: 'GET',
 		data: { startDate, endDate }
+	});
+}
+
+/**
+ * 异常报备
+ * @param {Object} orderData 订单数据
+ * @param {Number} orderData.riderId 骑手ID
+ * @param {String} orderData.orderMainId 订单主ID
+ * @param {String} orderData.cancelReason 异常类型（报备原因）
+ */
+export async function reportException(orderData) {
+	return 请求({
+		url: ORDER_API.REPORT_EXCEPTION,
+		method: 'PUT',
+		data: orderData
 	});
 }
 
