@@ -86,7 +86,7 @@
 </template>
 
 <script>
-	import { getAvailableOrders, getMyOrders, riderAcceptOrder, riderPickupOrder, riderDeliverOrder } from '@/utils/api/index.js';
+	import { getAvailableOrders, getMyOrders, riderAcceptOrder， riderPickupOrder, riderDeliverOrder } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -249,8 +249,14 @@
 					status = statusMap[item.orderStatus] || 'new';
 				}
 				
+				// 确保orderMainId始终存在
+				const orderMainId = item.orderMainId || item.id;
+				console.log('🔄 convertOrderData，item.orderMainId:', item.orderMainId);
+				console.log('🔄 convertOrderData，item.id:', item.id);
+				console.log('🔄 convertOrderData，最终orderMainId:', orderMainId);
+				
 				return {
-					id: item.orderNo || item.orderMainId,
+					id: item.orderNo || orderMainId,
 					merchant: item.pickAddress || '取货地址',
 					address: item.deliverAddress || '配送地址',
 					deliveryTime: item.createTime || '尽快送达',
@@ -258,7 +264,7 @@
 					typeText: typeInfo.typeText,
 					status: status,
 					// 后端已返回字符串格式的 orderMainId，直接使用
-					orderMainId: item.orderMainId
+					orderMainId: orderMainId
 				};
 			},
 			viewDetail(order) {
@@ -364,9 +370,37 @@
 				});
 			},
 			reportException(order) {
-				// 跳转到异常报备页面
+				// 跳转到异常报备页面，使用orderMainId作为订单ID
+				console.log('📤 异常报备跳转，完整order对象:', JSON.stringify(order));
+				console.log('📤 异常报备跳转，order.id:', order.id);
+				console.log('📤 异常报备跳转，order.id类型:', typeof order.id);
+				console.log('📤 异常报备跳转，order.orderMainId:', order.orderMainId);
+				console.log('📤 异常报备跳转，order.orderMainId类型:', typeof order.orderMainId);
+				
+				// 确保传递的是orderMainId而不是订单号
+				let orderMainId = order.orderMainId;
+				
+				// 如果orderMainId不存在但id是数字格式，使用id作为orderMainId
+				if (!orderMainId && /^\d+$/.test(order.id)) {
+					orderMainId = order.id;
+					console.log('⚠️  警告：orderMainId不存在，使用order.id作为orderMainId:', orderMainId);
+				}
+				
+				// 再次检查是否是订单号格式
+				if (/^T\d+$/.test(orderMainId)) {
+					console.error('❌ 错误：orderMainId是订单号格式:', orderMainId);
+					uni.showToast({
+						title: '参数错误，需传递orderMainId',
+						icon: 'error'
+					});
+					return;
+				}
+				
+				const url = `/pages/order/exception-report?orderId=${orderMainId}&status=${this.activeTab}`;
+				console.log('📤 异常报备跳转，完整URL:', url);
+				
 				uni.navigateTo({
-					url: `/pages/order/exception-report?orderId=${order.id}&status=${this.activeTab}`
+					url: url
 				});
 			}
 		}
