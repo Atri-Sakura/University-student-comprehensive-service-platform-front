@@ -21,10 +21,15 @@ export const getMerchantBaseInfo = () => {
  * @param {String} data.merchantBaseId - 商家ID（必填）
  * @param {String} data.merchantName - 商家名称
  * @param {String} data.merchantPhone - 联系电话
+ * @param {String} data.phone - 联系电话（兼容字段）
  * @param {Number} data.businessStatus - 营业状态（1:营业中, 0:休息中, 2:打烊）
  * @param {String} data.businessHours - 营业时间
  * @param {String} data.description - 店铺简介
  * @param {String} data.businessScope - 经营范围
+ * @param {String} data.logo - Logo URL地址（可选，如果只更新logo，可以只传logo字段）
+ * @param {Number} data.deliveryRange - 配送范围（公里）
+ * @param {Number} data.minOrderAmount - 起送价
+ * @param {Number} data.deliveryFee - 配送费
  * @returns {Promise}
  */
 export const updateMerchantBase = (data) => {
@@ -38,6 +43,52 @@ export const updateMerchantBase = (data) => {
   return request(`${baseUrl}/merchant/info/base`, {
     method: 'PUT',
     data: requestData
+  });
+};
+
+/**
+ * 上传商家Logo（专用接口，推荐方式）
+ * @param {String} filePath - 图片文件路径
+ * @returns {Promise} 返回 { code: 200, msg: 'Logo上传成功', data: { logoUrl: '...' } }
+ */
+export const uploadMerchantLogo = (filePath) => {
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${baseUrl}/merchant/info/logo`,
+      filePath: filePath,
+      name: 'file', // 字段名必须为 "file"
+      header: {
+        'Authorization': `Bearer ${uni.getStorageSync('token')}`
+      },
+      success: (uploadRes) => {
+        try {
+          const data = JSON.parse(uploadRes.data);
+          
+          console.log('🔍 Logo上传响应数据:', data);
+          
+          if (data.code === 200) {
+            // 构建标准响应格式
+            const result = {
+              code: 200,
+              msg: data.msg || 'Logo上传成功',
+              data: {
+                logoUrl: data.data?.logoUrl || data.data?.url || data.data?.imageUrl || ''
+              }
+            };
+            resolve(result);
+          } else {
+            reject(new Error(data.msg || '上传失败'));
+          }
+        } catch (error) {
+          console.error('Logo上传响应解析失败:', error);
+          reject(new Error('响应数据解析失败'));
+        }
+      },
+      fail: (err) => {
+        console.error('Logo上传失败:', err);
+        reject(err);
+      }
+    });
   });
 };
 
@@ -220,6 +271,7 @@ export default {
   getMerchantBaseInfo,
   updateMerchantBase,
   checkMerchantName,
+  uploadMerchantLogo,
   getMerchantAddress,
   addMerchantAddress,
   updateMerchantAddress,
