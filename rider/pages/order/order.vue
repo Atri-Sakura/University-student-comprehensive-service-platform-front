@@ -257,14 +257,16 @@
 				
 				return {
 					id: item.orderNo || orderMainId,
-					merchant: item.pickAddress || '取货地址',
-					address: item.deliverAddress || '配送地址',
-					deliveryTime: item.createTime || '尽快送达',
-					type: typeInfo.type,
-					typeText: typeInfo.typeText,
-					status: status,
-					// 后端已返回字符串格式的 orderMainId，直接使用
-					orderMainId: orderMainId
+				merchant: item.pickAddress || '取货地址',
+				address: item.deliverAddress || '配送地址',
+				merchantName: item.merchantName || item.pickAddress || '商家名称',
+				merchantPhone: item.merchantPhone || item.pickPhone || item.shopPhone || '',
+				deliveryTime: item.createTime || '尽快送达',
+				type: typeInfo.type,
+				typeText: typeInfo.typeText,
+				status: status,
+				// 后端已返回字符串格式的 orderMainId，直接使用
+				orderMainId: orderMainId
 				};
 			},
 			viewDetail(order) {
@@ -279,15 +281,18 @@
 			},
 			contactMerchant(order) {
 				// 联系商家
+				const merchantName = order.merchantName || '商家';
+				const merchantPhone = order.merchantPhone || '暂未提供';
+				
 				uni.showModal({
 					title: '联系商家',
-					content: `商家：${order.merchant}\n地址：${order.address}`,
+					content: `商家：${merchantName}\n电话：${merchantPhone}`,
 					confirmText: '拨打电话',
 					cancelText: '取消',
 					success: (res) => {
-						if (res.confirm) {
+						if (res.confirm && merchantPhone !== '暂未提供') {
 							uni.makePhoneCall({
-								phoneNumber: '13800138000' // 这里应该从订单数据中获取商家电话
+								phoneNumber: merchantPhone
 							});
 						}
 					}
