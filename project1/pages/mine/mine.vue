@@ -320,6 +320,7 @@ import {
   getMerchantBaseInfo,
   updateMerchantBase,
   checkMerchantName,
+  uploadMerchantLogo,
   getMerchantAddress,
   addMerchantAddress,
   updateMerchantAddress,
@@ -1186,14 +1187,15 @@ export default {
     },
     
     /**
-     * 上传Logo
+     * 上传Logo（使用专用接口 POST /merchant/info/logo）
+     * 该接口会自动删除旧的Logo文件并更新数据库中的logo字段
      */
-    uploadLogo() {
+    async uploadLogo() {
       uni.chooseImage({
         count: 1,
         sizeType: ['compressed'],
         sourceType: ['album', 'camera'],
-        success: (res) => {
+        success: async (res) => {
           const tempFilePath = res.tempFilePaths[0];
           
           // 显示加载提示
@@ -1201,82 +1203,38 @@ export default {
             title: '上传中...'
           });
           
-          // 🔧 上传到服务器（通用文件上传接口）
-          uni.uploadFile({
-            url: 'http://localhost:8080/common/upload', // 通用文件上传接口
-            filePath: tempFilePath,
-            name: 'file',
-            header: {
-              'Authorization': `Bearer ${uni.getStorageSync('token')}`
-            },
-            success: (uploadRes) => {
-              try {
-                const data = JSON.parse(uploadRes.data);
-                
-                console.log('🔍 上传响应数据:', data);
-                
-                if (data.code === 200) {
-                  // 上传成功，获取图片URL - 添加安全检查
-                  let logoUrl = '';
-                  
-                  if (data.data && typeof data.data === 'object') {
-                    logoUrl = data.data.url || data.data.imageUrl || data.data.fileName;
-                  } else if (data.url) {
-                    logoUrl = data.url;
-                  } else if (data.fileName) {
-                    logoUrl = data.fileName;
-                  } else if (typeof data.data === 'string') {
-                    logoUrl = data.data;
-                  }
-                  
-                  console.log('🖼️ Logo上传成功，URL:', logoUrl);
-                  
-                  if (logoUrl) {
-                    // 更新Logo URL
-                    this.shopInfo.logo = logoUrl;
-                  } else {
-                    throw new Error('无法获取上传文件的URL');
-                  }
-                  
-                  // 保存到后端
-                  this.saveShopInfo().then(success => {
-                    uni.hideLoading();
-                    
-                    if (success) {
-                      uni.showToast({
-                        title: 'Logo更换成功',
-                        icon: 'success'
-                      });
-                    } else {
-                      // 保存失败，恢复原logo
-                      this.shopInfo.logo = '';
-                      uni.showToast({
-                        title: '保存失败',
-                        icon: 'none'
-                      });
-                    }
-                  });
-                } else {
-                  throw new Error(data.msg || '上传失败');
-                }
-              } catch (error) {
-                console.error('上传失败:', error);
-                uni.hideLoading();
-                uni.showToast({
-                  title: error.message || '上传失败',
-                  icon: 'none'
-                });
-              }
-            },
-            fail: (err) => {
-              console.error('上传失败:', err);
+          try {
+            // 使用专用Logo上传接口
+            const uploadRes = await uploadMerchantLogo(tempFilePath);
+            
+            if (uploadRes.code === 200 && uploadRes.data.logoUrl) {
+              // 上传成功，接口已自动更新数据库
+              const logoUrl = uploadRes.data.logoUrl;
+              console.log('🖼️ Logo上传成功，URL:', logoUrl);
+              
+              // 更新前端显示的Logo
+              this.shopInfo.logo = logoUrl;
+              
+              // 保存到本地缓存
+              this.saveToLocal();
+              
               uni.hideLoading();
               uni.showToast({
-                title: '上传失败',
-                icon: 'none'
+                title: 'Logo上传成功',
+                icon: 'success'
               });
+            } else {
+              throw new Error(uploadRes.msg || '无法获取Logo URL');
             }
-          });
+          } catch (error) {
+            console.error('Logo上传失败:', error);
+            uni.hideLoading();
+            uni.showToast({
+              title: error.message || '上传失败',
+              icon: 'none',
+              duration: 3000
+            });
+          }
         },
         fail: () => {
           uni.showToast({
