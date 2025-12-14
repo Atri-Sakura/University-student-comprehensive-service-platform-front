@@ -239,6 +239,8 @@ export default {
     async initUserInfo() {
       try {
         const userInfo = uni.getStorageSync('userInfo');
+        const userId = uni.getStorageSync('userId');
+        
         if (userInfo) {
           this.currentUser = userInfo;
         } else {
@@ -249,13 +251,30 @@ export default {
             uni.setStorageSync('userInfo', response.data);
           }
         }
+        
+        // 确保用户对象有id字段
+        if (this.currentUser && !this.currentUser.id) {
+          const currentUserId = this.currentUser.userId || this.currentUser.userBaseId || userId;
+          if (currentUserId) {
+            this.currentUser.id = currentUserId;
+          }
+        }
       } catch (error) {
         console.error('获取用户信息失败:', error);
-        // 使用默认用户信息
-        this.currentUser = {
-          id: 1001,
-          name: '当前用户'
-        };
+        // 尝试使用userId作为fallback
+        const userId = uni.getStorageSync('userId');
+        if (userId) {
+          this.currentUser = {
+            id: userId,
+            name: '当前用户'
+          };
+        } else {
+          // 使用默认用户信息
+          this.currentUser = {
+            id: '1001',
+            name: '当前用户'
+          };
+        }
       }
     },
 
@@ -266,42 +285,68 @@ export default {
         return;
       }
       
-      console.log('开始加载聊天会话列表, 用户ID:', this.currentUser.id);
+      // 多字段容错获取用户ID
+      const userId = uni.getStorageSync('userId');
+      let currentUserId = this.currentUser.id || this.currentUser.userId || this.currentUser.userBaseId;
+      if (!currentUserId) {
+        currentUserId = userId;
+      }
       
       this.loading = true;
       try {
-        const params = {
+        // 查询1: 用户作为发起方的会话（fromType=USER, fromId=用户ID）
+        const params1 = {
           fromType: USER_TYPE.USER,
-          fromId: this.currentUser.id,
-          sessionStatus: 1, // 正常状态
+          fromId: currentUserId,
+          sessionStatus: 1,
           pageSize: 50
         };
         
-        console.log('getSessionList 请求参数:', params);
+        // 查询2: 用户作为接收方的会话（toType=USER, toId=用户ID）
+        const params2 = {
+          toType: USER_TYPE.USER,
+          toId: currentUserId,
+          sessionStatus: 1,
+          pageSize: 50
+        };
         
-        const response = await getSessionList(params);
+        // 并发查询两个方向的会话
+        const [response1, response2] = await Promise.all([
+          getSessionList(params1),
+          getSessionList(params2)
+        ]);
         
-        console.log('getSessionList 响应数据:', response);
+        let allSessions = [];
         
-        if (response.code === 200 && response.data) {
-          console.log('原始会话数据:', response.data);
-          
-          // 过滤会话：只保留与当前用户相关的会话 (fromId 或 toId 为当前用户ID)
-          // 注意：根据业务逻辑，通常列表应该显示 fromId=当前用户 的记录，因为每条记录代表"我"的一个会话视角
-          const currentUserId = this.currentUser.id;
-          const filteredSessions = response.data.filter(session => {
-            return String(session.fromId) === String(currentUserId);
+        // 合并两个查询结果
+        if (response1.code === 200 && response1.data) {
+          allSessions = allSessions.concat(response1.data);
+        }
+        if (response2.code === 200 && response2.data) {
+          allSessions = allSessions.concat(response2.data);
+        }
+        
+        if (allSessions.length > 0) {
+          // 去重（按sessionId）
+          const sessionMap = new Map();
+          allSessions.forEach(session => {
+            if (!sessionMap.has(session.sessionId)) {
+              sessionMap.set(session.sessionId, session);
+            }
           });
           
-          console.log('过滤后的会话数据:', filteredSessions);
+          const uniqueSessions = Array.from(sessionMap.values());
           
-          this.chatList = filteredSessions.map(session => this.formatSessionToChat(session));
-          console.log('格式化后的聊天列表:', this.chatList);
+          // 格式化并排序（按最后消息时间倒序）
+          this.chatList = uniqueSessions
+            .map(session => this.formatSessionToChat(session, currentUserId))
+            .sort((a, b) => b.lastTime - a.lastTime);
+          
           this.updateTabCount();
         } else {
-          console.warn('获取会话列表失败:', response);
-          // 如果没有数据，添加一些测试数据
-          this.addTestChatData();
+          console.warn('没有查询到任何会话');
+          this.chatList = [];
+          this.updateTabCount();
         }
       } catch (error) {
         console.error('加载聊天会话失败:', error);
@@ -315,12 +360,24 @@ export default {
     },
 
     // 格式化会话数据为聊天列表格式
-    formatSessionToChat(session) {
-      console.log('格式化会话数据:', session);
-      
+    formatSessionToChat(session, currentUserId) {
       // 验证sessionId
       if (!session.sessionId) {
         console.warn('会话数据缺少sessionId:', session);
+      }
+      
+      // 判断当前用户在会话中的角色，确定对方信息
+      let otherType, otherId;
+      const isUserFrom = String(session.fromId) === String(currentUserId);
+      
+      if (isUserFrom) {
+        // 用户是发起方，对方是接收方
+        otherType = session.toType;
+        otherId = session.toId;
+      } else {
+        // 用户是接收方，对方是发起方
+        otherType = session.fromType;
+        otherId = session.fromId;
       }
       
       // 根据对方类型确定头像和名称
@@ -328,18 +385,22 @@ export default {
       let name = '未知用户';
       let type = 'user';
       
-      if (session.toType === USER_TYPE.RIDER) {
+      if (otherType === USER_TYPE.RIDER) {
         avatar = '🚴';
-        name = `配送员 #${session.toId}`;
+        name = `配送员 #${otherId}`;
         type = 'delivery';
-      } else if (session.toType === USER_TYPE.MERCHANT) {
+      } else if (otherType === USER_TYPE.MERCHANT) {
         avatar = '🏪';
-        name = `商家 #${session.toId}`;
+        name = `商家 #${otherId}`;
         type = 'merchant';
-      } else if (session.fromType === USER_TYPE.SYSTEM || session.toType === USER_TYPE.SYSTEM) {
+      } else if (otherType === USER_TYPE.SYSTEM) {
         avatar = '🔔';
         name = '系统消息';
         type = 'system';
+      } else if (otherType === USER_TYPE.USER) {
+        avatar = '👤';
+        name = `用户 #${otherId}`;
+        type = 'user';
       }
       
       const formattedChat = {
@@ -354,16 +415,17 @@ export default {
         fromType: session.fromType,
         fromId: session.fromId,
         toType: session.toType,
-        toId: session.toId
+        toId: session.toId,
+        // 添加对方信息，方便后续使用
+        otherType: otherType,
+        otherId: otherId
       };
       
-      console.log('格式化后的聊天数据:', formattedChat);
       return formattedChat;
     },
 
     // 添加测试聊天数据
     addTestChatData() {
-      console.log('添加测试聊天数据');
       const currentUserId = this.currentUser?.id || 1001;
       this.chatList = [
         {
@@ -410,13 +472,9 @@ export default {
     
     handleSearch() {
       // 搜索功能已通过computed属性实现
-      console.log('搜索关键词:', this.searchKeyword);
     },
     
     async openChat(chat) {
-      console.log('打开聊天:', chat);
-      console.log('chat.sessionId 类型和值:', typeof chat.sessionId, chat.sessionId);
-      
       // 标记会话为已读
       if (chat.unread > 0) {
         if (!chat.sessionId) {
@@ -426,15 +484,11 @@ export default {
           this.updateTabCount();
         } else {
           try {
-            console.log('准备调用 markSessionAsRead，sessionId:', chat.sessionId);
             const result = await markSessionAsRead(chat.sessionId);
-            console.log('markSessionAsRead 调用结果:', result);
             
             // 更新本地状态
             chat.unread = 0;
             this.updateTabCount();
-            
-            console.log('标记已读完成');
           } catch (error) {
             console.error('标记会话已读失败:', error);
             // 即使标记已读失败，也要在本地更新未读数量
@@ -471,7 +525,6 @@ export default {
     },
     
     handleNotification(notification) {
-      console.log('处理通知:', notification);
       // 标记为已读
       notification.read = true;
       this.updateTabCount();
@@ -502,7 +555,6 @@ export default {
     },
     
     viewOrderDetail(order) {
-      console.log('查看订单详情:', order);
       uni.navigateTo({
         url: '/pages/orders/index'
       });

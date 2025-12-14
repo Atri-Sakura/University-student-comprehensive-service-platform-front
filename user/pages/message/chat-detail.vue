@@ -3,16 +3,15 @@
     <!-- 聊天消息区域 -->
     <scroll-view 
       class="chat-messages" 
-      scroll-y="true" 
-      :scroll-top="scrollTop"
-      scroll-with-animation="true"
+      scroll-y
       :scroll-into-view="scrollIntoView"
+      scroll-with-animation
       @scroll="onScroll"
     >
       <view 
         v-for="(message, index) in messages" 
         :key="index"
-        :id="`message-${index}`"
+        :id="'msg-' + index"
         class="message-item"
         :class="{ 'message-sent': message.type === 'sent', 'message-received': message.type === 'received' }"
       >
@@ -116,7 +115,8 @@ export default {
       scrollIntoView: '',
       isAtBottom: true,
       showEmojiPanel: false,
-      emojiList: ['😊', '😂', '🥰', '😍', '🤔', '😅', '😭', '😡', '👍', '👎', '❤️', '💔', '🎉', '🎊', '🔥', '💯', '😎', '🤗', '😴', '🤤']
+      emojiList: ['😊', '😂', '🥰', '😍', '🤔', '😅', '😭', '😡', '👍', '👎', '❤️', '💔', '🎉', '🎊', '🔥', '💯', '😎', '🤗', '😴', '🤤'],
+      wsConnected: false
     };
   },
   
@@ -139,31 +139,169 @@ export default {
     async initUserInfo() {
       try {
         const userInfo = uni.getStorageSync('userInfo');
+        const userId = uni.getStorageSync('userId');
+        
         if (userInfo) {
           this.currentUser = userInfo;
-          console.log('从本地存储获取用户信息:', this.currentUser);
         } else {
           const response = await getUserInfo();
           if (response.code === 200) {
             this.currentUser = response.data;
             uni.setStorageSync('userInfo', response.data);
-            console.log('从API获取用户信息:', this.currentUser);
           }
         }
         
+        // 多字段容错获取用户ID
+        let currentUserId = null;
+        if (this.currentUser) {
+          currentUserId = this.currentUser.id || this.currentUser.userId || this.currentUser.userBaseId;
+        }
+        if (!currentUserId) {
+          currentUserId = userId;
+        }
+        
         // 确保用户ID存在
-        if (!this.currentUser || !this.currentUser.id) {
+        if (!currentUserId) {
           throw new Error('用户信息不完整');
+        }
+        
+        // 确保currentUser对象有id字段
+        if (!this.currentUser.id) {
+          this.currentUser.id = currentUserId;
         }
       } catch (error) {
         console.error('获取用户信息失败:', error);
-        // 使用默认用户信息作为fallback
-        this.currentUser = {
-          id: 1001,
-          name: '当前用户'
-        };
-        console.log('使用默认用户信息:', this.currentUser);
+        // 尝试使用userId作为fallback
+        const userId = uni.getStorageSync('userId');
+        if (userId) {
+          this.currentUser = {
+            id: userId,
+            name: '当前用户'
+          };
+        } else {
+          // 最后的fallback
+          this.currentUser = {
+            id: '1001',
+            name: '当前用户'
+          };
+        }
       }
+    },
+
+    // 连接WebSocket（Protobuf版本）
+    async connectWebSocket() {
+      if (!this.currentUser || !this.currentUser.id) {
+        console.warn('⚠️ 用户信息不完整，无法连接WebSocket');
+        console.warn('currentUser:', this.currentUser);
+        return;
+      }
+      
+      // 检查是否已连接，避免重复连接
+      const status = wsManager.getStatus();
+      if (status.isConnected && status.isRegistered) {
+        // 只添加handler（如果还没添加）
+        wsManager.addMessageHandler(this.handleWebSocketMessage);
+        this.wsConnected = true;
+        return;
+      }
+      
+      try {
+        // 初始化Protobuf（必须先调用）
+        await wsManager.init();
+        
+        // 建立WebSocket连接
+        await wsManager.connect(USER_TYPE.USER, this.currentUser.id);
+        
+        // 添加消息处理器
+        wsManager.addMessageHandler(this.handleWebSocketMessage);
+        
+        // 延迟检查连接状态（给WebSocket时间建立连接）
+        setTimeout(() => {
+          const status = wsManager.getStatus();
+          this.wsConnected = status.isConnected && status.isRegistered;
+        }, 500);
+      } catch (error) {
+        console.error('❌ WebSocket连接失败:', error);
+        uni.showToast({
+          title: 'WebSocket连接失败',
+          icon: 'none'
+        });
+      }
+    },
+    
+    // 处理WebSocket接收的消息（Protobuf解码后）
+    handleWebSocketMessage(message) {
+      // 兼容两种命名方式（下划线和驼峰）
+      const msgType = message.msg_type || message.msgType;
+      const sessionId = message.session_id || message.sessionId;
+      const messageId = message.message_id || message.messageId;
+      const msgContent = message.msg_content || message.msgContent || message.content;
+      const sendTime = message.send_time || message.sendTime;
+      const fromId = String(message.from_id || message.fromId || '');
+      const toId = String(message.to_id || message.toId || '');
+      const toType = message.to_type || message.toType;
+      
+      // 过滤掉自己发送的消息（避免回声）
+      if (this.currentUser && fromId) {
+        const currentUserId = String(this.currentUser.id || '');
+        const isSelf = fromId.substring(0, 10) === currentUserId.substring(0, 10);
+        if (isSelf) {
+          return;
+        }
+      }
+      
+      // 只处理文本消息和图片消息（msgType: 1=文本, 2=图片）
+      if (msgType !== 1 && msgType !== 2) {
+        return;
+      }
+      
+      // 检查是否是当前对话的对方发来的消息（不严格匹配sessionId）
+      // 只要fromId是当前聊天对象，且toId是当前用户，就接收
+      const chatPartnerId = this.chatInfo.toId; // 对方ID（骑手）
+      const myUserId = this.currentUser.id;
+      
+      const isFromChatPartner = String(fromId).substring(0, 10) === String(chatPartnerId).substring(0, 10);
+      const isToMe = String(toId).substring(0, 10) === String(myUserId).substring(0, 10);
+      
+      if (!isFromChatPartner || !isToMe) {
+        return;
+      }
+      
+      // 添加到消息列表
+      const newMessage = {
+        id: messageId || Date.now(),
+        type: 'received',
+        content: msgContent,
+        time: sendTime || Date.now(),
+        msgStatus: message.msgStatus || MSG_STATUS.DELIVERED
+      };
+      
+      this.messages.push(newMessage);
+      
+      // 标记消息为已读（传递消息ID数组）
+      if (messageId) {
+        markMessagesAsRead([messageId]).catch(err => {
+          console.error('标记消息已读失败:', err);
+        });
+      }
+      
+      // 滚动到底部
+      this.$nextTick(() => {
+        this.scrollToBottom();
+      });
+    },
+    
+    // 断开WebSocket连接
+    disconnectWebSocket() {
+      try {
+        const index = wsManager.messageHandlers.indexOf(this.handleWebSocketMessage);
+        if (index > -1) {
+          wsManager.messageHandlers.splice(index, 1);
+        }
+      } catch (error) {
+        console.error('移除handler失败:', error);
+      }
+      this.wsConnected = false;
     },
 
     // 加载聊天消息
@@ -190,8 +328,11 @@ export default {
             await this.markMessagesAsRead(unreadMessages.map(msg => msg.messageId));
           }
           
+          // 等待DOM渲染后滚动
           this.$nextTick(() => {
-            this.scrollToBottom();
+            setTimeout(() => {
+              this.scrollToBottom();
+            }, 300);
           });
         }
       } catch (error) {
@@ -282,10 +423,16 @@ export default {
           msgContent: messageContent
         };
         
-        // 添加调试信息
-        console.log('发送消息数据:', messageData);
+        // 1. 先通过WebSocket实时发送（Protobuf编码）
+        if (this.wsConnected && wsManager.getStatus().isConnected) {
+          try {
+            wsManager.sendTextMessage(messageData);
+          } catch (error) {
+            console.error('WebSocket发送失败:', error);
+          }
+        }
         
-        // 调用API发送消息
+        // 2. 同时保存到数据库（调用HTTP API）
         const response = await addMessage(messageData);
         
         if (response.code === 200) {
@@ -337,7 +484,6 @@ export default {
     },
     
     toggleVoiceInput() {
-      console.log('切换语音输入');
       uni.showToast({
         title: '语音功能开发中',
         icon: 'none'
@@ -373,14 +519,9 @@ export default {
     },
     
     scrollToBottom() {
-      // 使用scroll-into-view滚动到最后一条消息
       if (this.messages.length > 0) {
-        // 先清空scrollIntoView，然后设置新值，确保滚动生效
-        this.scrollIntoView = '';
-        this.$nextTick(() => {
-          this.scrollIntoView = `message-${this.messages.length - 1}`;
-          this.isAtBottom = true;
-        });
+        this.scrollIntoView = 'msg-' + (this.messages.length - 1);
+        this.isAtBottom = true;
       }
     },
     
@@ -409,6 +550,15 @@ export default {
   },
   
   async onLoad(options) {
+    // 检查是否是刷新后进入（页面栈只有1个）
+    const pages = getCurrentPages();
+    this.isRefreshed = (pages.length <= 1);
+    
+    // 如果是刷新状态，保存标记（防止返回到登录页）
+    if (this.isRefreshed) {
+      sessionStorage.setItem('chatRefreshed', 'true');
+    }
+    
     // 初始化用户信息
     await this.initUserInfo();
     
@@ -466,10 +616,46 @@ export default {
       await this.loadMessages();
     }
     
-    // 滚动到底部
+    // 建立WebSocket连接（确保连接在onLoad时就建立）
+    if (this.currentUser && this.currentUser.id) {
+      await this.connectWebSocket();
+    } else {
+      console.warn('⚠️ 用户信息不完整，无法连接WebSocket');
+    }
+    
+    // 滚动到底部（等待所有异步操作完成）
     this.$nextTick(() => {
-      this.scrollToBottom();
+      setTimeout(() => {
+        this.scrollToBottom();
+      }, 500);
     });
+  },
+  
+  onShow() {
+    const status = wsManager.getStatus();
+    
+    // 只在真正断开时才重连（避免重复连接）
+    if (!status.isConnected && !status.isInitialized && this.currentUser && this.currentUser.id) {
+      this.connectWebSocket();
+    } else if (status.isConnected) {
+      this.wsConnected = true;
+    }
+    
+    // 页面显示时滚动到底部
+    this.$nextTick(() => {
+      setTimeout(() => {
+        this.scrollToBottom();
+      }, 300);
+    });
+  },
+  
+  onHide() {
+    // 页面隐藏时预留，暂无逻辑
+  },
+  
+  onUnload() {
+    // 页面卸载时断开WebSocket连接
+    this.disconnectWebSocket();
   }
 };
 </script>

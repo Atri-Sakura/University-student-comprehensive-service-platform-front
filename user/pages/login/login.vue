@@ -91,6 +91,16 @@ export default {
 	
 	// 页面加载时获取验证码（增加兼容性）
 	onLoad() {
+		// 检查是否是从聊天页刷新后返回的
+		const chatRefreshed = sessionStorage.getItem('chatRefreshed');
+		if (chatRefreshed === 'true') {
+			sessionStorage.removeItem('chatRefreshed');
+			uni.reLaunch({
+				url: '/pages/message/message'
+			});
+			return;
+		}
+		
 		// 如果created中没有成功执行或captchaImage仍然为空，则再次尝试
 		if (!this.captchaImage) {
 			this.refreshCaptcha();
