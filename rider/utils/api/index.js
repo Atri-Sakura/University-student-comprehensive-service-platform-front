@@ -15,6 +15,7 @@ import * as orderFlowApi from './orderFlow.js';
 import * as chatApi from './chat.js';
 import * as evaluationApi from './evaluation.js';
 import feedbackApi from './feedback.js';
+import * as roadApi from './road.js';
 
 // ========== 重新导出所有API ==========
 
@@ -76,6 +77,12 @@ export const {
 	getMessagesFromTo
 } = chatApi;
 
+// 路线相关
+export const {
+    getPickupCoords,
+    getTargetCoords
+} = roadApi;
+
 // 反馈相关
 export const getFeedbackInfo = feedbackApi.getFeedbackInfo;
 export const addFeedback = feedbackApi.addFeedback;
@@ -105,5 +112,8 @@ export default {
 	...orderFlowApi,
 
 	// 反馈相关
-	...feedbackApi
+	...feedbackApi,
+
+    // 路线相关
+    ...roadApi
 };
