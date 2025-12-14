@@ -26,7 +26,7 @@ const WALLET_API = {
  * @param {String} payPassword 支付密码（可选）
  */
 export async function withdrawByAlipay(amount, payChannel = 1, payPassword = '') {
-	return 请求({
+	return request({
 		url: WALLET_API.WITHDRAW_ALIPAY,
 		method: 'POST',
 		data: {
@@ -41,7 +41,7 @@ export async function withdrawByAlipay(amount, payChannel = 1, payPassword = '')
  * 获取钱包余额
  */
 export async function getWalletBalance() {
-	return await 请求({
+	return await request({
 		url: WALLET_API.GET_BALANCE,
 		method: 'GET'
 	});
@@ -54,7 +54,7 @@ export async function getWalletBalance() {
  * @param {Number} pageSize 每页数量
  */
 export async function getTransactions(page = 1, pageSize = 20) {
-	return 请求({
+	return request({
 		url: WALLET_API.GET_TRANSACTIONS,
 		method: 'GET',
 		data: {
@@ -70,7 +70,7 @@ export async function getTransactions(page = 1, pageSize = 20) {
  * @param {Number} pageSize 每页数量
  */
 export async function getRiderWalletFlow(page = 1, pageSize = 20) {
-	return 请求({
+	return request({
 		url: WALLET_API.GET_WALLET_FLOW,
 		method: 'GET',
 		data: {
