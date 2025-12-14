@@ -36,15 +36,16 @@
     <view class="content">
       <view class="review-item" v-for="(item, index) in filteredReviews" :key="index">
         <view class="review-header">
-          <view class="user-info">
-            <view class="user-avatar">
-              <text class="avatar-text">{{ item.userName.charAt(0) }}</text>
-            </view>
-            <view class="user-detail">
-              <text class="user-name">{{ item.userName }}</text>
-              <text class="review-time">{{ item.time }}</text>
-            </view>
+        <view class="user-info">
+          <view class="user-avatar">
+            <image v-if="item.userAvatar" :src="item.userAvatar" class="avatar-image" mode="aspectFill" />
+            <text v-else class="avatar-text">{{ item.userName ? item.userName.charAt(0) : '用' }}</text>
           </view>
+          <view class="user-detail">
+            <text class="user-name">{{ item.userName }}</text>
+            <text class="review-time">{{ item.time }}</text>
+          </view>
+        </view>
           <view class="rating-stars">
             <text class="star" v-for="n in 5" :key="n">{{ n <= item.rating ? '⭐' : '☆' }}</text>
           </view>
@@ -66,10 +67,15 @@
           />
         </view>
 
-        <!-- 评价标签 -->
-        <view class="review-tags" v-if="item.tags && item.tags.length > 0">
-          <view class="tag" v-for="(tag, idx) in item.tags" :key="idx">
-            <text class="tag-text">{{ tag }}</text>
+        <!-- 评分详情 -->
+        <view class="score-details" v-if="item.tasteScore || item.packageScore">
+          <view class="score-item" v-if="item.tasteScore">
+            <text class="score-label">口味：</text>
+            <text class="score-value">{{ item.tasteScore }}分</text>
+          </view>
+          <view class="score-item" v-if="item.packageScore">
+            <text class="score-label">包装：</text>
+            <text class="score-value">{{ item.packageScore }}分</text>
           </view>
         </view>
 
@@ -83,7 +89,7 @@
         </view>
 
         <!-- 操作按钮 -->
-        <view class="review-actions" v-if="!item.reply">
+        <view class="review-actions" v-if="!item.hasReply && !item.reply">
           <view class="action-btn" @click="replyReview(item, index)">
             <text class="action-text">💬 回复</text>
           </view>
@@ -111,9 +117,9 @@
             @input="replyText = $event.detail.value"
             placeholder="请输入回复内容..."
             placeholder-style="color: #999;"
-            maxlength="200"
+            maxlength="500"
           />
-          <view class="reply-count">{{ replyText.length }}/200</view>
+          <view class="reply-count">{{ replyText.length }}/500</view>
         </view>
 
         <view class="modal-footer">
@@ -130,7 +136,7 @@
 </template>
 
 <script>
-import { getEvaluationList, replyEvaluation } from '@/utils/reviews.js';
+import { getEvaluationList, getEvaluationStatistics, replyEvaluation } from '@/utils/reviews.js';
 
 export default {
   name: 'ReviewsPage',
@@ -141,10 +147,10 @@ export default {
       goodRate: 0,
       currentFilter: 0,
       filters: [
-        { name: '全部', count: 0 },
-        { name: '好评', count: 0 },
-        { name: '中评', count: 0 },
-        { name: '差评', count: 0 }
+        { name: '全部', count: 0, rating: null },
+        { name: '好评', count: 0, rating: 5 },
+        { name: '中评', count: 0, rating: 3 },
+        { name: '差评', count: 0, rating: 2 }
       ],
       showReplyModal: false,
       replyText: '',
@@ -152,61 +158,132 @@ export default {
       replyingItem: null,
       reviews: [],
       loading: false,
-      page: 1,
-      pageSize: 20
+      pageNum: 1,
+      pageSize: 10,
+      total: 0,
+      hasMore: true,
+      // 筛选参数
+      hasContent: null, // 0-全部 1-只看有内容
+      hasImages: null, // 0-全部 1-只看有图片
+      replyStatus: null, // 0-未回复 1-已回复 null-全部
+      sortType: 1 // 1-最新评价 2-评分最高 3-评分最低
     }
   },
   onLoad() {
+    this.loadStatistics();
     this.loadEvaluationList();
   },
   onShow() {
     // 每次显示页面时重新加载数据
-    this.loadEvaluationList();
+    this.loadStatistics();
+    this.resetAndLoad();
+  },
+  onReachBottom() {
+    // 触底加载更多
+    if (this.hasMore && !this.loading) {
+      this.loadMore();
+    }
   },
   computed: {
     filteredReviews() {
-      if (this.currentFilter === 0) {
-        return this.reviews;
-      } else if (this.currentFilter === 1) {
-        // 好评：4-5星
-        return this.reviews.filter(r => r.rating >= 4);
-      } else if (this.currentFilter === 2) {
-        // 中评：3星
-        return this.reviews.filter(r => r.rating === 3);
-      } else {
-        // 差评：1-2星
-        return this.reviews.filter(r => r.rating <= 2);
-      }
+      // 由于使用后端筛选，直接返回 reviews
+      return this.reviews;
     }
   },
   methods: {
+    // 加载评价统计信息
+    loadStatistics() {
+      getEvaluationStatistics()
+        .then(res => {
+          if (res.data && res.data.code === 200) {
+            const stats = res.data.data || {};
+            // 更新统计数据
+            this.overallScore = stats.avgRating ? stats.avgRating.toFixed(1) : '0.0';
+            this.totalReviews = stats.totalCount || 0;
+            
+            // 计算好评率（4星及以上为好评）
+            const goodCount = (stats.fourStarCount || 0) + (stats.fiveStarCount || 0);
+            this.goodRate = this.totalReviews > 0 ? Math.round((goodCount / this.totalReviews) * 100) : 0;
+            
+            // 更新筛选器计数
+            this.filters[0].count = stats.totalCount || 0; // 全部
+            this.filters[1].count = stats.fiveStarCount || 0; // 好评（5星）
+            this.filters[2].count = stats.threeStarCount || 0; // 中评（3星）
+            this.filters[3].count = (stats.oneStarCount || 0) + (stats.twoStarCount || 0); // 差评（1-2星）
+            
+            // 更新待回复数量（如果有的话）
+            if (stats.pendingReplyCount !== undefined) {
+              // 可以在这里添加待回复提示
+            }
+          }
+        })
+        .catch(err => {
+          console.error('获取评价统计失败:', err);
+        });
+    },
+    
+    // 重置并加载评价列表
+    resetAndLoad() {
+      this.pageNum = 1;
+      this.reviews = [];
+      this.hasMore = true;
+      this.loadEvaluationList();
+    },
+    
     // 加载评价列表
     loadEvaluationList() {
       if (this.loading) return;
       
       this.loading = true;
-      uni.showLoading({ title: '加载中...' });
+      if (this.pageNum === 1) {
+        uni.showLoading({ title: '加载中...' });
+      }
       
-      getEvaluationList({
-        page: this.page,
-        pageSize: this.pageSize
-      })
+      // 构建查询参数
+      const params = {
+        pageNum: this.pageNum,
+        pageSize: this.pageSize,
+        sortType: this.sortType
+      };
+      
+      // 根据当前筛选器添加评分筛选
+      const currentFilter = this.filters[this.currentFilter];
+      if (currentFilter.rating !== null) {
+        params.rating = currentFilter.rating;
+      }
+      
+      // 添加其他筛选参数
+      if (this.hasContent !== null) {
+        params.hasContent = this.hasContent;
+      }
+      if (this.hasImages !== null) {
+        params.hasImages = this.hasImages;
+      }
+      if (this.replyStatus !== null) {
+        params.replyStatus = this.replyStatus;
+      }
+      
+      getEvaluationList(params)
         .then(res => {
-          if (res.data.code === 200) {
-            const data = res.data.data;
+          if (res.data && res.data.code === 200) {
+            // 新接口返回格式：{ code, msg, total, rows }
+            const rows = res.data.rows || [];
+            const total = res.data.total || 0;
             
-            // 处理评价列表数据（data 直接是数组）
-            const reviewList = Array.isArray(data) ? data : (data.list || data.evaluations || data.records || []);
-            this.reviews = this.formatReviewList(reviewList);
+            // 格式化评价列表数据
+            const formattedList = this.formatReviewList(rows);
             
-            // 更新统计数据
-            this.updateStatistics(data);
+            if (this.pageNum === 1) {
+              this.reviews = formattedList;
+            } else {
+              this.reviews = [...this.reviews, ...formattedList];
+            }
             
-            // 更新筛选器计数
-            this.updateFilterCounts();
+            this.total = total;
+            this.hasMore = this.reviews.length < total;
           } else {
             uni.showToast({
-              title: res.data.msg || res.data.message || '获取评价列表失败',
+              title: res.data?.msg || res.data?.message || '获取评价列表失败',
               icon: 'none'
             });
           }
@@ -224,79 +301,45 @@ export default {
         });
     },
     
+    // 加载更多
+    loadMore() {
+      if (this.hasMore && !this.loading) {
+        this.pageNum++;
+        this.loadEvaluationList();
+      }
+    },
+    
     // 格式化评价列表数据
     formatReviewList(list) {
       return list.map(item => {
-        // 处理用户名显示（根据是否匿名）
-        let displayName = '匿名用户';
-        if (item.isAnonymous === 0) {
-          // 不匿名时，尝试获取用户名或使用用户ID
-          displayName = item.userName || item.userNickname || item.nickname || `用户${String(item.userId).slice(-4)}`;
-        }
+        // 使用新的字段名：userNickname, userAvatar, imageList, merchantEvaluationId
+        const displayName = item.userNickname || item.userName || '匿名用户';
+        const avatar = item.userAvatar || '';
         
         return {
-          id: item.goodsEvaluationId || item.evaluationId || item.id,
+          id: item.merchantEvaluationId || item.goodsEvaluationId || item.evaluationId || item.id,
+          merchantEvaluationId: item.merchantEvaluationId,
           userName: displayName,
-          rating: item.rating || item.score || item.star || 5,
+          userAvatar: avatar,
+          rating: Number(item.rating) || 5,
+          tasteScore: Number(item.tasteScore) || 0,
+          packageScore: Number(item.packageScore) || 0,
           time: item.createTime || item.evaluationTime || item.time || '',
           content: item.content || item.evaluationContent || item.comment || '',
-          images: item.images || item.imageList || item.pics || [],
-          tags: item.tags || item.tagList || [],
+          images: item.imageList || item.images || item.pics || [],
           reply: item.merchantReply || item.reply || item.replyContent || '',
           replyTime: item.replyTime || '',
-          usefulCount: item.usefulCount || 0,
-          isAnonymous: item.isAnonymous || 0,
-          userId: item.userId
+          hasReply: item.hasReply !== undefined ? item.hasReply : !!item.merchantReply,
+          orderId: item.orderId
         };
       });
     },
     
-    // 更新统计数据
-    updateStatistics(data) {
-      // 如果 data 是数组，需要自己计算统计数据
-      if (Array.isArray(data)) {
-        // 计算综合评分
-        if (this.reviews.length > 0) {
-          const totalRating = this.reviews.reduce((sum, item) => sum + item.rating, 0);
-          this.overallScore = (totalRating / this.reviews.length).toFixed(1);
-        } else {
-          this.overallScore = 0;
-        }
-        
-        // 总评价数
-        this.totalReviews = this.reviews.length;
-        
-        // 计算好评率（4星及以上为好评）
-        const goodReviews = this.reviews.filter(r => r.rating >= 4).length;
-        this.goodRate = this.totalReviews > 0 ? Math.round((goodReviews / this.totalReviews) * 100) : 0;
-      } else {
-        // 如果后端返回了统计数据，使用后端数据
-        this.overallScore = data.overallScore || data.avgScore || data.averageRating || 0;
-        if (typeof this.overallScore === 'number') {
-          this.overallScore = this.overallScore.toFixed(1);
-        }
-        
-        // 总评价数
-        this.totalReviews = data.total || data.totalCount || data.count || this.reviews.length;
-        
-        // 好评率
-        this.goodRate = data.goodRate || data.positiveRate || 0;
-        if (typeof this.goodRate === 'number' && this.goodRate <= 1) {
-          this.goodRate = Math.round(this.goodRate * 100);
-        }
-      }
-    },
-    
-    // 更新筛选器计数
-    updateFilterCounts() {
-      this.filters[0].count = this.reviews.length; // 全部
-      this.filters[1].count = this.reviews.filter(r => r.rating >= 4).length; // 好评
-      this.filters[2].count = this.reviews.filter(r => r.rating === 3).length; // 中评
-      this.filters[3].count = this.reviews.filter(r => r.rating <= 2).length; // 差评
-    },
-    
     switchFilter(index) {
+      if (this.currentFilter === index) return;
       this.currentFilter = index;
+      // 切换筛选时重新加载数据
+      this.resetAndLoad();
     },
     previewImage(images, index) {
       uni.previewImage({
@@ -333,18 +376,35 @@ export default {
         return;
       }
 
+      // 验证回复内容长度
+      if (this.replyText.trim().length > 500) {
+        uni.showToast({
+          title: '回复内容不能超过500个字符',
+          icon: 'none'
+        });
+        return;
+      }
+
       uni.showLoading({ title: '发送中...' });
 
-      // 调用后端接口回复评价（使用 URL 参数方式）
-      replyEvaluation(this.replyingItem.id, this.replyText.trim())
+      // 使用新的回复接口，传入 merchantEvaluationId 和 merchantReply
+      const evaluationId = this.replyingItem.merchantEvaluationId || this.replyingItem.id;
+      replyEvaluation(evaluationId, this.replyText.trim())
         .then(res => {
-          if (res.data.code === 200) {
+          if (res.data && res.data.code === 200) {
             // 更新本地数据
-            this.reviews[this.replyingIndex].reply = this.replyText;
+            this.reviews[this.replyingIndex].reply = this.replyText.trim();
+            this.reviews[this.replyingIndex].hasReply = true;
             
             // 更新回复时间为当前时间
             const now = new Date();
-            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
             this.reviews[this.replyingIndex].replyTime = dateStr;
             
             uni.showToast({
@@ -352,10 +412,13 @@ export default {
               icon: 'success'
             });
             
+            // 重新加载统计信息（更新待回复数量）
+            this.loadStatistics();
+            
             this.closeReplyModal();
           } else {
             uni.showToast({
-              title: res.data.msg || res.data.message || '回复失败',
+              title: res.data?.msg || res.data?.message || '回复失败',
               icon: 'none'
             });
           }
@@ -495,6 +558,13 @@ export default {
   align-items: center;
   justify-content: center;
   margin-right: 20rpx;
+  overflow: hidden;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
 }
 
 .avatar-text {
@@ -553,23 +623,29 @@ export default {
   border-radius: 12rpx;
 }
 
-/* 评价标签 */
-.review-tags {
+/* 评分详情 */
+.score-details {
   display: flex;
-  flex-wrap: wrap;
-  gap: 15rpx;
+  gap: 30rpx;
   margin-bottom: 20rpx;
+  padding: 15rpx 0;
 }
 
-.tag {
-  padding: 8rpx 20rpx;
-  background: rgba(74, 144, 226, 0.1);
-  border-radius: 30rpx;
+.score-item {
+  display: flex;
+  align-items: center;
 }
 
-.tag-text {
-  font-size: 22rpx;
+.score-label {
+  font-size: 24rpx;
+  color: #999;
+  margin-right: 8rpx;
+}
+
+.score-value {
+  font-size: 24rpx;
   color: #4A90E2;
+  font-weight: 500;
 }
 
 /* 商家回复 */
