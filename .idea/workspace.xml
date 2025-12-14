@@ -4,7 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="订单ID失真问题解决，可以正常接单，查看订单详情，拒单" />
+    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="订单ID失真问题解决，可以正常接单，查看订单详情，拒单">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/_metadata.json" beforeDir="false" afterPath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/_metadata.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/package.json" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -44,7 +48,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "SONARLINT_PRECOMMIT_ANALYSIS": "true",
-    "git-widget-placeholder": "merchant",
+    "git-widget-placeholder": "merchant 上的 #1",
     "kotlin-language-version-configured": "true",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -55,6 +59,19 @@
     "vue.rearranger.settings.migration": "true"
   }
 }]]></component>
+  <component name="RunManager">
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="University-student-comprehensive-service-platform-front" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="University-student-comprehensive-service-platform-front" />
+      <option name="filePath" />
+      <method v="2" />
+    </configuration>
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -91,6 +108,7 @@
       <workItem from="1764916957444" duration="38000" />
       <workItem from="1764927408559" duration="302000" />
       <workItem from="1765527187116" duration="133000" />
+      <workItem from="1765693002261" duration="19000" />
     </task>
     <task id="LOCAL-00001" summary="Update list.vue">
       <option name="closed" value="true" />

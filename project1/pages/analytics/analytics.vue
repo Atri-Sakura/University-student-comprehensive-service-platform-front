@@ -465,9 +465,14 @@ export default {
       
       try {
         const range = this.getSelectedDateRange();
+        console.log('加载数据，日期范围:', range, '当前标签:', this.currentDateTab);
+        
         // 并行请求所有数据
         const [salesRes, ratingsRes, topGoodsRes, wordCloudRes] = await Promise.all([
-          getSalesData(range).catch(() => ({ data: { code: 500, data: null } })),
+          getSalesData(range).catch((err) => {
+            console.error('获取销售数据失败:', err);
+            return { data: { code: 500, data: null } };
+          }),
           getRatingsData().catch(() => {
             return { data: { code: 500, data: null } };
           }),
@@ -476,20 +481,126 @@ export default {
         ]);
         
         // 处理销售数据
+        console.log('销售数据响应:', salesRes);
         if (salesRes.data && salesRes.data.code === 200 && salesRes.data.data) {
           const salesData = salesRes.data.data;
+          console.log('解析后的销售数据:', salesData);
           
-          // 使用后端实际返回的字段名
-          this.coreData.orderCount = salesData.orderCount || 0;
-          this.coreData.revenue = this.formatNumber(salesData.totalRevenue || 0);
-          this.coreData.actualRevenue = this.formatNumber(salesData.actualIncome || salesData.totalRevenue || 0);
-          this.coreData.avgPrice = this.formatNumber(salesData.avgOrderAmount || 0);
-          
-          // 趋势数据（与昨日对比，百分比）
-          this.coreData.orderTrend = salesData.orderCountChangePercent || 0;
-          this.coreData.revenueTrend = salesData.totalRevenueChangePercent || 0;
-          this.coreData.actualRevenueTrend = salesData.actualIncomeChangePercent || salesData.totalRevenueChangePercent || 0;
-          this.coreData.avgPriceTrend = salesData.avgOrderAmountChangePercent || 0;
+          // 后端只返回今日数据，需要根据选择的日期标签来决定显示什么数据
+          if (this.currentDateTab === 'yesterday') {
+            // 切换到"昨日"时，需要根据今日数据和变化百分比反推昨日数据
+            // 公式：变化百分比 = ((今日 - 昨日) / 昨日) * 100
+            // 反推：昨日 = 今日 / (1 + 变化百分比 / 100)
+            
+            const todayOrderCount = salesData.orderCount || 0;
+            const todayRevenue = parseFloat(salesData.totalRevenue || 0);
+            const todayActualIncome = parseFloat(salesData.actualIncome || salesData.totalRevenue || 0);
+            const todayAvgPrice = parseFloat(salesData.avgOrderAmount || 0);
+            
+            const orderChangePercent = parseFloat(salesData.orderCountChangePercent || 0);
+            const revenueChangePercent = parseFloat(salesData.totalRevenueChangePercent || salesData.revenueChangePercent || 0);
+            const incomeChangePercent = parseFloat(salesData.actualIncomeChangePercent || salesData.incomeChangePercent || salesData.totalRevenueChangePercent || 0);
+            const avgPriceChangePercent = parseFloat(salesData.avgOrderAmountChangePercent || salesData.avgAmountChangePercent || 0);
+            
+            // 反推昨日数据
+            // 公式：变化百分比 = ((今日 - 昨日) / 昨日) * 100
+            // 反推：昨日 = 今日 / (1 + 变化百分比 / 100)
+            // 特殊情况：当变化百分比 = 100% 且今日 > 0 时，说明昨日 = 0
+            
+            let yesterdayOrderCount = 0;
+            if (orderChangePercent === 100 && todayOrderCount > 0) {
+              // 如果变化百分比是100%，说明昨日是0，今日有数据
+              yesterdayOrderCount = 0;
+            } else if (orderChangePercent === -100) {
+              // 如果变化百分比是-100%，说明今日是0，昨日有数据（这种情况不应该出现，因为后端只返回今日数据）
+              // 但为了完整性，我们处理一下
+              yesterdayOrderCount = todayOrderCount * 2; // 反推：昨日 = 今日 * 2（当今日=0时无意义）
+            } else if (orderChangePercent !== 0) {
+              // 正常情况：昨日 = 今日 / (1 + 变化百分比 / 100)
+              yesterdayOrderCount = Math.round(todayOrderCount / (1 + orderChangePercent / 100));
+            } else {
+              // 变化百分比为0，说明今日和昨日相同
+              yesterdayOrderCount = todayOrderCount;
+            }
+            
+            let yesterdayRevenue = 0;
+            if (revenueChangePercent === 100 && todayRevenue > 0) {
+              yesterdayRevenue = 0;
+            } else if (revenueChangePercent === -100) {
+              yesterdayRevenue = todayRevenue * 2;
+            } else if (revenueChangePercent !== 0) {
+              yesterdayRevenue = todayRevenue / (1 + revenueChangePercent / 100);
+            } else {
+              yesterdayRevenue = todayRevenue;
+            }
+            
+            let yesterdayActualIncome = 0;
+            if (incomeChangePercent === 100 && todayActualIncome > 0) {
+              yesterdayActualIncome = 0;
+            } else if (incomeChangePercent === -100) {
+              yesterdayActualIncome = todayActualIncome * 2;
+            } else if (incomeChangePercent !== 0) {
+              yesterdayActualIncome = todayActualIncome / (1 + incomeChangePercent / 100);
+            } else {
+              yesterdayActualIncome = todayActualIncome;
+            }
+            
+            let yesterdayAvgPrice = 0;
+            if (avgPriceChangePercent === 100 && todayAvgPrice > 0) {
+              yesterdayAvgPrice = 0;
+            } else if (avgPriceChangePercent === -100) {
+              yesterdayAvgPrice = todayAvgPrice * 2;
+            } else if (avgPriceChangePercent !== 0) {
+              yesterdayAvgPrice = todayAvgPrice / (1 + avgPriceChangePercent / 100);
+            } else {
+              yesterdayAvgPrice = todayAvgPrice;
+            }
+            
+            // 验证反推结果是否合理
+            console.log('反推验证:', {
+              今日订单量: todayOrderCount,
+              变化百分比: orderChangePercent,
+              反推昨日订单量: yesterdayOrderCount,
+              验证: todayOrderCount === 0 ? '今日为0' : `(${todayOrderCount} - ${yesterdayOrderCount}) / ${yesterdayOrderCount || 1} * 100 = ${yesterdayOrderCount === 0 ? 100 : ((todayOrderCount - yesterdayOrderCount) / (yesterdayOrderCount || 1) * 100).toFixed(2)}%`
+            });
+            
+            // 显示昨日数据
+            this.coreData.orderCount = yesterdayOrderCount;
+            this.coreData.revenue = this.formatNumber(yesterdayRevenue);
+            this.coreData.actualRevenue = this.formatNumber(yesterdayActualIncome);
+            this.coreData.avgPrice = this.formatNumber(yesterdayAvgPrice);
+            
+            // 昨日数据与今日对比，需要反转变化百分比
+            this.coreData.orderTrend = -orderChangePercent;
+            this.coreData.revenueTrend = -revenueChangePercent;
+            this.coreData.actualRevenueTrend = -incomeChangePercent;
+            this.coreData.avgPriceTrend = -avgPriceChangePercent;
+            
+            // 验证反推结果
+            const verifyOrderCount = yesterdayOrderCount === 0 
+              ? (todayOrderCount > 0 ? 100 : 0) 
+              : ((todayOrderCount - yesterdayOrderCount) / yesterdayOrderCount * 100).toFixed(2);
+            
+            console.log('显示昨日数据（反推）:', {
+              今日订单量: todayOrderCount,
+              反推昨日订单量: yesterdayOrderCount,
+              变化百分比: orderChangePercent,
+              验证计算: `${verifyOrderCount}%`,
+              说明: orderChangePercent === 100 ? '昨日无订单，今日有订单（正常）' : '反推计算'
+            });
+          } else {
+            // 显示今日数据（或其他日期范围）
+            this.coreData.orderCount = salesData.orderCount || 0;
+            this.coreData.revenue = this.formatNumber(salesData.totalRevenue || 0);
+            this.coreData.actualRevenue = this.formatNumber(salesData.actualIncome || salesData.totalRevenue || 0);
+            this.coreData.avgPrice = this.formatNumber(salesData.avgOrderAmount || 0);
+            
+            // 趋势数据（与昨日对比，百分比）
+            this.coreData.orderTrend = salesData.orderCountChangePercent || 0;
+            this.coreData.revenueTrend = salesData.totalRevenueChangePercent || salesData.revenueChangePercent || 0;
+            this.coreData.actualRevenueTrend = salesData.actualIncomeChangePercent || salesData.incomeChangePercent || salesData.totalRevenueChangePercent || 0;
+            this.coreData.avgPriceTrend = salesData.avgOrderAmountChangePercent || salesData.avgAmountChangePercent || 0;
+          }
           
           // 处理趋势数据（仅使用后端数据）
           if (salesData.trendData || salesData.dailyData) {
@@ -502,6 +613,11 @@ export default {
               orders: []
             };
           }
+          
+          console.log('更新后的核心数据:', this.coreData);
+        } else {
+          console.warn('销售数据响应异常:', salesRes);
+          // 如果API返回失败，保持数据为空（已在switchDateTab中清空）
         }
         
         // 处理评价数据
@@ -838,7 +954,8 @@ export default {
     getSelectedDateRange() {
       const today = new Date();
       if (this.currentDateTab === 'today') {
-        return { startDate: this.todayDate, endDate: this.todayDate };
+        const todayStr = this.formatDate(today);
+        return { startDate: todayStr, endDate: todayStr };
       }
       if (this.currentDateTab === 'yesterday') {
         const y = new Date(today);
@@ -909,9 +1026,38 @@ export default {
     },
     
     switchDateTab(tab) {
+      // 如果点击的是当前已选中的标签，不执行任何操作
+      if (this.currentDateTab === tab) {
+        return;
+      }
+      
+      // 先更新标签状态
       this.currentDateTab = tab;
       this.updateDateRange();
-      // 切换日期时重新加载数据
+      
+      // 获取新的日期范围
+      const range = this.getSelectedDateRange();
+      console.log('切换日期标签:', tab, '日期范围:', range);
+      
+      // 切换日期时先清空数据，显示加载状态
+      this.coreData = {
+        orderCount: 0,
+        orderTrend: 0,
+        revenue: '0',
+        revenueTrend: 0,
+        actualRevenue: '0',
+        actualRevenueTrend: 0,
+        avgPrice: '0',
+        avgPriceTrend: 0
+      };
+      this.trendData = {
+        dates: [],
+        revenue: [],
+        orders: []
+      };
+      
+      // 强制重新加载数据（重置加载状态）
+      this.isLoading = false;
       this.loadAllData();
     },
     
