@@ -203,8 +203,7 @@
       "path": "pages/mine/customer-service",
       "style": {
         "navigationBarTitleText": "客服专线",
-        "navigationBarBackgroundColor": "#5DCDFF",
-        "navigationBarTextStyle": "white"
+        "navigationStyle": "custom"
       }
     },
     {

@@ -93,6 +93,56 @@
         <text>{{ isProcessing ? '处理中...' : '立即支付' }}</text>
       </view>
     </view>
+
+    <!-- 支付密码输入框 -->
+    <view v-if="showPasswordModal" class="password-modal-mask" @click="closePasswordModal">
+      <view class="password-modal-content" @click.stop>
+        <view class="password-modal-header">
+          <text class="password-modal-title">请输入支付密码</text>
+          <text class="password-modal-close" @click="closePasswordModal">✕</text>
+        </view>
+        
+        <view class="password-tips">
+          <text class="tips-text">支付密码为6位数字</text>
+        </view>
+        
+        <view class="password-input-box" @click="focusPasswordInput">
+          <view 
+            v-for="(item, index) in 6" 
+            :key="index"
+            class="password-dot-box"
+            :class="{ active: index === paymentPassword.length }"
+          >
+            <view v-if="index < paymentPassword.length" class="password-dot">●</view>
+          </view>
+        </view>
+        
+        <!-- 隐藏的输入框 -->
+        <input 
+          ref="passwordInput"
+          class="password-input-hidden"
+          type="number"
+          maxlength="6"
+          :value="paymentPassword"
+          @input="onPasswordInput"
+          @blur="onPasswordBlur"
+          :focus="passwordInputFocus"
+        />
+        
+        <view class="password-actions">
+          <view class="password-cancel-btn" @click="closePasswordModal">
+            <text class="cancel-btn-text">取消</text>
+          </view>
+          <view class="password-confirm-btn" @click="confirmPaymentPassword">
+            <text class="confirm-btn-text">确认支付</text>
+          </view>
+        </view>
+        
+        <view class="password-forget">
+          <text class="forget-text">忘记密码？</text>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -125,6 +175,9 @@ export default {
       },
       selectedPayment: 'wechat', // 默认选择微信支付
       isProcessing: false,
+      showPasswordModal: false, // 显示密码输入框
+      paymentPassword: '', // 支付密码
+      passwordInputFocus: false, // 密码输入框聚焦状态
       paymentOptions: [
         { id: 'wechat', name: '微信支付', icon: '💳' },
         { id: 'alipay', name: '支付宝', icon: '💸' },
@@ -332,29 +385,78 @@ export default {
     async handlePayment() {
       if (this.isProcessing) return;
       
-      this.isProcessing = true;
+      // 显示支付密码输入框
+      this.showPasswordModal = true;
       
-      try {
-        // 所有支付方式都需要密码验证
-        this.showPaymentDialog();
-      } finally {
-        this.isProcessing = false;
+      // 延迟聚焦，确保输入框已渲染
+      setTimeout(() => {
+        this.passwordInputFocus = true;
+      }, 300);
+    },
+    
+    // 关闭密码输入框
+    closePasswordModal() {
+      this.showPasswordModal = false;
+      this.passwordInputFocus = false;
+      this.paymentPassword = '';
+    },
+    
+    // 聚焦密码输入框
+    focusPasswordInput() {
+      this.passwordInputFocus = true;
+    },
+    
+    // 密码输入框失去焦点
+    onPasswordBlur() {
+      // 延迟重新聚焦，保持键盘显示
+      setTimeout(() => {
+        if (this.showPasswordModal) {
+          this.passwordInputFocus = true;
+        }
+      }, 100);
+    },
+    
+    // 密码输入
+    onPasswordInput(e) {
+      this.paymentPassword = e.detail.value;
+      
+      // 如果输入满6位，自动提交
+      if (e.detail.value.length === 6) {
+        setTimeout(() => {
+          this.confirmPaymentPassword();
+        }, 300);
       }
     },
     
-    // 显示支付确认弹窗
-    showPaymentDialog() {
-      // 模拟弹窗，实际应该调用支付SDK或自定义密码输入组件
-      uni.showModal({
-        title: '支付确认',
-        content: `确认使用${this.getSelectedPaymentName()}支付¥${(this.orderInfo.totalAmount || 0).toFixed(2)}吗？`,
-        success: (res) => {
-          if (res.confirm) {
-            // 调用真实支付API
-            this.doPayment();
-          }
-        }
-      });
+    // 确认支付密码
+    async confirmPaymentPassword() {
+      if (!this.paymentPassword) {
+        uni.showToast({
+          title: '请输入支付密码',
+          icon: 'none'
+        });
+        this.passwordInputFocus = true;
+        return;
+      }
+      
+      if (this.paymentPassword.length !== 6) {
+        uni.showToast({
+          title: '支付密码为6位数字',
+          icon: 'none'
+        });
+        this.passwordInputFocus = true;
+        return;
+      }
+      
+      // 关闭密码输入框
+      this.showPasswordModal = false;
+      this.passwordInputFocus = false;
+      
+      // 调用支付接口
+      await this.doPayment();
+      
+      // 清空密码
+      this.paymentPassword = '';
     },
     
     // 执行支付请求
@@ -930,5 +1032,153 @@ export default {
   background-color: #CCCCCC;
   opacity: 0.7;
   box-shadow: none;
+}
+
+/* 支付密码输入框 */
+.password-modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-modal-content {
+  width: 600rpx;
+  background-color: #FFFFFF;
+  border-radius: 24rpx;
+  padding: 40rpx;
+  animation: scaleIn 0.3s;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.password-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 30rpx;
+}
+
+.password-modal-title {
+  font-size: 34rpx;
+  color: #333333;
+  font-weight: bold;
+}
+
+.password-modal-close {
+  font-size: 40rpx;
+  color: #999999;
+  font-weight: 300;
+  padding: 0 10rpx;
+}
+
+.password-tips {
+  text-align: center;
+  margin-bottom: 40rpx;
+}
+
+.tips-text {
+  font-size: 26rpx;
+  color: #666666;
+}
+
+/* 密码输入格子 */
+.password-input-box {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 40rpx;
+  padding: 0 20rpx;
+}
+
+.password-dot-box {
+  width: 80rpx;
+  height: 80rpx;
+  border: 2rpx solid #E0E0E0;
+  border-radius: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F8F8F8;
+  transition: all 0.3s;
+}
+
+.password-dot-box.active {
+  border-color: #5DCDFF;
+  background-color: #F0FAFF;
+  box-shadow: 0 0 0 4rpx rgba(93, 205, 255, 0.1);
+}
+
+.password-dot {
+  font-size: 40rpx;
+  color: #333333;
+}
+
+/* 隐藏的输入框 */
+.password-input-hidden {
+  position: absolute;
+  left: -9999rpx;
+  opacity: 0;
+}
+
+/* 按钮区域 */
+.password-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-bottom: 30rpx;
+}
+
+.password-cancel-btn,
+.password-confirm-btn {
+  flex: 1;
+  height: 80rpx;
+  border-radius: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-cancel-btn {
+  background-color: #F5F5F5;
+}
+
+.password-confirm-btn {
+  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
+  box-shadow: 0 4rpx 16rpx rgba(93, 205, 255, 0.3);
+}
+
+.cancel-btn-text {
+  font-size: 30rpx;
+  color: #666666;
+}
+
+.confirm-btn-text {
+  font-size: 30rpx;
+  color: #FFFFFF;
+  font-weight: bold;
+}
+
+/* 忘记密码 */
+.password-forget {
+  text-align: center;
+}
+
+.forget-text {
+  font-size: 26rpx;
+  color: #5DCDFF;
 }
 </style>

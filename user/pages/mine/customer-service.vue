@@ -1,5 +1,14 @@
 <template>
   <view class="chat-container">
+    <!-- 自定义导航栏 -->
+    <view class="nav-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
+      <view class="nav-content">
+        <text class="nav-back" @click="handleBack">&lt;</text>
+        <text class="nav-title">客服专线</text>
+        <view class="nav-right"></view>
+      </view>
+    </view>
+
     <!-- 聊天消息区域 -->
     <view class="chat-messages" ref="chatScrollView">
       <!-- 系统欢迎消息 -->
@@ -45,27 +54,19 @@
               v-model="inputContent" 
               @focus="onInputFocus"
             />
-            <text class="emoji-icon" @click="toggleEmojiPanel">😊</text>
             <text class="add-icon" @click="showMoreOptions">➕</text>
           </view>
           <button class="send-btn" @click="sendMessage" :disabled="!inputContent.trim()">发送</button>
         </view>
       </view>
-
-    <!-- 自定义底部导航栏 - 固定在底部 -->
-    <custom-tabbar :current="3" style="position: fixed; bottom: 0; left: 0; right: 0; z-index: 101;"></custom-tabbar>
   </view>
 </template>
 
 <script>
-import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
-
 export default {
-  components: {
-    CustomTabbar
-  },
   data() {
     return {
+      statusBarHeight: 0,
       systemMessages: [
         { id: 1, content: '我是校园服务平台客服，请问有什么能帮助您？' },
         { id: 2, content: '请选择您想退订的订单。' }
@@ -74,11 +75,25 @@ export default {
         { id: 1, content: '我想退订单' }
       ],
       inputContent: '',
-      isVoiceInput: false,
-      showEmojiPanel: false
+      isVoiceInput: false
     };
   },
   methods: {
+    // 处理返回
+    handleBack() {
+      // 检查页面栈，如果只有1个页面（刷新后的情况），跳转到首页
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        // 页面栈只有当前页面，跳转到首页
+        uni.reLaunch({
+          url: '/pages/index/index'
+        });
+      } else {
+        // 正常返回上一页
+        uni.navigateBack();
+      }
+    },
+    
     // 发送消息
     sendMessage() {
       if (!this.inputContent.trim()) return;
@@ -128,12 +143,6 @@ export default {
       // 实际项目中可以集成语音识别功能
     },
     
-    // 切换表情面板
-    toggleEmojiPanel() {
-      console.log('切换表情面板');
-      this.showEmojiPanel = !this.showEmojiPanel;
-    },
-    
     // 显示更多选项
     showMoreOptions() {
       console.log('显示更多选项');
@@ -148,8 +157,6 @@ export default {
     
     // 输入框获取焦点
     onInputFocus() {
-      // 隐藏表情面板
-      this.showEmojiPanel = false;
       // 滚动到底部
       this.$nextTick(() => {
         this.scrollToBottom();
@@ -171,10 +178,9 @@ export default {
     });
   },
   onLoad() {
-    // 设置导航栏标题
-    uni.setNavigationBarTitle({
-      title: '客服专线'
-    });
+    // 获取状态栏高度
+    const systemInfo = uni.getSystemInfoSync();
+    this.statusBarHeight = systemInfo.statusBarHeight || 0;
   }
 };
 </script>
@@ -188,12 +194,49 @@ export default {
   flex-direction: column;
 }
 
+/* 导航栏 */
+.nav-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
+  z-index: 999;
+}
+
+.nav-content {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30rpx;
+}
+
+.nav-back {
+  font-size: 36rpx;
+  color: #FFFFFF;
+  width: 60rpx;
+}
+
+.nav-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #FFFFFF;
+  flex: 1;
+  text-align: center;
+}
+
+.nav-right {
+  width: 60rpx;
+}
+
 /* 聊天消息区域 */
 .chat-messages {
   flex: 1;
   padding: 30rpx;
+  padding-top: calc(44px + var(--status-bar-height, 20px) + 30rpx);
   overflow-y: auto;
-  max-height: calc(100vh - 300rpx); /* 限制聊天内容区域的最大高度 */
+  padding-bottom: 200rpx; /* 为底部输入区域留出空间 */
 }
 
 .message-item {
@@ -315,7 +358,6 @@ export default {
 }
 
 .voice-icon,
-.emoji-icon,
 .add-icon {
   font-size: 40rpx;
   margin: 0 10rpx;
@@ -371,11 +413,12 @@ input:-ms-input-placeholder {
 
 .bottom-action-area {
   position: fixed;
-  bottom: 100rpx; /* 确保在导航栏上方 */
+  bottom: 0; /* 直接贴底 */
   left: 0;
   right: 0;
   z-index: 100;
   background-color: white;
   border-top: 1rpx solid #EEEEEE;
+  padding-bottom: env(safe-area-inset-bottom); /* 适配安全区域 */
 }
 </style>
