@@ -193,6 +193,43 @@ export default {
             const orderDetail = res.data.data;
             if (orderDetail) {
               
+              // 获取金额信息
+              // goodsAmount 是纯商品金额（不含配送费），totalAmount 可能包含配送费
+              const goodsAmount = parseFloat(orderDetail.goodsAmount || 0); // 纯商品金额
+              const totalAmount = parseFloat(orderDetail.totalAmount || orderDetail.total_amount || goodsAmount || 0); // 商品总金额（可能含配送费）
+              const actualAmount = parseFloat(orderDetail.actualAmount || orderDetail.actual_amount || orderDetail.payAmount || orderDetail.pay_amount || 0); // 实付金额
+              const discountAmount = parseFloat(orderDetail.discountAmount || orderDetail.discount_amount || orderDetail.discount || 0); // 优惠金额
+              
+              // 计算配送费：如果是自取订单(orderType !== 1)，配送费应该为0
+              // 如果是外卖订单，通过实付金额减去纯商品金额计算配送费
+              let deliveryFee = 0;
+              if (orderDetail.orderType === 1 && actualAmount) {
+                // 优先使用 goodsAmount（纯商品金额），如果没有则使用 totalAmount
+                const productAmount = goodsAmount || totalAmount;
+                // 配送费 = 实付金额 - 商品金额 + 优惠金额
+                deliveryFee = actualAmount - productAmount + discountAmount;
+                // 确保配送费不为负数
+                if (deliveryFee < 0) {
+                  deliveryFee = 0;
+                }
+                
+                // 如果计算出来的配送费为0，从商家设置中获取配送费
+                if (deliveryFee === 0) {
+                  // 尝试从本地存储获取商家配送费设置
+                  const deliverySettings = uni.getStorageSync('deliverySettings') || {};
+                  // 如果本地存储有配送费设置，使用它
+                  if (deliverySettings.fee) {
+                    deliveryFee = parseFloat(deliverySettings.fee);
+                  } else {
+                    // 如果没有本地设置，尝试从商家基础信息中获取
+                    const shopInfo = uni.getStorageSync('shopInfo') || {};
+                    if (shopInfo.deliveryFee) {
+                      deliveryFee = parseFloat(shopInfo.deliveryFee);
+                    }
+                  }
+                }
+              }
+              
               // 严格按照后端OrderMain对象结构进行数据映射
               this.orderData = {
                 status: this.getStatusText(orderDetail.status),
@@ -200,10 +237,10 @@ export default {
                 transactionTime: this.formatDateTime(orderDetail.createTime || orderDetail.transactionTime),
                 paymentMethod: this.getPaymentMethod(orderDetail.paymentMethod),
                 transactionType: '线上订单',
-                productAmount: orderDetail.totalAmount || 0,
-                deliveryFee: orderDetail.deliveryFee || 0,
-                discount: orderDetail.discountAmount || 0,
-                actualPayment: orderDetail.actualAmount || ((orderDetail.totalAmount || 0) + (orderDetail.deliveryFee || 0) - (orderDetail.discountAmount || 0)),
+                productAmount: goodsAmount || totalAmount,
+                deliveryFee: deliveryFee,
+                discount: discountAmount,
+                actualPayment: actualAmount || (totalAmount + deliveryFee - discountAmount),
                 // 顾客信息（从后端数据中获取）
                 customerInfo: {
                   name: orderDetail.deliverContact || orderDetail.userNickname || '顾客',
