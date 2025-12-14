@@ -394,11 +394,16 @@ export default {
         // 验证API响应是否成功且包含有效数据
         if (!merchantRes || merchantRes.code !== 200 || !merchantRes.data) {
           console.error('❌ 商家详情API返回无效数据:', merchantRes);
+          const errorMsg = merchantRes?.msg || merchantRes?.message || '商家不存在';
           uni.showToast({
-            title: '获取商家信息失败',
+            title: errorMsg,
             icon: 'none',
             duration: 2000
           });
+          // 延迟返回上一页，让用户看到错误提示
+          setTimeout(() => {
+            this.navBack();
+          }, 2000);
           return;
         }
         // 再获取商品列表
@@ -425,11 +430,17 @@ export default {
           console.error('错误信息:', merchantRes?.message || merchantRes?.msg);
           
           // 显示友好的错误提示
+          const errorMsg = merchantRes?.msg || merchantRes?.message || '商家不存在';
           uni.showToast({
-            title: merchantRes?.message || merchantRes?.msg || '获取商家信息失败',
+            title: errorMsg,
             icon: 'none',
             duration: 2000
           });
+          // 延迟返回上一页，让用户看到错误提示
+          setTimeout(() => {
+            this.navBack();
+          }, 2000);
+          return;
         }
         
         // 处理商品列表
