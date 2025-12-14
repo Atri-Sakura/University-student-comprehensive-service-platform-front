@@ -91,7 +91,7 @@
 <script>
 	import { getRiderBaseInfo } from '@/utils/profile-api.js';
 	import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
-	import { getOrderStatistics } from '@/utils/api/index.js';
+	import { getRiderWalletFlow } from '@/utils/api/wallet.js';
 	
 	export default {
 		data() {
@@ -123,11 +123,10 @@
 				
 				this.loading = true;
 				try {
-					// 并行请求获取骑手基本信息、评价统计信息和订单统计信息
-					const [baseInfoResponse, evaluationResponse, orderStatsResponse] = await Promise.all([
+					// 并行请求获取骑手基本信息、评价统计信息
+					const [baseInfoResponse, evaluationResponse] = await Promise.all([
 						getRiderBaseInfo(),
-						getMyEvaluationStatistics(),
-						getOrderStatistics()
+						getMyEvaluationStatistics()
 					]);
 					
 					// 更新骑手基本信息
@@ -170,17 +169,8 @@
 						};
 					}
 					
-					// 更新订单统计信息
-					if (orderStatsResponse.code === 200 && orderStatsResponse.data) {
-						const orderStats = orderStatsResponse.data;
-						console.log('📊 个人中心获取到的订单统计:', orderStats);
-						
-						// 更新今日完成订单数和今日收入
-						this.statistics = {
-							todayCompleted: orderStats.todayCount || 0,
-							todayIncome: orderStats.todayIncome || '0.00'
-						};
-					}
+					// 更新订单统计信息：通过钱包流水计算今日收入
+					await this.loadTodayIncome();
 					
 					console.log('📱 个人中心更新后的用户信息:', this.userInfo);
 					console.log('📊 个人中心订单统计:', this.statistics);
@@ -215,6 +205,89 @@
 			},
 			goToWallet() {
 				uni.navigateTo({ url: '/pages/wallet/wallet' });
+			},
+
+			// 加载今日收入：通过钱包流水计算
+			async loadTodayIncome() {
+				try {
+					const result = await getRiderWalletFlow();
+					// 检查响应结构
+					console.log('个人中心钱包流水接口响应:', result);
+					
+					// 获取当前日期（用于判断今日交易）
+					const today = new Date();
+					// 使用统一的日期格式进行比较（格式：YYYY-MM-DD）
+					const todayYear = today.getFullYear();
+					const todayMonth = String(today.getMonth() + 1).padStart(2, '0');
+					const todayDay = String(today.getDate()).padStart(2, '0');
+					const todayStr = `${todayYear}-${todayMonth}-${todayDay}`;
+					
+					// 处理API响应：从data字段获取交易记录数组
+					const flowData = result.data || [];
+					
+					console.log('个人中心处理后的流水数据:', flowData);
+					console.log('个人中心今日日期:', todayStr);
+					
+					// 初始化今日订单计数器和收入
+					let todayCompleted = 0;
+					let todayIncomeTotal = 0;
+					
+					// 遍历流水记录，计算今日收入
+					if (flowData && flowData.length > 0) {
+						flowData.forEach(item => {
+							// 确定交易类型：根据tradeType或amount判断
+							const type = (item.tradeType === 1 || item.amount > 0) ? 'income' : 'expense';
+							
+							try {
+								// 使用tradeTime字段作为时间来源
+								const tradeTime = item.tradeTime;
+								
+								// 如果tradeTime存在且是有效的日期字符串，则解析为日期
+								if (tradeTime) {
+									const date = new Date(tradeTime);
+									
+									// 检查是否是今日的订单配送收入
+									const tradeYear = date.getFullYear();
+									const tradeMonth = String(date.getMonth() + 1).padStart(2, '0');
+									const tradeDay = String(date.getDate()).padStart(2, '0');
+									const tradeDate = `${tradeYear}-${tradeMonth}-${tradeDay}`;
+									
+									// 调试日志：检查每个交易记录的属性
+									console.log('个人中心交易记录:', {
+										tradeDate, 
+										todayStr, 
+										type, 
+										remark: item.remark, 
+										amount: item.amount
+									});
+									
+									// 检查是否是今日的订单配送收入
+									if (tradeDate === todayStr && type === 'income' && item.remark && 
+										(item.remark.includes('订单收入') || item.remark.includes('订单配送收入'))) {
+										todayCompleted++;
+										todayIncomeTotal += parseFloat(item.amount);
+										console.log('个人中心匹配到今日订单收入:', item.amount);
+									}
+								}
+							} catch (e) {
+								// 如果日期格式不正确，跳过该记录
+								console.error('个人中心处理交易记录日期失败:', e);
+							}
+						});
+					}
+					
+					// 更新今日完成订单数和今日收入
+					this.statistics = {
+						todayCompleted: todayCompleted,
+						todayIncome: todayIncomeTotal.toFixed(2)
+					};
+					
+					console.log('个人中心今日订单数量:', todayCompleted);
+					console.log('个人中心今日订单收入:', todayIncomeTotal.toFixed(2));
+				} catch (error) {
+					console.error('个人中心获取钱包流水失败:', error);
+					// 如果获取失败，保持当前统计数据不变
+				}
 			},
 		handleService(type) {
 			if (type === 'profile') {
@@ -457,3 +530,4 @@
 		line-height: 1.4;
 	}
 </style>
+
