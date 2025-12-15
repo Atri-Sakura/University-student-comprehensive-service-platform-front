@@ -52,12 +52,7 @@
 						</view>
 						<text class="info-text">{{ order.address }}</text>
 					</view>
-					<view class="info-row">
-						<view class="icon-wrapper time">
-							<text class="icon-dot">⏰</text>
-						</view>
-						<text class="info-text">预计送达: {{ order.deliveryTime }}</text>
-					</view>
+					
 				</view>
 
 				<view class="order-footer" @tap.stop="">
@@ -258,7 +253,6 @@
 				address: item.deliverAddress || '配送地址',
 				merchantName: item.merchantName || item.pickAddress || '商家名称',
 				merchantPhone: item.merchantPhone || item.pickPhone || item.shopPhone || '',
-				deliveryTime: item.createTime || '尽快送达',
 				type: typeInfo.type,
 				typeText: typeInfo.typeText,
 				status: status,
