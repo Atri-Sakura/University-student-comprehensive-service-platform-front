@@ -52,8 +52,8 @@
           </view>
           
           <view class="order-actions">
-            <!-- 待接单状态 - 优化布局 -->
-            <view v-if="item.status === '待接单'">
+            <!-- 商家待接单状态 - 优化布局 -->
+            <view v-if="item.status === '商家待接单'">
               <!-- 第一行：主要操作按钮 -->
               <view class="action-group primary-actions">
                 <button class="action-btn reject" @click="rejectOrder(item)">拒单</button>
@@ -66,15 +66,15 @@
               </view>
             </view>
             
-            <!-- 待取货状态 -->
-            <view v-if="item.status === '待取货'" class="action-group">
+            <!-- 骑手待接单/待取货状态 -->
+            <view v-if="item.status === '骑手待接单' || item.status === '骑手待取货'" class="action-group">
               <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
               <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
               <button class="action-btn notify" @click="notifyRider(item)">通知骑手取餐</button>
             </view>
             
-            <!-- 配送中状态 -->
-            <view v-if="item.status === '配送中'">
+            <!-- 骑手配送中状态 -->
+            <view v-if="item.status === '骑手配送中'">
               <view class="action-group tight-group">
                 <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
                 <button class="action-btn contact rider" @click="contactRider(item)">联系骑手</button>
@@ -86,8 +86,8 @@
               </view>
             </view>
             
-            <!-- 已完成和已送达状态 -->
-            <view v-if="item.status === '已完成' || item.status === '已送达'">
+            <!-- 已送达状态 -->
+            <view v-if="item.status === '已送达'">
               <view class="action-group tight-group">
                 <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
                 <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
@@ -172,18 +172,20 @@ export default {
       }
     },
   computed: {
-    // 待处理订单：待接单、待取货
+    // 待处理订单：商家待接单、骑手待接单、骑手待取货
     pendingOrders() {
-      return this.allOrders.filter(order => ['待接单', '待取货'].includes(order.status))
+      return this.allOrders.filter(order => ['商家待接单', '骑手待接单', '骑手待取货'].includes(order.status))
     },
+    // 配送中：骑手配送中
     deliveringOrders() {
-      return this.allOrders.filter(order => order.status === '配送中')
+      return this.allOrders.filter(order => order.status === '骑手配送中')
     },
+    // 已完成：已送达、已取消、异常报备
     completedOrders() {
       return this.allOrders.filter(order => 
-        order.status === '已完成' || 
         order.status === '已送达' ||
-        order.status === '已取消'
+        order.status === '已取消' ||
+        order.status === '异常报备'
       )
     },
     currentOrders() {
@@ -264,16 +266,16 @@ export default {
     
     // 转换后端订单数据格式为前端所需格式
     transformOrderData(backendOrders) {
-      return backendOrders.map((order, index) => {
+        return backendOrders.map((order, index) => {
         
         // 根据后端返回的订单状态进行完整映射
-        // 订单状态：1-商家待接单 2-骑手待接单 3-骑手待取货 4-配送中 5-已完成 6-已取消 7-骑手异常报备
+        // 1: 商家待接单；2: 骑手待接单；3: 骑手待取货；4: 骑手配送中；5: 已送达；6: 已取消
         const statusMap = {
-          1: '待接单',
-          2: '待取货',
-          3: '待取货',
-          4: '配送中',
-          5: '已完成',
+          1: '商家待接单',
+          2: '骑手待接单',
+          3: '骑手待取货',
+          4: '骑手配送中',
+          5: '已送达',
           6: '已取消',
           7: '异常报备'
         };
@@ -281,51 +283,48 @@ export default {
         // 使用后端返回的状态，如果找不到对应映射则默认为'待接单'
         let orderStatus = statusMap[order.orderStatus] || '待接单';
         
-        // 使用后端实际的商品数据，检查多个可能的字段
-        let items = [];
-        try {
-          
-          // 检查多个可能包含商品数据的字段
-          let productList = null;
-          
-          // 检查常见的商品列表字段
-          if (order.orderTakeoutDetailList && Array.isArray(order.orderTakeoutDetailList)) {
-            productList = order.orderTakeoutDetailList;
-          } else if (order.orderItems && Array.isArray(order.orderItems)) {
-            productList = order.orderItems;
-          } else if (order.products && Array.isArray(order.products)) {
-            productList = order.products;
-          } else if (Array.isArray(order)) {
-            // 如果order本身是数组，可能直接包含商品数据
-            productList = order;
-          }
-          
-          // 如果找到商品列表
-          if (productList) {
-            items = productList.map(item => ({
-              name: item.goodsName || item.productName || item.name || '商品',
-              options: item.goodsSpec || item.productOption || item.options || item.spec || '',
-              quantity: item.quantity || item.productCount || 1,
-              price: item.goodsPrice || item.price || 0
-            }));
-          } else {
-            // 当没有商品详情时，使用订单金额作为商品信息
-            items = [{
-              name: '商品',
-              options: '',
-              quantity: 1,
-              price: order.payAmount || 0
-            }];
-          }
-        } catch (error) {
-          // 错误情况下提供默认商品信息
-          items = [{
-            name: '商品',
-            options: '',
-            quantity: 1,
-            price: order.payAmount || 0
-          }];
+        // 统一金额计算：商品小计 + 配送费，金额来源优先顺序与详情一致
+        const goodsAmountRaw = parseFloat(order.goodsAmount || 0);
+        const totalAmountRaw = parseFloat(order.totalAmount || order.total_amount || 0);
+        const deliveryFromBackend = parseFloat(
+          order.deliveryFeeAmount || // 后端主字段
+          order.deliveryFee ||
+          order.delivery_fee ||
+          order.deliveryAmount ||
+          order.shippingFee ||
+          order.DeliceryFee || // 后端字段拼写
+          order.deliceryFee || 0
+        );
+        const payAmountRaw = parseFloat(order.actualAmount || order.actual_amount || order.payAmount || order.pay_amount || 0);
+
+        // 转换商品列表，便于求和
+        const { itemsRaw, items: itemsDisplay } = this.transformProductsForList(order);
+        const productAmountFromItems = this.sumProductsForList(itemsRaw);
+
+        // 商品金额
+        let productAmount = productAmountFromItems || goodsAmountRaw;
+        if (!productAmount) {
+          productAmount = totalAmountRaw;
         }
+        if (productAmount < 0) productAmount = 0;
+
+        // 配送费：优先后端 deliveryFeeAmount，若缺失且 payAmountRaw>商品小计，用差值兜底
+        let deliveryFee = !isNaN(deliveryFromBackend) ? deliveryFromBackend : NaN;
+        if ((deliveryFee === undefined || isNaN(deliveryFee)) && payAmountRaw && productAmount) {
+          deliveryFee = payAmountRaw - productAmount;
+        }
+        if (isNaN(deliveryFee) || deliveryFee < 0) deliveryFee = 0;
+
+        // 实付金额：优先后端实付；否则商品金额 + 配送费
+        let amountDisplay = payAmountRaw || (productAmount + deliveryFee);
+        
+        // 使用后端实际的商品数据
+        const items = itemsRaw.length ? itemsDisplay : [{
+          name: '商品',
+          options: '',
+          quantity: 1,
+          price: amountDisplay || 0
+        }];
         
         return {
           id: order.orderMainId,
@@ -334,7 +333,7 @@ export default {
           phone: order.deliverPhone || '',
           orderTime: order.createTime,
           status: orderStatus,
-          amount: order.payAmount,
+          amount: amountDisplay,
           items: items,
           completeTime: order.completeTime,
           riderName: order.riderName,
@@ -348,15 +347,59 @@ export default {
     },
     
 
+    // 转换商品数据（列表页专用，保留原始项以便求和）
+    transformProductsForList(order) {
+      let productList = null
+      if (order.orderTakeoutDetailList && Array.isArray(order.orderTakeoutDetailList)) {
+        productList = order.orderTakeoutDetailList
+      } else if (order.orderItems && Array.isArray(order.orderItems)) {
+        productList = order.orderItems
+      } else if (order.products && Array.isArray(order.products)) {
+        productList = order.products
+      } else if (Array.isArray(order)) {
+        productList = order
+      }
+      const itemsRaw = (productList || []).map(item => {
+        const price = parseFloat(item.goodsPrice || item.price || 0)
+        const qty = item.quantity || item.productCount || 1
+        const subtotal = parseFloat(item.subtotal || (price * qty))
+        return {
+          name: item.goodsName || item.productName || item.name || '商品',
+          options: item.goodsSpec || item.productOption || item.options || item.spec || '',
+          quantity: qty,
+          price: price,
+          subtotal: subtotal
+        }
+      })
+      const items = itemsRaw.map(i => ({
+        name: i.name,
+        options: i.options,
+        quantity: i.quantity,
+        price: i.price
+      }))
+      return { itemsRaw, items }
+    },
+
+    // 汇总商品小计（列表页）
+    sumProductsForList(itemsRaw) {
+      if (!Array.isArray(itemsRaw)) return 0
+      return itemsRaw.reduce((sum, p) => {
+        const val = parseFloat(p.subtotal || (p.price || 0) * (p.quantity || 1))
+        return sum + (isNaN(val) ? 0 : val)
+      }, 0)
+    },
+
+
     
     getStatusColor(status) {
       const colors = {
-        '待接单': '#ff9800',
-        '待取货': '#ff6b00',
-        '配送中': '#2196f3',
+        '商家待接单': '#ff9800',
+        '骑手待接单': '#ff6b00',
+        '骑手待取货': '#ff6b00',
+        '骑手配送中': '#2196f3',
         '已送达': '#52c41a',
-        '已完成': '#52c41a',
-        '已取消': '#999999'
+        '已取消': '#999999',
+        '异常报备': '#faad14'
       }
       return colors[status] || '#666'
     },
@@ -382,7 +425,7 @@ export default {
                 // 后端返回的是AjaxResult对象，检查code字段
                 if (response.data && (response.data.code === 200 || response.data.code === 1)) {
                   // 更新前端订单状态
-                  item.status = '待取货'
+                  item.status = '骑手待接单'
                   this.updateOrderCount()
                   uni.showToast({
                     title: '接单成功',
@@ -434,7 +477,7 @@ export default {
                   // 后端返回的是AjaxResult对象，检查code字段
                   if (response.data && (response.data.code === 200 || response.data.code === 1)) {
                     // 更新订单状态和骑手信息
-                    item.status = '配送中'
+                    item.status = '骑手配送中'
                     item.riderName = response.data.data?.riderName || item.riderName
                     item.riderPhone = response.data.data?.riderPhone || item.riderPhone
                     item.riderAcceptTime = response.data.data?.riderAcceptTime || new Date().toLocaleString('zh-CN')
