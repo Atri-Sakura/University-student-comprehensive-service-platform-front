@@ -56,6 +56,7 @@ export default {
 	data() {
 			return {
 				orderId: '',
+				orderMainId: '', // 订单主ID，用于异常报备
 				orderStatus: '',
 				rawOrderStatus: null, // 原始数字状态码
 				orderInfo: {
@@ -87,12 +88,14 @@ export default {
 	computed: {
 		statusText() {
 			const statusMap = {
-				'new': '待接单',
-				'pickup': '待取货',
+				'merchantPending': '商家待接单',
+				'riderPending': '骑手待接单',
+				'pickup': '骑手待取货',
 				'delivery': '配送中',
 				'completed': '已完成',
 				'cancelled': '已取消',
-				'rejected': '已拒单'
+				'abnormal': '骑手异常报备',
+				'unknown': '未知状态'
 			};
 			return statusMap[this.orderStatus] || '未知状态';
 		},
@@ -102,8 +105,20 @@ export default {
 		},
 		
 		canSubmit() {
-			// 只有选择了异常类型且订单状态为配送中时才能提交（后端要求order_status=3）
-			return this.selectedType && this.orderStatus === 'delivery';
+			// 选择了异常类型且订单状态为骑手待取货或配送中时才能提交
+			return this.selectedType && (this.orderStatus === 'pickup' || this.orderStatus === 'delivery');
+		},
+		
+		// 根据订单状态过滤异常类型
+		filteredExceptionTypes() {
+			if (this.orderStatus === 'pickup') {
+				// 待取货状态下移除"顾客联系不上"选项
+				return this.exceptionTypes.filter(type => type.key !== 'customer_unreachable');
+			} else if (this.orderStatus === 'delivery') {
+				// 配送中状态下移除商家相关的异常类型：商家未准备好、商家已关门、找不到商家
+				return this.exceptionTypes.filter(type => !['merchant_not_ready', 'merchant_closed', 'merchant_not_found'].includes(type.key));
+			}
+			return this.exceptionTypes;
 		}
 	},
 	
@@ -120,15 +135,18 @@ export default {
 	methods: {
 		// 映射后端数字状态码到前端字符串状态
 		mapOrderStatus(statusCode) {
+			// 确保statusCode是数字类型
+			const code = Number(statusCode);
 			const statusMap = {
-				1: 'new',      // 待接单
-				2: 'pickup',   // 待取货
-				3: 'delivery', // 配送中
-				4: 'completed', // 已完成
-				5: 'cancelled', // 已取消
-				6: 'rejected'  // 已拒单
+				1: 'merchantPending',  // 商家待接单
+				2: 'riderPending',     // 骑手待接单
+				3: 'pickup',           // 骑手待取货
+				4: 'delivery',         // 配送中
+				5: 'completed',        // 已完成
+				6: 'cancelled',        // 已取消
+				7: 'abnormal'          // 骑手异常报备
 			};
-			return statusMap[statusCode] || 'new';
+			return statusMap[code] || 'unknown';
 		},
 			
 			goBack() {
@@ -175,15 +193,23 @@ export default {
 						this.rawOrderStatus = orderData.orderStatus;
 						
 						// 更新订单信息
-						this.orderInfo = {
-							id: orderData.orderNo || orderData.orderMainId || orderData.id || orderId,
-							type: orderData.orderType === 1 ? 'takeout' : 'express',
-							typeText: orderData.orderType === 1 ? '外卖' : '跑腿',
-							merchant: orderData.pickAddress || orderData.merchantName || orderData.merchant || '未知商家',
-							customer: orderData.customerName || orderData.customer || '',
-							address: orderData.deliverAddress || orderData.deliveryAddress || '',
-							totalPrice: orderData.totalPrice || 0
-						};
+					this.orderInfo = {
+						id: orderData.orderNo || orderData.orderMainId || orderData.id || orderId,
+						type: orderData.orderType === 1 ? 'takeout' : 'express',
+						typeText: orderData.orderType === 1 ? '外卖' : '跑腿',
+						merchant: orderData.pickAddress || orderData.merchantName || orderData.merchant || '未知商家',
+						customer: orderData.customerName || orderData.customer || '',
+						address: orderData.deliverAddress || orderData.deliveryAddress || '',
+						totalPrice: orderData.totalPrice || 0
+					};
+					
+					// 保存orderMainId用于异常报备
+					if (orderData.orderMainId) {
+						this.orderMainId = orderData.orderMainId;
+					} else {
+						this.orderMainId = orderId; // 备用方案
+					}
+					console.log('📥 保存的orderMainId:', this.orderMainId);
 						console.log('📥 更新后的orderInfo:', this.orderInfo);
 						console.log('📋 原始订单状态码:', this.rawOrderStatus);
 						
@@ -210,12 +236,12 @@ export default {
 			},
 		
 		showTypePicker() {
-			const typeNames = this.exceptionTypes.map(type => type.name);
+			const typeNames = this.filteredExceptionTypes.map(type => type.name);
 			
 			uni.showActionSheet({
 				itemList: typeNames,
 				success: (res) => {
-					const selectedTypeObj = this.exceptionTypes[res.tapIndex];
+					const selectedTypeObj = this.filteredExceptionTypes[res.tapIndex];
 					this.selectedType = selectedTypeObj.key; // 保留英文键值（兼容现有逻辑）
 					this.selectedTypeName = selectedTypeObj.name; // 新增：存储中文名称
 				}
@@ -226,15 +252,15 @@ export default {
 		
 		async submitReport() {
 				if (!this.canSubmit) {
-					// 检查是否因为订单状态不符合条件
-					if (this.selectedType && this.orderStatus !== 'delivery') {
-						uni.showToast({
-							title: '只有配送中的订单才能提交异常报备',
-							icon: 'error'
-						});
-					}
-					return;
+				// 检查是否因为订单状态不符合条件
+				if (this.selectedType && (this.orderStatus !== 'pickup' && this.orderStatus !== 'delivery')) {
+					uni.showToast({
+						title: '只有待取货或配送中的订单才能提交异常报备',
+						icon: 'error'
+					});
 				}
+				return;
+			}
 				
 				this.submitting = true;
 				// 最后确认原始数字状态码
@@ -286,6 +312,13 @@ export default {
 						orderMainId: String(this.orderId),  // 订单主ID，确保是字符串类型
 						cancelReason: cancelReason  // 异常类型（报备原因），使用中文名称
 					};
+					
+					// 验证参数完整性
+					console.log('🔍 参数验证:', {
+						orderMainId: reportData.orderMainId,
+						cancel_reason: reportData.cancel_reason,
+						hasCancelReason: !!reportData.cancel_reason
+					});
 					
 					console.log('📤 提交异常报备数据:', reportData);
 					
