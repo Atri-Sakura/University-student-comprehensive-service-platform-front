@@ -2,7 +2,10 @@
   <view class="page-container">
     <!-- 顶部店铺信息 -->
     <view class="shop-header">
-      <view class="shop-icon">🏪</view>
+      <view class="shop-icon">
+        <image v-if="shopData.logo" class="logo-image" :src="shopData.logo" mode="aspectFill"></image>
+        <text v-else class="icon-text">🏪</text>
+      </view>
       <view class="shop-info">
         <view class="shop-name">{{ shopData.name }}</view>
         <view class="shop-status">{{ shopData.businessStatus }} · {{ shopData.businessHours }}</view>
@@ -26,28 +29,7 @@
       <!-- 日期筛选 -->
       <view class="date-filter">
         <view class="filter-tabs">
-          <view 
-            class="filter-tab" 
-            :class="{ active: selectedDateRange === 'today' }"
-            @click="selectDateRange('today')"
-          >
-            今日
-          </view>
-          <view 
-            class="filter-tab" 
-            :class="{ active: selectedDateRange === 'week' }"
-            @click="selectDateRange('week')"
-          >
-            本周
-          </view>
-          <view 
-            class="filter-tab" 
-            :class="{ active: selectedDateRange === 'month' }"
-            @click="selectDateRange('month')"
-          >
-            本月
-          </view>
-          
+          <view class="filter-tab active">今日</view>
         </view>
         <text class="current-date">{{ displayDate }}</text>
       </view>
@@ -108,14 +90,15 @@ export default {
       shopData: {
         name: "美味餐厅",
         businessStatus: "营业中",
-        businessHours: "08:00-22:00"
+        businessHours: "08:00-22:00",
+        logo: ""
       },
       financialData: {
         todayIncome: '3,856.50',
         withdrawableAmount: '8,942.30'
       },
-      selectedDateRange: 'today',
-      displayDate: '2023-11-15',
+
+      displayDate: new Date().toISOString().split('T')[0],
       orderList: [], // 初始化为空数组，由API动态填充
       withdrawalRecords: [
         {
@@ -146,7 +129,8 @@ export default {
           ...this.shopData,
           name: savedInfo.name || this.shopData.name,
           businessStatus: savedInfo.openStatus || this.shopData.businessStatus,
-          businessHours: savedInfo.hours || this.shopData.businessHours
+          businessHours: savedInfo.hours || this.shopData.businessHours,
+          logo: savedInfo.logo || this.shopData.logo
         };
       }
     },
@@ -305,30 +289,7 @@ export default {
       }
       return '0.00';
     },
-    selectDateRange(range) {
-      this.selectedDateRange = range;
-      // 根据选择的日期范围更新显示日期
-      const now = new Date();
-      switch(range) {
-        case 'today':
-          this.displayDate = now.toISOString().split('T')[0];
-          break;
-        case 'week':
-          const dayOfWeek = now.getDay() || 7;
-          const diff = now.getDate() - dayOfWeek + 1;
-          const weekStart = new Date(now.setDate(diff));
-          const weekEnd = new Date(now.setDate(diff + 6));
-          this.displayDate = `${weekStart.toISOString().split('T')[0]} 至 ${weekEnd.toISOString().split('T')[0]}`;
-          break;
-        case 'month':
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          this.displayDate = `${monthStart.toISOString().split('T')[0]} 至 ${monthEnd.toISOString().split('T')[0]}`;
-          break;
-      }
-      // 根据日期范围重新加载数据
-      this.loadOrderList();
-    },
+
     showCustomDatePicker() {
       // 显示自定义日期选择器
       uni.showToast({
@@ -445,9 +406,10 @@ export default {
       merchantFinanceApi.getWalletFlowListWithOrder(params).then(res => {
         console.log('收入明细API响应:', res);
         
-        // 检查响应格式
+        // 检查响应格式 - 该接口返回 { code: 200, rows: [...], total: 0 }
         if (res && res.data && res.data.code === 200) {
-          const flowData = res.data.data || res.data.rows || [];
+          // 优先从rows获取，该接口返回的是rows而不是data
+          const flowData = res.data.rows || res.data.data || [];
           console.log('收入明细数据:', flowData);
           
           // 转换收入明细格式为页面需要的格式
@@ -486,37 +448,14 @@ export default {
       });
     },
     
-    // 根据选择的日期范围构建查询参数
+    // 获取今日日期范围参数
     getDateRangeParams() {
-      const params = {};
       const now = new Date();
-      
-      switch (this.selectedDateRange) {
-        case 'today':
-          // 今天
-          const today = now.toISOString().split('T')[0];
-          params.startTime = today + ' 00:00:00';
-          params.endTime = today + ' 23:59:59';
-          break;
-        case 'week':
-          // 本周
-          const dayOfWeek = now.getDay() || 7; // 转换为1-7，其中1是周一，7是周日
-          const diff = now.getDate() - dayOfWeek + 1;
-          const weekStart = new Date(now.setDate(diff));
-          const weekEnd = new Date(now.setDate(diff + 6));
-          params.startTime = weekStart.toISOString().split('T')[0] + ' 00:00:00';
-          params.endTime = weekEnd.toISOString().split('T')[0] + ' 23:59:59';
-          break;
-        case 'month':
-          // 本月
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-          params.startTime = monthStart.toISOString().split('T')[0] + ' 00:00:00';
-          params.endTime = monthEnd.toISOString().split('T')[0] + ' 23:59:59';
-          break;
-      }
-      
-      return params;
+      const today = now.toISOString().split('T')[0];
+      return {
+        startTime: today + ' 00:00:00',
+        endTime: today + ' 23:59:59'
+      };
     },
     
     // 格式化日期时间
@@ -579,8 +518,22 @@ export default {
 }
 
 .shop-icon {
-  font-size: 80rpx;
+  width: 100rpx;
+  height: 100rpx;
   margin-right: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shop-icon .logo-image {
+  width: 100rpx;
+  height: 100rpx;
+  border-radius: 16rpx;
+}
+
+.shop-icon .icon-text {
+  font-size: 80rpx;
 }
 
 .shop-info {
