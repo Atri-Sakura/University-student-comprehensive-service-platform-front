@@ -4,7 +4,7 @@
  * 待后端接口完成后实现
  */
 
-import { 请求 } from '../api.js';
+import { request } from '../api.js';
 
 // API路径
 const ORDER_API = {
@@ -25,7 +25,7 @@ const ORDER_API = {
  * @param {Number} pageSize 每页数量
  */
 export async function getNewOrders(page = 1, pageSize = 10) {
-	return 请求({
+	return request({
 		url: ORDER_API.NEW_ORDERS,
 		method: 'GET',
 		data: { page, pageSize }
@@ -37,7 +37,7 @@ export async function getNewOrders(page = 1, pageSize = 10) {
  * @param {String} orderId 订单ID
  */
 export async function getOrderDetail(orderId) {
-	return 请求({
+	return request({
 		url: `${ORDER_API.ORDER_DETAIL}/${orderId}`,
 		method: 'GET'
 	});
@@ -48,7 +48,7 @@ export async function getOrderDetail(orderId) {
  * @param {String} orderId 订单ID
  */
 export async function acceptOrder(orderId) {
-	return 请求({
+	return request({
 		url: ORDER_API.ACCEPT_ORDER,
 		method: 'POST',
 		data: { orderId }
