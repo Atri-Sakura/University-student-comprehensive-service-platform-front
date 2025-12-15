@@ -305,14 +305,30 @@ export default {
 				}
 			}
 			
-			// 跳转到聊天页面
+			// 获取当前骑手ID
+			const riderId = uni.getStorageSync('riderId');
+			let currentRiderId = this.currentUser?.id || this.currentUser?.riderId || this.currentUser?.riderBaseId || riderId;
+			
+			// 判断骑手是发送方还是接收方，确定对方用户的信息
+			let otherUserId, otherUserType;
+			if (item.fromType === USER_TYPE.RIDER && String(item.fromId) === String(currentRiderId)) {
+				// 骑手是发送方，对方是接收方
+				otherUserId = item.toId;
+				otherUserType = item.toType;
+			} else {
+				// 骑手是接收方，对方是发送方
+				otherUserId = item.fromId;
+				otherUserType = item.fromType;
+			}
+			
+			// 跳转到聊天页面，骑手始终作为 from
 			const params = {
 				sessionId: String(item.sessionId),
-				fromType: String(item.fromType),
-				fromId: String(item.fromId),
-				toType: String(item.toType),
-				toId: String(item.toId),
-				title: encodeURIComponent(`用户 ${item.toId}`)
+				fromType: String(USER_TYPE.RIDER),
+				fromId: String(currentRiderId),
+				toType: String(otherUserType),
+				toId: String(otherUserId),
+				title: encodeURIComponent(`用户 ${otherUserId}`)
 			};
 			
 			const queryString = Object.keys(params)

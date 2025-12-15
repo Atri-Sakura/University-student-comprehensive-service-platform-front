@@ -133,7 +133,10 @@
 				submitting: false,
 				
 				// 加载状态
-				loading: false
+				loading: false,
+				
+				// 骑手身份证是否为空
+				hasIdCard: false
 			}
 		},
 		
@@ -148,6 +151,10 @@
 		computed: {
 			// 认证状态文本
 			statusText() {
+				// 如果id_card为空，显示"待认证"
+				if (!this.hasIdCard) {
+					return '待认证';
+				}
 				const statusMap = {
 					pending: '待提交',
 					reviewing: '审核中',
@@ -159,6 +166,10 @@
 			
 			// 认证状态样式类
 			statusClass() {
+				// 如果id_card为空，使用pending样式
+				if (!this.hasIdCard) {
+					return 'pending';
+				}
 				return this.certificationStatus;
 			},
 			
@@ -169,6 +180,10 @@
 			
 			// 步骤1状态样式
 			step1Class() {
+				// 如果id_card为空，显示待认证状态
+				if (!this.hasIdCard) {
+					return 'current';
+				}
 				if (this.certificationStatus === 'pending') {
 					return 'current';
 				}
@@ -177,6 +192,10 @@
 			
 			// 步骤1状态文本
 			step1StatusText() {
+				// 如果id_card为空，显示"待认证"
+				if (!this.hasIdCard) {
+					return '待认证';
+				}
 				if (this.certificationStatus === 'pending') {
 					return '待提交';
 				}
@@ -185,6 +204,10 @@
 			
 			// 步骤2状态样式
 			step2Class() {
+				// 如果id_card为空，显示待认证状态
+				if (!this.hasIdCard) {
+					return 'waiting';
+				}
 				if (this.certificationStatus === 'pending') {
 					return 'waiting';
 				} else if (this.certificationStatus === 'reviewing') {
@@ -199,6 +222,10 @@
 			
 			// 步骤2状态文本
 			step2StatusText() {
+				// 如果id_card为空，显示"待认证"
+				if (!this.hasIdCard) {
+					return '待认证';
+				}
 				if (this.certificationStatus === 'pending') {
 					return '待审核';
 				} else if (this.certificationStatus === 'reviewing') {
@@ -225,46 +252,56 @@
 						// 打印完整数据，查看实际字段名
 						console.log('📦 完整骑手数据:', JSON.stringify(response.data));
 						
-						// 后端字段可能是 auditStatus 而不是 accountStatus
-						// audit_status: 0-待审核, 1-已通过
-						const auditStatus = response.data.auditStatus;
-						const accountStatus = response.data.accountStatus;
-						console.log('📦 auditStatus:', auditStatus);
-						console.log('📦 accountStatus:', accountStatus);
+						// 获取骑手身份证号
+						const idCard = response.data.idCard;
+						console.log('📦 idCard:', idCard);
 						
-						// 使用 auditStatus（审核状态）来判断认证状态
-						// audit_status: 0-待审核, 1-已通过
-						// 注意：后端接口目前没有返回 auditStatus，需要后端添加此字段
-						if (auditStatus !== undefined && auditStatus !== null) {
-							// 根据审核状态映射认证状态
-							switch (auditStatus) {
-								case 0:
-									// 待审核（已提交，等待审核）
-									this.certificationStatus = 'reviewing';
-									break;
-								case 1:
-									// 已通过
-									this.certificationStatus = 'approved';
-									break;
-								case 2:
-									// 审核不通过
-									this.certificationStatus = 'rejected';
-									break;
-								default:
-									// 未提交认证
-									this.certificationStatus = 'pending';
-									break;
-							}
+						// 检测id_card是否为空
+						if (!idCard || idCard.trim() === '') {
+							// id_card为空，所有状态显示为"待认证"
+							this.hasIdCard = false;
+							this.certificationStatus = 'pending';
+							console.log('📦 id_card为空，显示待认证状态');
 						} else {
-							// 后端未返回 auditStatus，根据是否有身份证信息判断
-							// 如果有 idCard 说明已提交过认证
-							if (response.data.idCard) {
-								this.certificationStatus = 'reviewing'; // 已提交，待审核
+							// id_card不为空，使用认证状态码来控制
+							this.hasIdCard = true;
+							
+							// 后端字段可能是 auditStatus 而不是 accountStatus
+							// audit_status: 0-待审核, 1-已通过
+							const auditStatus = response.data.auditStatus;
+							const accountStatus = response.data.accountStatus;
+							console.log('📦 auditStatus:', auditStatus);
+							console.log('📦 accountStatus:', accountStatus);
+							
+							// 使用 auditStatus（审核状态）来判断认证状态
+							// audit_status: 0-待审核, 1-已通过
+							if (auditStatus !== undefined && auditStatus !== null) {
+								// 根据审核状态映射认证状态
+								switch (auditStatus) {
+									case 0:
+										// 待审核（已提交，等待审核）
+										this.certificationStatus = 'reviewing';
+										break;
+									case 1:
+										// 已通过
+										this.certificationStatus = 'approved';
+										break;
+									case 2:
+										// 审核不通过
+										this.certificationStatus = 'rejected';
+										break;
+									default:
+										// 未提交认证
+										this.certificationStatus = 'pending';
+										break;
+								}
 							} else {
-								this.certificationStatus = 'pending'; // 未提交
+								// 后端未返回 auditStatus，已有idCard说明已提交
+								this.certificationStatus = 'reviewing'; // 已提交，待审核
+								console.warn('⚠️ 后端未返回 auditStatus 字段，请联系后端添加');
 							}
-							console.warn('⚠️ 后端未返回 auditStatus 字段，请联系后端添加');
 						}
+						console.log('📦 hasIdCard:', this.hasIdCard);
 						console.log('📦 映射后的认证状态:', this.certificationStatus);
 					}
 				} catch (error) {
@@ -370,6 +407,7 @@
 								);
 								
 								// 更新状态
+								this.hasIdCard = true; // 提交成功后标记已有身份证
 								this.certificationStatus = 'reviewing';
 								
 								uni.showToast({
