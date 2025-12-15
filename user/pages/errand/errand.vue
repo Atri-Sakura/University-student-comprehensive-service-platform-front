@@ -70,15 +70,6 @@
           </view>
         </view>
 
-        <!-- 取件时间 -->
-        <view class="form-item">
-          <text class="form-label">取件时间</text>
-          <view class="form-input" @click="showTimePicker">
-            <text v-if="form.pickupTime" class="time-text">{{ form.pickupTime }}</text>
-            <text v-else class="placeholder-text">请选择取件时间</text>
-          </view>
-        </view>
-
         <!-- 服务费 -->
         <view class="form-item">
           <text class="form-label">服务费</text>
@@ -349,13 +340,6 @@ export default {
         });
         return;
       }
-      if (!this.form.pickupTime) {
-        uni.showToast({
-          title: '请选择取件时间',
-          icon: 'none'
-        });
-        return;
-      }
       if (!this.form.servicePrice) {
         uni.showToast({
           title: '请输入服务费',
@@ -370,10 +354,12 @@ export default {
           title: '创建订单中...'
         });
         
-        // 构建期望送达时间（今天的日期 + 选择的时间）
+        // 构建期望送达时间（当前时间 + 1小时）
         const today = new Date();
+        today.setHours(today.getHours() + 1);
         const dateStr = today.toISOString().split('T')[0];
-        const expectTime = `${dateStr} ${this.form.pickupTime}:00`;
+        const timeStr = `${today.getHours().toString().padStart(2, '0')}:${today.getMinutes().toString().padStart(2, '0')}:00`;
+        const expectTime = `${dateStr} ${timeStr}`;
         
         // 构建订单数据 - 按照后端CreateErrandOrderDto结构
         const pickupAddressId = this.selectedPickupAddress.userAddressId;
