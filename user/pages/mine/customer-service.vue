@@ -1,5 +1,18 @@
 <template>
   <view class="chat-container">
+    <!-- 自定义导航栏 -->
+    <view class="custom-navbar">
+      <view class="navbar-content">
+        <view class="navbar-left" @click="goBack" hover-class="navbar-left-hover">
+          <text class="navbar-icon">←</text>
+        </view>
+        <view class="navbar-center">
+          <text class="navbar-title">客服专线</text>
+        </view>
+        <view class="navbar-right"></view>
+      </view>
+    </view>
+    
     <!-- 聊天消息区域 -->
     <view class="chat-messages" ref="chatScrollView">
       <!-- 系统欢迎消息 -->
@@ -363,6 +376,18 @@ export default {
       if (scrollView) {
         scrollView.scrollTop = scrollView.scrollHeight;
       }
+    },
+    
+    // 返回上一页
+    goBack() {
+      const pages = getCurrentPages();
+      if (pages.length <= 1) {
+        uni.redirectTo({
+          url: '/pages/mine/mine'
+        });
+      } else {
+        uni.navigateBack();
+      }
     }
   },
   mounted() {
@@ -372,10 +397,7 @@ export default {
     });
   },
   onLoad() {
-    // 设置导航栏标题
-    uni.setNavigationBarTitle({
-      title: '客服专线'
-    });
+    // 隐藏原生导航栏标题（使用自定义导航栏）
   }
 };
 </script>
@@ -387,6 +409,68 @@ export default {
   background-color: #F5F5F5;
   display: flex;
   flex-direction: column;
+  padding-top: 88rpx;
+}
+
+/* 自定义导航栏 */
+.custom-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 88rpx;
+  background: linear-gradient(to bottom, #5DCDFF, #7DD8FF);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  padding-top: var(--status-bar-height, 0);
+}
+
+.navbar-content {
+  width: 100%;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30rpx;
+}
+
+.navbar-left {
+  width: 88rpx;
+  height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.navbar-left-hover {
+  opacity: 0.7;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+}
+
+.navbar-icon {
+  font-size: 40rpx;
+  color: white;
+  font-weight: bold;
+}
+
+.navbar-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar-title {
+  font-size: 36rpx;
+  color: white;
+  font-weight: bold;
+}
+
+.navbar-right {
+  width: 88rpx;
 }
 
 /* 聊天消息区域 */
