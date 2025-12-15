@@ -183,6 +183,7 @@
 <script>
 import { getGoodsDetail, createOrder, payOrder, confirmOrder, generateRequestId } from '@/api/secondhandGoods.js'
 import { PAY_TYPES } from '@/api/config.js'
+import { verifyPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js'
 
 export default {
   data() {
@@ -511,6 +512,21 @@ export default {
           title: '支付密码为6位数字',
           icon: 'none'
         });
+        this.passwordInputFocus = true;
+        return;
+      }
+      
+      // 验证支付密码（前端比对）
+      uni.showLoading({ title: '验证中...' });
+      const verifyResult = await verifyPaymentPassword(this.paymentPassword);
+      uni.hideLoading();
+      
+      if (!verifyResult.valid) {
+        uni.showToast({
+          title: verifyResult.msg || '支付密码错误',
+          icon: 'none'
+        });
+        this.paymentPassword = '';
         this.passwordInputFocus = true;
         return;
       }

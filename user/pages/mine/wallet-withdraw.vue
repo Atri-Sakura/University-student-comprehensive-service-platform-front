@@ -91,7 +91,7 @@
 </template>
 
 <script>
-import { withdrawWallet, getWalletBalance } from '@/api/wallet.js';
+import { withdrawWallet, getWalletBalance, verifyPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js';
 
 export default {
   data() {
@@ -196,6 +196,21 @@ export default {
       });
     },
     async processWithdraw(amount) {
+      // 验证支付密码（如果已输入）
+      if (this.payPassword) {
+        uni.showLoading({ title: '验证中...' });
+        const verifyResult = await verifyPaymentPassword(this.payPassword);
+        uni.hideLoading();
+        
+        if (!verifyResult.valid) {
+          uni.showToast({
+            title: verifyResult.msg || '支付密码错误',
+            icon: 'none'
+          });
+          return;
+        }
+      }
+      
       uni.showLoading({
         title: '提现中...'
       });

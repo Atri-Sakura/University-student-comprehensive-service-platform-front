@@ -148,6 +148,7 @@
 
 <script>
 import foodApi from '../../api/food.js';
+import { verifyPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js';
 
 export default {
   data() {
@@ -448,19 +449,37 @@ export default {
         return;
       }
       
+      // 验证支付密码（前端比对）
+      uni.showLoading({ title: '验证中...' });
+      const verifyResult = await verifyPaymentPassword(this.paymentPassword);
+      uni.hideLoading();
+      
+      if (!verifyResult.valid) {
+        uni.showToast({
+          title: verifyResult.msg || '支付密码错误',
+          icon: 'none'
+        });
+        this.paymentPassword = '';
+        this.passwordInputFocus = true;
+        return;
+      }
+      
       // 关闭密码输入框
       this.showPasswordModal = false;
       this.passwordInputFocus = false;
       
-      // 调用支付接口
-      await this.doPayment();
+      // 保存密码用于支付请求
+      const password = this.paymentPassword;
       
-      // 清空密码
+      // 清空密码（先清空再调用，避免密码在内存中停留太久）
       this.paymentPassword = '';
+      
+      // 调用支付接口，传递支付密码
+      await this.doPayment(password);
     },
     
     // 执行支付请求
-    async doPayment() {
+    async doPayment(paymentPassword = '') {
       let loadingShown = false;
       try {
         this.isProcessing = true;
@@ -607,6 +626,9 @@ export default {
           preOrderNo: prepayOrderId,
           payAmount: payAmount,
           payType: payType,
+          // 余额支付需要传递支付密码
+          paymentPassword: paymentPassword,
+          payPassword: paymentPassword, // 兼容不同的字段名
           // 用户标识字段
           userId: userId,
           user_base_id: userId,

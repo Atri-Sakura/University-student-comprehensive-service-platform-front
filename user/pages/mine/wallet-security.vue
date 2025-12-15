@@ -217,13 +217,13 @@
 </template>
 
 <script>
-import { getWalletSecurity, updateWalletSecurity, freezeWallet, unfreezeWallet, setPaymentPassword } from '@/api/wallet.js';
+import { getWalletSecurity, updateWalletSecurity, freezeWallet, unfreezeWallet, setPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js';
 
 export default {
   data() {
     return {
       securityInfo: {
-        hasPaymentPassword: true,
+        hasPaymentPassword: false, // 默认为false，需要检测
         hasSecurityQuestion: false,
         securityPhone: '138****5678',
         securityEmail: 'student@example.com',
@@ -277,15 +277,24 @@ export default {
         });
       }
     },
-    loadSecurityInfo() {
+    async loadSecurityInfo() {
       // 从本地存储加载安全信息
       const storedInfo = uni.getStorageSync('walletSecurityInfo');
       if (storedInfo) {
         this.securityInfo = { ...this.securityInfo, ...storedInfo };
       }
       
-      // 这里应该调用API获取安全信息
-      // this.fetchSecurityInfoFromAPI();
+      // 检查支付密码状态
+      try {
+        const result = await checkPaymentPasswordStatus();
+        if (result && result.code === 200 && result.data) {
+          this.securityInfo.hasPaymentPassword = result.data.hasPaymentPassword || false;
+          // 更新本地存储
+          this.saveSecurityInfo();
+        }
+      } catch (error) {
+        console.error('检查支付密码状态失败:', error);
+      }
     },
     saveSecurityInfo() {
       // 保存到本地存储

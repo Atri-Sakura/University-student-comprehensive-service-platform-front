@@ -84,7 +84,7 @@
 </template>
 
 <script>
-import { setPaymentPassword } from '@/api/wallet.js';
+import { setPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js';
 
 export default {
   data() {
@@ -100,10 +100,14 @@ export default {
     };
   },
   onLoad(options) {
+    // 根据传入参数判断是设置还是修改
     if (options.action === 'modify') {
       this.isModify = true;
-    } else {
+    } else if (options.action === 'set') {
       this.isModify = false;
+    } else {
+      // 如果没有传参数，检查本地存储判断
+      this.checkPasswordStatus();
     }
   },
   methods: {
@@ -194,6 +198,19 @@ export default {
       }
 
       return true;
+    },
+    async checkPasswordStatus() {
+      // 检查用户是否已设置支付密码
+      try {
+        const result = await checkPaymentPasswordStatus();
+        if (result && result.code === 200 && result.data) {
+          this.isModify = result.data.hasPaymentPassword || false;
+        }
+      } catch (error) {
+        console.error('检查支付密码状态失败:', error);
+        // 默认为设置模式
+        this.isModify = false;
+      }
     },
     async submitChange() {
       if (!this.validatePassword()) {
