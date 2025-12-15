@@ -523,6 +523,21 @@ export default {
             url: '/pages/mine/account-security'
           });
           break;
+        case 'review':
+          // 评价提醒 - 跳转到订单列表
+          uni.navigateTo({
+            url: '/pages/orders/index'
+          });
+          break;
+        case 'system':
+          // 系统维护通知 - 显示详情弹窗
+          uni.showModal({
+            title: notification.title,
+            content: notification.content,
+            showCancel: false,
+            confirmText: '知道了'
+          });
+          break;
         default:
           uni.showToast({
             title: '已查看通知',
