@@ -98,13 +98,6 @@ export default {
             // 批量获取所有订单的商品图片
             await this.batchLoadGoodsImages(detailedOrders);
             
-            // 按时间排序，最新的排在最前面
-            detailedOrders.sort((a, b) => {
-              const timeA = new Date(a.createTime || 0).getTime();
-              const timeB = new Date(b.createTime || 0).getTime();
-              return timeB - timeA; // 降序，最新的在前
-            });
-            
             // 更新订单列表
             this.orders = detailedOrders;
         } else {
@@ -144,11 +137,13 @@ export default {
     // 订单状态样式
     statusClass(status) {
       const statusMap = {
-        1: 'status-waiting',   // 待接单
-        2: 'status-progress',  // 待取货
-        3: 'status-progress',  // 配送中
-        4: 'status-completed', // 已完成
-        5: 'status-canceled'   // 已取消
+        1: 'status-waiting',   // 商家待接单
+        2: 'status-progress',  // 骑手待接单
+        3: 'status-progress',  // 骑手待取货
+        4: 'status-progress',  // 配送中
+        5: 'status-completed', // 已完成
+        6: 'status-canceled',  // 已取消
+        7: 'status-exception'  // 骑手异常报备
       }
       return statusMap[status] || ''
     },
@@ -156,11 +151,13 @@ export default {
     // 订单状态文本
     orderStatusText(status) {
       const statusMap = {
-        1: '待接单',
-        2: '待取货',
-        3: '配送中',
-        4: '已完成',
-        5: '已取消'
+        1: '商家待接单',
+        2: '骑手待接单',
+        3: '骑手待取货',
+        4: '配送中',
+        5: '已完成',
+        6: '已取消',
+        7: '骑手异常报备'
       }
       return statusMap[status] || '未知状态'
     },
@@ -381,6 +378,27 @@ export default {
   color: #5DCDFF;
 }
 
+/* 不同状态的颜色样式 */
+.status-waiting {
+  color: #5DCDFF;
+}
+
+.status-progress {
+  color: #52C41A;
+}
+
+.status-completed {
+  color: #999;
+}
+
+.status-canceled {
+  color: #FF4D4F;
+}
+
+.status-exception {
+  color: #FA8C16;
+}
+
 .order-price {
   font-size: 32rpx;
   font-weight: bold;
@@ -420,5 +438,4 @@ export default {
 }
 
 
-</style>
 </style>

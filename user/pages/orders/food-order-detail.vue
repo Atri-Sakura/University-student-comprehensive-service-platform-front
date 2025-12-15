@@ -26,6 +26,14 @@
       <view v-else>
         <!-- 商品信息卡片 -->
         <view class="order-card">
+          <!-- 状态标签 -->
+          <view v-if="order.orderStatus" class="status-badge" :class="{
+            'status-waiting': [1, 2].includes(order.orderStatus),
+            'status-progress': [3, 4, 7].includes(order.orderStatus),
+            'status-completed': order.orderStatus === 5,
+            'status-canceled': order.orderStatus === 6
+          }">{{ getOrderStatusText(order.orderStatus) }}</view>
+          
           <!-- 商品列表 -->
           <view v-if="order.orderTakeoutDetailList && order.orderTakeoutDetailList.length > 0" class="goods-list">
             <view class="goods-item" v-for="(item, index) in order.orderTakeoutDetailList" :key="index">
@@ -112,8 +120,14 @@
           </view>
           
           <!-- 已取消订单的取消原因 -->
-          <view v-if="order.orderStatus === 5 && order.cancelReason" class="cancel-reason">
+          <view v-if="order.orderStatus === 6 && order.cancelReason" class="cancel-reason">
             <text class="cancel-reason-label">取消原因：</text>
+            <text class="cancel-reason-value">{{ order.cancelReason }}</text>
+          </view>
+          
+          <!-- 骑手异常报备原因 -->
+          <view v-if="order.orderStatus === 7 && order.cancelReason" class="cancel-reason">
+            <text class="cancel-reason-label">异常原因：</text>
             <text class="cancel-reason-value">{{ order.cancelReason }}</text>
           </view>
         </view>
@@ -125,23 +139,33 @@
             <button class="action-button cancel-btn" @click="cancelOrder">取消订单</button>
           </view>
           
-          <!-- 待取货和配送中状态 -->
-          <view v-else-if="order.orderStatus === 2 || order.orderStatus === 3" class="button-row">
+          <!-- 骑手待接单状态 (状态码2) -->
+          <view v-else-if="order.orderStatus === 2" class="button-row">
+            <button class="action-button" @click="contactMerchant">联系商家</button>
+          </view>
+          
+          <!-- 骑手待取货状态 (状态码3) 和配送中状态 (状态码4) -->
+          <view v-else-if="order.orderStatus === 3 || order.orderStatus === 4" class="button-row">
             <button class="action-button" @click="contactRider">联系骑手</button>
             <button class="action-button" @click="contactMerchant">联系商家</button>
           </view>
           
-          <!-- 已完成状态 -->
-          <view v-else-if="order.orderStatus === 4">
+          <!-- 已完成状态 (状态码5) -->
+          <view v-else-if="order.orderStatus === 5">
             <view class="button-row">
-              <button class="action-button" @click="evaluateRider">评价骑手</button>
               <button class="action-button" @click="evaluateMerchant">评价商家</button>
+              <button class="action-button" @click="evaluateRider">评价骑手</button>
             </view>
           </view>
           
-          <!-- 已取消状态 -->
-          <view v-else-if="order.orderStatus === 5">
+          <!-- 已取消状态 (状态码6) -->
+          <view v-else-if="order.orderStatus === 6">
             <!-- 已取消状态下不显示任何操作按钮 -->
+          </view>
+          
+          <!-- 骑手异常报备状态 (状态码7) -->
+          <view v-else-if="order.orderStatus === 7">
+            <!-- 骑手异常报备状态下不显示任何操作按钮 -->
           </view>
           
           <!-- 其他状态 -->
@@ -369,11 +393,13 @@ export default {
     // 将订单状态码转换为文本
     getOrderStatusText(status) {
       const statusMap = {
-        1: '待接单',
-        2: '待取货',
-        3: '配送中',
-        4: '已完成',
-        5: '已取消'
+        1: '商家待接单',
+        2: '骑手待接单',
+        3: '骑手待取货',
+        4: '配送中',
+        5: '已完成',
+        6: '已取消',
+        7: '骑手异常报备'
       }
       return statusMap[status] || '未知状态'
     },
@@ -454,11 +480,30 @@ export default {
     
     // 取消订单
     cancelOrder() {
+      // 调试信息
+      console.log('取消订单按钮被点击，当前订单状态:', this.order.orderStatus)
+      console.log('当前订单ID信息:', {
+        orderMainId: this.order.orderMainId,
+        orderId: this.order.orderId,
+        orderNo: this.order.orderNo
+      })
+      
+      // 检查订单ID是否存在
+      if (!this.order.orderMainId) {
+        uni.showToast({
+          title: '无法获取订单信息，请重试',
+          icon: 'none'
+        })
+        return
+      }
+      
       // 显示取消原因选择弹窗
       uni.showActionSheet({
         title: '请选择取消原因',
         itemList: this.cancelReasons.map(reason => reason.label),
         success: (res) => {
+          console.log('用户选择了取消原因:', res.tapIndex)
+          
           // 获取用户选择的取消原因
           const selectedReason = this.cancelReasons[res.tapIndex]
           
@@ -468,9 +513,12 @@ export default {
             content: `确定要以"${selectedReason.label}"为由取消该订单吗？`,
             success: (modalRes) => {
               if (modalRes.confirm) {
+                console.log('用户确认取消订单，准备调用API')
+                
                 // 调用取消订单API
                 api.order.cancelOrder(this.order.orderMainId, selectedReason.label)
                   .then(() => {
+                    console.log('取消订单API调用成功')
                     uni.showToast({
                       title: '订单已取消',
                       icon: 'success'
@@ -478,19 +526,27 @@ export default {
                     // 刷新订单数据
                     this.getOrderDetail()
                   })
-                  .catch(() => {
+                  .catch((error) => {
+                    console.error('取消订单API调用失败:', error)
+                    // 显示后端返回的具体错误信息，如果没有则显示默认信息
+                    const errorMsg = error.msg || error.message || '取消订单失败'
                     uni.showToast({
-                      title: '取消订单失败',
+                      title: errorMsg,
                       icon: 'none'
                     })
                   })
+              } else {
+                console.log('用户取消了取消订单操作')
               }
+            },
+            fail: (res) => {
+              console.error('确认弹窗失败:', res)
             }
           })
         },
         fail: (res) => {
-          // 用户取消选择原因
-          console.log('用户取消选择取消原因', res)
+          // 用户取消选择原因或弹窗失败
+          console.error('取消原因选择失败:', res)
         }
       })
     },
@@ -705,10 +761,34 @@ export default {
   top: 30rpx;
   right: 30rpx;
   font-size: 28rpx;
-  color: #5DCDFF;
-  background-color: #E3F2FD;
   padding: 8rpx 20rpx;
   border-radius: 20rpx;
+}
+
+/* 状态标签颜色样式 */
+.status-waiting {
+  color: #5DCDFF;
+  background-color: #E3F2FD;
+}
+
+.status-progress {
+  color: #52C41A;
+  background-color: #F6FFED;
+}
+
+.status-completed {
+  color: #999;
+  background-color: #F5F5F5;
+}
+
+.status-canceled {
+  color: #FF4D4F;
+  background-color: #FFF2F0;
+}
+
+.status-exception {
+  color: #FA8C16;
+  background-color: #FFFBE6;
 }
 
 /* 订单信息列表 */

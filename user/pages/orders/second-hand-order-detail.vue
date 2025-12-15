@@ -5,7 +5,7 @@
       <view class="back-button" @click="goBack">
         <text class="back-icon">←</text>
       </view>
-      <text class="navbar-title">{{ role === 'seller' ? '出售订单详情' : '购买订单详情' }}</text>
+      <text class="navbar-title">订单详情</text>
       <view class="navbar-right"></view>
     </view>
     
@@ -26,10 +26,7 @@
       <view v-else>
         <!-- 订单状态卡片 -->
         <view class="status-card">
-          <view class="status-tags">
-            <text :class="['role-tag', getRoleClass(role)]">{{ getRoleText(role) }}</text>
-            <text :class="['order-status', statusClass(order.orderStatus)]">{{ orderStatusText(order.orderStatus) }}</text>
-          </view>
+          <text :class="['order-status', statusClass(order.orderStatus)]">{{ orderStatusText(order.orderStatus) }}</text>
         </view>
         
         <!-- 订单信息卡片 -->
@@ -54,41 +51,21 @@
             <text class="info-label">交易金额</text>
             <text class="info-value price">¥{{ order.totalAmount }}</text>
           </view>
-          <view class="info-item">
-            <text class="info-label">交易地点</text>
-            <text class="info-value">{{ order.tradePlace || order.pickAddress || '未设置' }}</text>
-          </view>
         </view>
         
-        <!-- 买家信息卡片（卖家视角显示） -->
-        <view class="user-card" v-if="role === 'seller' || role === 'both'">
-          <view class="info-header">
-            <text class="info-icon">🛒</text>
-            <text class="info-title">买家信息</text>
-          </view>
-          <view class="info-item">
-            <text class="info-label">买家姓名</text>
-            <text class="info-value">{{ order.receiverName || order.buyerName || '未知' }}</text>
-          </view>
-          <view class="info-item">
-            <text class="info-label">联系电话</text>
-            <text class="info-value">{{ order.receiverPhone || order.buyerPhone || '未知' }}</text>
-          </view>
-        </view>
-        
-        <!-- 卖家信息卡片（买家视角显示） -->
-        <view class="user-card" v-if="role === 'buyer'">
+        <!-- 交易对方信息卡片 -->
+        <view class="user-card">
           <view class="info-header">
             <text class="info-icon">👤</text>
-            <text class="info-title">卖家信息</text>
+            <text class="info-title">交易对方信息</text>
           </view>
           <view class="info-item">
-            <text class="info-label">卖家昵称</text>
-            <text class="info-value">{{ order.sellerName || order.counterpartUsername || '未知' }}</text>
+            <text class="info-label">对方昵称</text>
+            <text class="info-value">{{ order.counterpartUsername || '未知' }}</text>
           </view>
           <view class="info-item">
             <text class="info-label">联系电话</text>
-            <text class="info-value">{{ order.sellerPhone || order.counterpartPhone || '未知' }}</text>
+            <text class="info-value">{{ order.counterpartPhone || '未知' }}</text>
           </view>
         </view>
       </view>
@@ -96,26 +73,13 @@
     
     <!-- 底部操作按钮 -->
     <view class="bottom-actions" v-if="!loading && !error">
-      <!-- 买家视角：交易中状态显示确认收货按钮 -->
+      <!-- 交易中状态且是买家订单：显示确认收货按钮 -->
       <button 
-        v-if="role === 'buyer' && order.orderStatus >= 1 && order.orderStatus <= 3" 
+        v-if="order.orderStatus >= 1 && order.orderStatus <= 3 && role === 'buyer'" 
         class="action-button confirm-button"
         @click="confirmReceipt">
         确认收货
       </button>
-      
-      <!-- 卖家视角：交易中状态显示联系买家按钮 -->
-      <button 
-        v-if="role === 'seller' && order.orderStatus >= 1 && order.orderStatus <= 3" 
-        class="action-button contact-button"
-        @click="contactBuyer">
-        联系买家
-      </button>
-      
-      <!-- 卖家视角：等待买家确认收货提示 -->
-      <view v-if="role === 'seller' && order.orderStatus >= 1 && order.orderStatus <= 3" class="seller-tips">
-        <text class="tips-text">等待买家确认收货</text>
-      </view>
       
       <!-- 已完成状态：不显示按钮 -->
       <!-- 已取消状态：不显示按钮 -->
@@ -135,7 +99,8 @@ export default {
   data() {
     return {
       orderNo: '',
-      role: 'buyer', // 用户角色：buyer-买家, seller-卖家, both-自购
+      orderMainId: '',
+      role: 'buyer', // 当前用户角色：buyer(买家)或seller(卖家)
       order: {
         orderNo: '',
         orderStatus: 0,
@@ -152,15 +117,22 @@ export default {
     }
   },
   onLoad(options) {
-    // 从options中获取订单号和角色
+    // 从options中获取订单号、orderMainId和角色信息
     if (options.orderNo) {
       this.orderNo = options.orderNo
+      // 如果有orderNo，默认是买家订单
       this.role = options.role || 'buyer'
       // 调用后端API获取订单详情
       this.getOrderDetail()
+    } else if (options.orderMainId) {
+      this.orderMainId = options.orderMainId
+      // 如果有orderMainId，默认是卖家订单
+      this.role = 'seller'
+      // 调用后端API获取订单详情
+      this.getOrderDetail()
     } else {
-      console.error('未提供订单号')
-      this.error = '未提供订单号'
+      console.error('未提供订单号或orderMainId')
+      this.error = '未提供订单号或orderMainId'
       this.loading = false
     }
   },
@@ -169,7 +141,21 @@ export default {
     async getOrderDetail() {
       try {
         this.loading = true
-        const res = await api.order.getSecondHandOrderDetail(this.orderNo)
+        let res = null
+        
+        // 根据可用参数选择调用哪个API
+        if (this.orderNo) {
+          // 有orderNo，调用买家订单详情接口
+          res = await api.order.getSecondHandOrderDetail(this.orderNo)
+        } else if (this.orderMainId) {
+          // 没有orderNo但有orderMainId，调用卖家订单详情接口
+          res = await api.order.getSellerSecondHandOrderDetail(this.orderMainId)
+        } else {
+          console.error('未提供有效的订单标识')
+          this.error = '未提供有效的订单标识'
+          this.loading = false
+          return
+        }
         
         if (res && res.code === 200) {
           // 设置订单数据
@@ -221,53 +207,6 @@ export default {
     // 返回上一页
     goBack() {
       uni.navigateBack()
-    },
-    
-    // 获取角色文本
-    getRoleText(role) {
-      if (role === 'seller') return '我卖出';
-      if (role === 'both') return '自购';
-      return '我买入';
-    },
-    
-    // 获取角色样式类
-    getRoleClass(role) {
-      if (role === 'seller') return 'role-seller';
-      if (role === 'both') return 'role-both';
-      return 'role-buyer';
-    },
-    
-    // 联系买家
-    contactBuyer() {
-      const phone = this.order.receiverPhone || this.order.buyerPhone;
-      if (!phone) {
-        uni.showToast({
-          title: '买家未留联系电话',
-          icon: 'none'
-        });
-        return;
-      }
-      
-      uni.showModal({
-        title: '联系买家',
-        content: `是否拨打买家电话：${phone}？`,
-        confirmText: '拨打',
-        cancelText: '取消',
-        success: (res) => {
-          if (res.confirm) {
-            uni.makePhoneCall({
-              phoneNumber: phone,
-              fail: (err) => {
-                console.error('拨打电话失败：', err);
-                uni.showToast({
-                  title: '拨打失败',
-                  icon: 'none'
-                });
-              }
-            });
-          }
-        }
-      });
     },
     
     // 确认收货
@@ -483,36 +422,6 @@ export default {
   text-align: center;
 }
 
-.status-tags {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 20rpx;
-}
-
-/* 角色标签样式 */
-.role-tag {
-  font-size: 28rpx;
-  font-weight: 500;
-  padding: 10rpx 25rpx;
-  border-radius: 25rpx;
-}
-
-.role-buyer {
-  color: #1976D2;
-  background-color: #E3F2FD;
-}
-
-.role-seller {
-  color: #388E3C;
-  background-color: #E8F5E9;
-}
-
-.role-both {
-  color: #F57C00;
-  background-color: #FFF3E0;
-}
-
 .order-status {
   font-size: 36rpx;
   font-weight: bold;
@@ -567,27 +476,5 @@ export default {
 
 .confirm-button:active {
   opacity: 0.8;
-}
-
-.contact-button {
-  background-color: #4CAF50;
-  color: white;
-}
-
-.contact-button:active {
-  opacity: 0.8;
-}
-
-/* 卖家提示样式 */
-.seller-tips {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tips-text {
-  font-size: 28rpx;
-  color: #999;
 }
 </style>

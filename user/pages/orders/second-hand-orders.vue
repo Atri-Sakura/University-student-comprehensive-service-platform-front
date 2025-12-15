@@ -5,25 +5,40 @@
       <view class="back-button" @click="goBack">
         <text class="back-icon">←</text>
       </view>
-      <text class="navbar-title">二手交易记录</text>
+      <text class="navbar-title">一键转卖记录</text>
       <view class="navbar-right"></view>
     </view>
     
+    <!-- 分类导航栏 -->
+    <view class="category-navbar">
+      <view 
+        class="category-item" 
+        :class="{ 'active': activeCategory === 'buyer' }"
+        @click="switchCategory('buyer')"
+      >
+        <text class="category-text">我买入</text>
+      </view>
+      <view 
+        class="category-item" 
+        :class="{ 'active': activeCategory === 'seller' }"
+        @click="switchCategory('seller')"
+      >
+        <text class="category-text">我卖出</text>
+      </view>
+    </view>
+    
     <!-- 订单列表 -->
-    <view class="order-list" v-if="orders.length > 0">
-      <view class="order-item" v-for="order in orders" :key="order.orderMainID || order.orderNo" @click="viewOrderDetail(order.orderNo, order.role)">
-        <!-- 角色标签 -->
-        <view class="order-tags">
-          <text :class="['role-tag', getRoleClass(order.role)]">{{ getRoleText(order.role) }}</text>
-          <text :class="['order-status', statusClass(order.orderStatus)]">{{ orderStatusText(order.orderStatus) }}</text>
-        </view>
+    <view class="order-list" v-if="displayOrders.length > 0">
+      <view class="order-item" v-for="order in displayOrders" :key="order.orderMainID" @click="viewOrderDetail(order.orderNo, activeCategory)">
+        <!-- 状态标签 -->
+        <text :class="['order-status', statusClass(order.orderStatus)]">{{ orderStatusText(order.orderStatus) }}</text>
         
         <!-- 商品信息 -->
         <view class="product-info">
           <image class="product-image" :src="order.mainImageUrl || '/static/default-product.png'" mode="aspectFill"></image>
           <view class="product-details">
             <text class="product-name">{{ getOrderGoodsName(order) || '二手交易订单' }}</text>
-            <text class="product-time">{{ order.role === 'seller' ? '出售' : '购买' }}时间：{{ order.createTime }}</text>
+            <text class="product-time">转卖时间：{{ order.createTime }}</text>
             <text class="product-price">¥{{ order.totalAmount }}</text>
           </view>
         </view>
@@ -33,8 +48,8 @@
     <!-- 空订单 -->
     <view class="empty-order" v-else>
       <text class="empty-icon">📦</text>
-      <text class="empty-text">暂无转卖记录</text>
-      <button class="go-market" @click="goToMarket">去转卖</button>
+      <text class="empty-text">{{ activeCategory === 'buyer' ? '暂无买入记录' : '暂无卖出记录' }}</text>
+      <button class="go-market" @click="goToMarket" v-if="activeCategory === 'seller'">去转卖</button>
     </view>
   </view>
 </template>
@@ -46,26 +61,53 @@ export default {
   data() {
     return {
       orders: [],
-      loading: false
-    }
+      displayOrders: [], // 根据分类显示的订单
+      loading: false,
+      activeCategory: 'buyer', // 当前选中的分类：buyer(我买入)或seller(我卖出)
+      sellerOrdersFromIndex: [], // 存储从index.vue传递的卖家订单数据
+    };
   },
-  mounted() {
-    // 页面加载时获取二手交易订单
-    this.getSecondHandOrders();
-  },
-  onPullDownRefresh() {
-    // 下拉刷新时重新获取数据
-    this.getSecondHandOrders();
-  },
-  methods: {
-    // 获取二手交易订单列表（同时获取买家和卖家的订单）
-    async getSecondHandOrders() {
-      try {
-        this.loading = true;
-        // 显示加载提示
-        uni.showLoading({ title: '加载中...' });
+    onLoad() {
+      // 接收来自index.vue传递的卖家订单数据
+      const eventChannel = this.getOpenerEventChannel();
+      if (eventChannel) {
+        eventChannel.on('acceptSellerOrders', (data) => {
+          console.log('从index.vue接收到的卖家订单数据:', data.sellerOrders);
+          if (data.sellerOrders && Array.isArray(data.sellerOrders)) {
+            this.sellerOrdersFromIndex = data.sellerOrders;
+          }
+        });
+      }
+      
+      // 页面加载时获取二手交易订单
+      this.getSecondHandOrders();
+    },
+    mounted() {
+      // 组件挂载时的逻辑
+    },
+    onPullDownRefresh() {
+      // 下拉刷新时重新获取数据
+      this.getSecondHandOrders();
+    },
+    methods: {
+      // 获取二手交易订单列表（同时获取买家和卖家的订单）
+      async getSecondHandOrders() {
+        try {
+          this.loading = true;
+          // 显示加载提示
+          uni.showLoading({ title: '加载中...' });
+          
+          // 定义临时变量存储订单
+          let myGoodsIds = []; // 移到外层作用域，解决未定义错误
         
-        // 1. 获取买家订单（作为买家购买的订单）
+        // 1. 优先使用从index.vue传递的卖家订单数据
+        const directSellerOrders = this.sellerOrdersFromIndex.filter(order => 
+          order && (order.orderType === 3 || order.orderType === '3' || order.role === 'seller')
+        );
+        
+        console.log('直接使用的卖家订单数量:', directSellerOrders.length);
+        
+        // 2. 获取买家订单（作为买家购买的订单）
         const buyerRes = await api.order.getOrderList();
         let buyerOrders = [];
         if (buyerRes && buyerRes.code === 200) {
@@ -74,157 +116,174 @@ export default {
           buyerOrders = orderList.filter(item => item.orderType === 3);
         }
         
-        // 2. 获取用户发布的商品列表（包括所有状态的商品）
-        let myGoodsMap = new Map(); // 使用Map存储商品ID和商品信息的映射
-        try {
-          // 获取用户发布的所有商品
-          const goodsRes = await api.secondhandGoods.getGoodsList({ pageNum: 1, pageSize: 1000 });
-          if (goodsRes && goodsRes.code === 200) {
-            const goodsList = goodsRes.rows || goodsRes.data || [];
-            // 存储所有商品（不仅仅是已售出的）
-            goodsList.forEach(item => {
-              const goodsId = item.id || item.goodsId || item.secondhandGoodsId;
-              if (goodsId != null) {
-                myGoodsMap.set(String(goodsId), item);
-              }
-            });
-          }
-        } catch (error) {
-          console.warn('获取用户发布的商品失败:', error);
-        }
-        
-        console.log('用户发布的商品数量:', myGoodsMap.size);
-        console.log('用户发布的商品ID列表:', Array.from(myGoodsMap.keys()));
-        
-        // 3. 创建订单Map，用于去重
+        // 3. 创建订单映射表，确保订单唯一性
         const orderMap = new Map();
         
-        // 先添加所有买家订单
+        // 首先添加所有直接卖家订单
+        directSellerOrders.forEach(order => {
+          // 使用orderNo或orderMainId作为唯一键
+          const orderKey = order.orderNo || order.orderMainId || `no-orderNo-${Math.random()}`;
+          orderMap.set(orderKey, { ...order, role: 'seller' });
+          console.log('添加直接卖家订单到orderMap:', orderKey, order.goodsName || '无商品名称');
+        });
+        
+        // 然后添加买家订单
         buyerOrders.forEach(order => {
           if (order.orderNo) {
-            orderMap.set(order.orderNo, { ...order, role: 'buyer' });
+            const orderKey = order.orderNo;
+            // 只有当订单不存在时才添加，避免覆盖卖家订单
+            if (!orderMap.has(orderKey)) {
+              orderMap.set(orderKey, { ...order, role: 'buyer' });
+            } else {
+              // 如果订单已存在（可能是卖家订单），标记为both
+              const existingOrder = orderMap.get(orderKey);
+              existingOrder.role = 'both';
+            }
           }
         });
         
-        // 4. 尝试通过卖家订单接口获取（如果后端有的话）
-        let sellerOrdersFromApi = [];
-        try {
-          const sellerRes = await api.secondhandGoods.getSellerOrderList();
-          console.log('卖家订单接口响应:', sellerRes);
+        // 4. 如果没有直接卖家订单，尝试通过商品匹配方式获取卖家订单
+        if (directSellerOrders.length === 0) {
+          console.log('没有直接卖家订单，尝试通过商品匹配方式获取');
           
-          if (sellerRes && sellerRes.code === 200) {
-            // 后端返回格式可能是 { code: 200, data: [...] } 或 { code: 200, msg: "...", data: [...] }
-            sellerOrdersFromApi = sellerRes.rows || sellerRes.data || [];
-            
-            // 如果data不是数组，可能是嵌套的
-            if (!Array.isArray(sellerOrdersFromApi) && sellerOrdersFromApi) {
-              sellerOrdersFromApi = sellerOrdersFromApi.rows || sellerOrdersFromApi.list || [];
+          // 获取用户发布的商品列表（包括已售出的商品）
+          try {
+            const goodsRes = await api.secondhandGoods.getGoodsList({ pageNum: 1, pageSize: 1000 });
+            if (goodsRes && goodsRes.code === 200) {
+              const goodsList = goodsRes.rows || goodsRes.data || [];
+              // 获取所有已售出的商品ID
+              myGoodsIds = goodsList
+                .filter(item => item.status === 2 || item.status === '2')
+                .map(item => item.id || item.goodsId || item.secondhandGoodsId)
+                .filter(id => id != null);
             }
+          } catch (error) {
+            console.warn('获取用户发布的商品失败:', error);
+          }
+          
+          // 对每个买家订单获取详情，检查商品ID是否属于用户发布的
+          if (buyerOrders.length > 0 && myGoodsIds.length > 0) {
+            const orderDetails = await Promise.all(
+              buyerOrders
+                .filter(order => order && order.orderNo) // 过滤掉没有orderNo的订单
+                .map(async (order) => {
+                try {
+                  const detailRes = await api.order.getSecondHandOrderDetail(order.orderNo);
+                  if (detailRes && detailRes.code === 200 && detailRes.data) {
+                    return { orderNo: order.orderNo, detail: detailRes.data };
+                  }
+                  return null;
+                } catch (error) {
+                  console.error('获取订单详情失败:', order?.orderNo, error);
+                  return null;
+                }
+              })
+            );
             
-            console.log('从卖家订单接口获取到订单数量:', sellerOrdersFromApi.length);
-            console.log('卖家订单数据:', sellerOrdersFromApi);
-            
-            sellerOrdersFromApi.forEach(order => {
-              if (order.orderNo) {
-                if (!orderMap.has(order.orderNo)) {
-                  // 这是纯卖家订单（不在买家订单列表中）
-                  orderMap.set(order.orderNo, { ...order, role: 'seller' });
-                } else {
-                  // 这个订单同时在买家和卖家列表中（自购）
-                  const existingOrder = orderMap.get(order.orderNo);
-                  existingOrder.role = 'both';
+            // 检查订单详情中的商品ID，如果属于用户发布的商品，则标记为卖家订单
+            orderDetails
+              .filter(item => item != null && item.orderNo && item.detail)
+              .forEach(({ orderNo, detail }) => {
+              if (!detail || !orderNo) return;
+              
+              // 从订单详情中获取商品ID
+              const goodsId = detail.goodsId || detail.goods_id;
+              
+              // 如果商品ID在用户发布的商品列表中，说明这是卖家订单
+              if (goodsId) {
+                const goodsIdStr = String(goodsId);
+                const goodsIdNum = Number(goodsId);
+                const isMyGoods = myGoodsIds.some(id => 
+                  String(id) === goodsIdStr || Number(id) === goodsIdNum
+                );
+                
+                if (isMyGoods) {
+                  const existingOrder = orderMap.get(orderNo);
+                  if (existingOrder) {
+                    existingOrder.role = existingOrder.role === 'buyer' ? 'both' : 'seller';
+                  } else {
+                    orderMap.set(orderNo, { ...detail, orderNo, role: 'seller' });
+                  }
                 }
               }
             });
-          } else {
-            console.log('卖家订单接口返回非200:', sellerRes);
+          } else if (directSellerOrders.length === 0) {
+            // 如果没有直接卖家订单，也尝试调用卖家订单接口
+            try {
+              const sellerRes = await api.order.getSellerOrderList();
+              if (sellerRes && sellerRes.code === 200) {
+                const sellerOrders = sellerRes.rows || sellerRes.data || [];
+                sellerOrders.forEach(order => {
+                  const orderKey = order.orderNo || order.orderMainId || `no-orderNo-${Math.random()}`;
+                  if (!orderMap.has(orderKey)) {
+                    orderMap.set(orderKey, { ...order, role: 'seller' });
+                  } else {
+                    const existingOrder = orderMap.get(orderKey);
+                    existingOrder.role = existingOrder.role === 'buyer' ? 'both' : 'seller';
+                  }
+                });
+              }
+            } catch (error) {
+              console.log('获取卖家订单接口失败:', error);
+            }
           }
-        } catch (error) {
-          // 如果卖家订单接口不存在，忽略错误
-          console.log('卖家订单接口调用失败:', error);
         }
         
-        // 5. 获取所有订单的详情，并检查商品ID是否属于用户发布的商品
-        const allOrderNos = Array.from(orderMap.keys());
-        
-        const orderDetailsPromises = allOrderNos.map(async (orderNo) => {
-          try {
-            const detailRes = await api.order.getSecondHandOrderDetail(orderNo);
-            if (detailRes && detailRes.code === 200 && detailRes.data) {
-              return { orderNo, detail: detailRes.data };
-            }
-            return null;
-          } catch (error) {
-            console.error('获取订单详情失败:', orderNo, error);
-            return null;
-          }
-        });
-        
-        const orderDetails = await Promise.all(orderDetailsPromises);
-        
-        // 6. 处理订单详情，检查是否为卖家订单
-        orderDetails
-          .filter(item => item != null && item.orderNo && item.detail)
-          .forEach(({ orderNo, detail }) => {
-            // 从订单详情中获取商品ID
-            let goodsId = detail.goodsId || detail.goods_id;
-            
-            // 如果详情中没有直接的goodsId，尝试从orderSecondhandDetailList中获取
-            if (!goodsId && detail.orderSecondhandDetailList && detail.orderSecondhandDetailList.length > 0) {
-              goodsId = detail.orderSecondhandDetailList[0].goodsId || detail.orderSecondhandDetailList[0].secondhandGoodsId;
-            }
-            
-            const existingOrder = orderMap.get(orderNo);
-            if (existingOrder) {
-              // 合并详情数据
-              Object.assign(existingOrder, detail);
-              
-              // 检查商品ID是否属于用户发布的商品
-              if (goodsId) {
-                const goodsIdStr = String(goodsId);
-                if (myGoodsMap.has(goodsIdStr)) {
-                  // 当前用户是这个商品的发布者
-                  if (existingOrder.role === 'buyer') {
-                    // 如果同时是买家，说明是自购
-                    existingOrder.role = 'both';
-                  } else {
-                    // 否则是纯卖家订单
-                    existingOrder.role = 'seller';
-                  }
-                  console.log('识别到卖家订单:', orderNo, '商品ID:', goodsId, '角色:', existingOrder.role);
-                }
-              }
-            }
-          });
-        
-        // 7. 转换为数组
+        // 7. 转换为数组并获取完整详情
         const allOrders = Array.from(orderMap.values());
+        console.log('orderMap中的订单数量:', allOrders.length);
+        console.log('orderMap中的订单角色分布:', allOrders.reduce((acc, order) => {
+          acc[order.role || 'unknown'] = (acc[order.role || 'unknown'] || 0) + 1;
+          return acc;
+        }, {}));
         
-        // 8. 获取商品名称和图片（如果订单中没有的话）
-        const detailedOrders = allOrders.map(order => {
-          // 尝试从orderSecondhandDetailList获取商品信息
-          if (!order.goodsName && order.orderSecondhandDetailList && order.orderSecondhandDetailList.length > 0) {
-            const detail = order.orderSecondhandDetailList[0];
-            order.goodsName = detail.goodsName;
-            order.mainImageUrl = detail.mainImageUrl || detail.imageUrl;
-          }
-          return order;
-        });
+        // 对每个订单获取完整详情（如果还没有详情的话）
+        const detailedOrders = await Promise.all(
+          allOrders.map(async (order) => {
+            try {
+              // 如果订单已经有详情数据（goodsName等），直接返回
+              if (order.goodsName && order.mainImageUrl) {
+                return order;
+              }
+              
+              // 否则根据订单类型选择合适的详情接口获取完整信息
+              let detailRes;
+              if (order.role === 'seller' && order.orderMainId) {
+                // 卖家订单使用orderMainId调用专门的卖家详情接口
+                detailRes = await api.order.getSellerSecondHandOrderDetail(order.orderMainId);
+              } else {
+                // 买家订单使用orderNo调用普通详情接口
+                detailRes = await api.order.getSecondHandOrderDetail(order.orderNo);
+              }
+              
+              if (detailRes && detailRes.code === 200) {
+                // 将详情数据合并到原订单对象中，保留角色信息
+                const mergedOrder = { ...order, ...detailRes.data, role: order.role || 'buyer' };
+                return mergedOrder;
+              }
+              return order;
+            } catch (error) {
+              console.error('获取订单详情失败:', order.orderNo || order.orderMainId, error);
+              return order;
+            }
+          })
+        );
         
-        // 9. 按创建时间倒序排序
+        // 8. 按创建时间倒序排序
         detailedOrders.sort((a, b) => {
           const timeA = new Date(a.createTime || 0).getTime();
           const timeB = new Date(b.createTime || 0).getTime();
           return timeB - timeA;
         });
         
-        // 10. 更新订单列表
+        // 更新订单列表
         this.orders = detailedOrders;
+        // 根据当前分类筛选显示的订单
+        this.filterOrdersByCategory();
         
         console.log('获取到的订单数量:', detailedOrders.length);
         console.log('买家订单数量:', buyerOrders.length);
-        console.log('卖家订单数量(API):', sellerOrdersFromApi.length);
-        console.log('订单角色分布:', detailedOrders.map(o => ({ orderNo: o.orderNo, role: o.role })));
+        console.log('用户发布的商品ID列表:', myGoodsIds);
         
         if (detailedOrders.length === 0) {
           console.log('没有找到二手交易订单');
@@ -284,30 +343,35 @@ export default {
     
     // 查看订单详情
     viewOrderDetail(orderNo, role) {
-      console.log('查看订单详情:', orderNo, '角色:', role);
-      // 跳转到订单详情页面，传递角色信息
+      console.log('查看订单详情，订单号:', orderNo, '角色:', role);
+      // 跳转到订单详情页面，传递orderNo和role
       uni.navigateTo({
-        url: `/pages/orders/second-hand-order-detail?orderNo=${orderNo}&role=${role || 'buyer'}`
+        url: `/pages/orders/second-hand-order-detail?orderNo=${orderNo || ''}&role=${role || ''}`
       });
-    },
-    
-    // 获取角色文本
-    getRoleText(role) {
-      if (role === 'seller') return '我卖出';
-      if (role === 'both') return '自购';
-      return '我买入';
-    },
-    
-    // 获取角色样式类
-    getRoleClass(role) {
-      if (role === 'seller') return 'role-seller';
-      if (role === 'both') return 'role-both';
-      return 'role-buyer';
     },
     
     // 获取订单商品名称
     getOrderGoodsName(order) {
       return order?.goodsName || null
+    },
+    
+    // 切换分类
+    switchCategory(category) {
+      if (this.activeCategory === category) return;
+      this.activeCategory = category;
+      this.filterOrdersByCategory();
+    },
+    
+    // 根据分类筛选订单
+    filterOrdersByCategory() {
+      if (this.activeCategory === 'buyer') {
+        // 显示买家订单
+        this.displayOrders = this.orders.filter(order => order.role === 'buyer' || order.role === 'both');
+      } else {
+        // 显示卖家订单
+        this.displayOrders = this.orders.filter(order => order.role === 'seller' || order.role === 'both');
+      }
+      console.log(`切换到${this.activeCategory === 'buyer' ? '买家' : '卖家'}订单，数量：${this.displayOrders.length}`);
     }
   }
 }
@@ -360,9 +424,99 @@ export default {
   width: 60rpx;
 }
 
+/*<!-- 分类导航栏样式 -->
+.category-navbar {
+  display: flex;
+  background-color: white;
+  margin-top: 90rpx;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.category-item {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 80rpx;
+  position: relative;
+}
+
+.category-text {
+  font-size: 32rpx;
+  color: #666;
+  font-weight: 500;
+}
+
+.category-item.active .category-text {
+  color: #5DCDFF;
+  font-weight: bold;
+}
+
+.category-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 6rpx;
+  background-color: #5DCDFF;
+  border-radius: 3rpx;
+}
+
+/* 分类导航栏样式 */
+.category-navbar {
+  display: flex;
+  background-color: white;
+  margin-top: 90rpx;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.category-item {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 80rpx;
+  position: relative;
+}
+
+.category-text {
+  font-size: 32rpx;
+  color: #666;
+  font-weight: 500;
+}
+
+.category-item.active .category-text {
+  color: #5DCDFF;
+  font-weight: bold;
+}
+
+.category-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60rpx;
+  height: 6rpx;
+  background-color: #5DCDFF;
+  border-radius: 3rpx;
+}
+
 /* 订单列表样式 */
 .order-list {
-  padding: 120rpx 30rpx 30rpx 30rpx;
+  padding: 200rpx 30rpx 30rpx 30rpx;
 }
 
 .order-item {
@@ -411,39 +565,11 @@ export default {
   font-weight: bold;
 }
 
-/* 订单标签容器 */
-.order-tags {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15rpx;
-}
-
-/* 角色标签样式 */
-.role-tag {
-  font-size: 24rpx;
-  font-weight: 500;
-  padding: 5rpx 15rpx;
-  border-radius: 15rpx;
-}
-
-.role-buyer {
-  color: #1976D2;
-  background-color: #E3F2FD;
-}
-
-.role-seller {
-  color: #388E3C;
-  background-color: #E8F5E9;
-}
-
-.role-both {
-  color: #F57C00;
-  background-color: #FFF3E0;
-}
-
 /* 状态标签样式 */
 .order-status {
+  position: absolute;
+  top: 25rpx;
+  right: 25rpx;
   font-size: 28rpx;
   font-weight: 500;
   padding: 5rpx 15rpx;
