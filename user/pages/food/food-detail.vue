@@ -95,7 +95,7 @@
       <scroll-view scroll-y class="food-list">
         <view v-for="category in foodCategories" :key="category.id" v-show="selectedFoodCategory === category.id || showAllFoods" class="category-section">
           <view class="category-title">{{ category.name }}</view>
-          <view class="food-item" v-for="food in getFilteredFoodsByCategory(category.id)" :key="food.id" @click="viewGoodsDetail(food.merchantGoodsId)">
+          <view class="food-item" v-for="food in getFilteredFoodsByCategory(category.id)" :key="food.id" @click="viewGoodsDetail(food)">
             <image class="food-image" :src="food.image" mode="aspectFill"></image>
             <view class="food-info">
               <text class="food-name">{{ food.name }}</text>
@@ -210,9 +210,7 @@ export default {
         // 防抖定时器
         searchTimer: null,
         // 原始商品列表，用于搜索时恢复
-        originalFoods: [],
-        // 所有店铺的购物车商品（用于保存时合并）
-        allCartItems: []
+        originalFoods: []
       };
     },
   computed: {
@@ -368,10 +366,10 @@ export default {
     },
     
     // 查看商品详情
-    viewGoodsDetail(goodsId) {
-      // 跳转到商品详情页面
+    viewGoodsDetail(food) {
+      // 跳转到商品详情页面，传递完整的商品信息
       uni.navigateTo({
-        url: `/pages/food/goods-detail?goodsId=${goodsId}&restaurantId=${this.restaurant.id}`
+        url: `/pages/food/goods-detail?goodsId=${food.merchantGoodsId || food.id}&restaurantId=${this.restaurant.id}&goodsInfo=${encodeURIComponent(JSON.stringify(food))}`
       });
     },
     
@@ -396,16 +394,11 @@ export default {
         // 验证API响应是否成功且包含有效数据
         if (!merchantRes || merchantRes.code !== 200 || !merchantRes.data) {
           console.error('❌ 商家详情API返回无效数据:', merchantRes);
-          const errorMsg = merchantRes?.msg || merchantRes?.message || '商家不存在';
           uni.showToast({
-            title: errorMsg,
+            title: '获取商家信息失败',
             icon: 'none',
             duration: 2000
           });
-          // 延迟返回上一页，让用户看到错误提示
-          setTimeout(() => {
-            this.navBack();
-          }, 2000);
           return;
         }
         // 再获取商品列表
@@ -432,17 +425,11 @@ export default {
           console.error('错误信息:', merchantRes?.message || merchantRes?.msg);
           
           // 显示友好的错误提示
-          const errorMsg = merchantRes?.msg || merchantRes?.message || '商家不存在';
           uni.showToast({
-            title: errorMsg,
+            title: merchantRes?.message || merchantRes?.msg || '获取商家信息失败',
             icon: 'none',
             duration: 2000
           });
-          // 延迟返回上一页，让用户看到错误提示
-          setTimeout(() => {
-            this.navBack();
-          }, 2000);
-          return;
         }
         
         // 处理商品列表
@@ -685,36 +672,27 @@ export default {
     loadCartData() {
       const cartData = uni.getStorageSync('foodCart');
       if (cartData && cartData.items) {
-        // 加载所有商品，但只显示当前餐厅的
-        this.allCartItems = cartData.items;
+        // 只保留当前餐厅的商品
         this.cartItems = cartData.items.filter(item => item.restaurantId === this.restaurant.id);
       } else {
-        this.allCartItems = [];
         this.cartItems = [];
       }
     },
     
     // 保存购物车数据
     saveCartData() {
-      // 获取其他店铺的商品
-      const otherItems = (this.allCartItems || []).filter(item => item.restaurantId !== this.restaurant.id);
-      // 合并当前店铺和其他店铺的商品
-      const allItems = [...otherItems, ...this.cartItems];
-      // 更新allCartItems
-      this.allCartItems = allItems;
-      
       uni.setStorageSync('foodCart', {
         restaurant: this.restaurant,
-        items: allItems,
+        items: this.cartItems,
         totalAmount: this.totalAmount,
         totalCount: this.totalCount
       });
     },
     
-    // 清空购物车（只清空当前店铺）
+    // 清空购物车
     clearCart() {
-      // 清空当前餐厅的商品
-      this.cartItems = [];
+      // 只清空当前餐厅的商品
+      this.cartItems = this.cartItems.filter(item => item.restaurantId !== this.restaurant.id);
       this.saveCartData();
       this.showCart = false;
       uni.showToast({
@@ -732,11 +710,6 @@ export default {
         this.cartItems.push({
           ...food,
           restaurantId: this.restaurant.id,
-          // 保存店铺信息，供外卖列表页购物车弹窗使用
-          restaurantName: this.restaurant.name,
-          restaurantImage: this.restaurant.image,
-          restaurantMinOrder: this.restaurant.minOrder,
-          restaurantDeliveryFee: this.restaurant.deliveryFee,
           count: 1
         });
       }
