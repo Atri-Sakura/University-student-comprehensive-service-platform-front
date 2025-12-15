@@ -445,6 +445,25 @@ export default {
           }
         }
         
+        // 计算商家月售（累加所有商品的销量）
+        let totalSales = 0;
+        if (goodsList && goodsList.length > 0) {
+          totalSales = goodsList.reduce((sum, goods) => {
+            // 支持多种销量字段名
+            let goodsSales = 0;
+            if (goods.salesCount !== undefined && goods.salesCount !== null) {
+              goodsSales = Number(goods.salesCount) || 0;
+            } else if (goods.sales_count !== undefined && goods.sales_count !== null) {
+              goodsSales = Number(goods.sales_count) || 0;
+            }
+            return sum + goodsSales;
+          }, 0);
+        }
+        // 如果商品销量为0，尝试使用商家本身的月售字段
+        if (totalSales === 0) {
+          totalSales = merchantInfo?.monthSales || merchantInfo?.salesCount || 0;
+        }
+        
         // 构建餐厅信息
         // 处理商家logo URL，使用getValidImageUrl方法确保URL有效性
         let logoUrl = this.getValidImageUrl(merchantInfo?.logo || merchantInfo?.image);
@@ -455,7 +474,7 @@ export default {
           name: merchantInfo?.merchantName || merchantInfo?.name || '未知商家',
           image: logoUrl,
           rating: merchantInfo?.rating || merchantInfo?.avgRating || 4.5,
-          sales: merchantInfo?.monthSales || merchantInfo?.salesCount || 0,
+          sales: totalSales, // 使用计算出的总月售
 
           minOrder: merchantInfo?.minOrderAmount || merchantInfo?.minOrder || 20,
           deliveryFee: merchantInfo?.deliveryFee || merchantInfo?.shippingFee || 3,
