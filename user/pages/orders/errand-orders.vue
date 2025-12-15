@@ -141,7 +141,16 @@ export default {
           // 获取订单数据数组
           const orderList = res.rows || res.data || [];
           // 筛选出跑腿订单(orderType=2)
-          this.orders = orderList.filter(item => item.orderType === 2);
+          let errandOrders = orderList.filter(item => item.orderType === 2);
+          
+          // 按时间排序，最新的排在最前面
+          errandOrders.sort((a, b) => {
+            const timeA = new Date(a.createTime || 0).getTime();
+            const timeB = new Date(b.createTime || 0).getTime();
+            return timeB - timeA; // 降序，最新的在前
+          });
+          
+          this.orders = errandOrders;
           // 打印第一个订单的数据结构用于调试
           if (this.orders.length > 0) {
             console.log('订单数据结构:', this.orders[0]);
@@ -172,18 +181,26 @@ export default {
       // 这里可以根据选中的标签筛选订单
     },
     
-    // 获取筛选后的订单列表
+    // 获取筛选后的订单列表（按时间排序，最新的在前）
     getFilteredOrders() {
+      let filtered = [];
       if (this.currentTab === 0) {
-        return this.orders;
+        filtered = [...this.orders];
       } else if (this.currentTab === 1) {
-        return this.orders.filter(order => order.orderStatus === 1); // 未接单：待接单
+        filtered = this.orders.filter(order => order.orderStatus === 1); // 未接单：待接单
       } else if (this.currentTab === 2) {
-        return this.orders.filter(order => order.orderStatus === 2 || order.orderStatus === 3); // 进行中：待取货、配送中
+        filtered = this.orders.filter(order => order.orderStatus === 2 || order.orderStatus === 3); // 进行中：待取货、配送中
       } else if (this.currentTab === 3) {
-        return this.orders.filter(order => order.orderStatus === 4 || order.orderStatus === 5); // 已完成：已完成、已取消
+        filtered = this.orders.filter(order => order.orderStatus === 4 || order.orderStatus === 5); // 已完成：已完成、已取消
+      } else {
+        filtered = [...this.orders];
       }
-      return this.orders;
+      // 按时间排序，最新的在前
+      return filtered.sort((a, b) => {
+        const timeA = new Date(a.createTime || 0).getTime();
+        const timeB = new Date(b.createTime || 0).getTime();
+        return timeB - timeA;
+      });
     },
     statusClass(status) {
       const statusMap = {

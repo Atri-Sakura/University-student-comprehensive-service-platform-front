@@ -98,6 +98,13 @@ export default {
             // 批量获取所有订单的商品图片
             await this.batchLoadGoodsImages(detailedOrders);
             
+            // 按时间排序，最新的排在最前面
+            detailedOrders.sort((a, b) => {
+              const timeA = new Date(a.createTime || 0).getTime();
+              const timeB = new Date(b.createTime || 0).getTime();
+              return timeB - timeA; // 降序，最新的在前
+            });
+            
             // 更新订单列表
             this.orders = detailedOrders;
         } else {
