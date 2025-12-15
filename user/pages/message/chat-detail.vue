@@ -316,7 +316,28 @@ export default {
         });
         
         if (response.code === 200 && response.data) {
-          this.messages = response.data.map(msg => this.formatMessage(msg));
+          // 先按时间排序
+          const sortedMessages = [...response.data].sort((a, b) => {
+            const timeA = new Date(a.createTime || a.sendTime || 0).getTime();
+            const timeB = new Date(b.createTime || b.sendTime || 0).getTime();
+            return timeA - timeB;
+          });
+          
+          // 基于内容+发送者+时间窗口去重（5秒内相同内容视为重复）
+          const uniqueMessages = [];
+          const seenKeys = new Set();
+          for (const msg of sortedMessages) {
+            const msgTime = new Date(msg.createTime || msg.sendTime || 0).getTime();
+            // 将时间精确到5秒窗口
+            const timeWindow = Math.floor(msgTime / 5000);
+            const key = `${msg.fromId}_${msg.msgContent}_${timeWindow}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              uniqueMessages.push(msg);
+            }
+          }
+          
+          this.messages = uniqueMessages.map(msg => this.formatMessage(msg));
           
           // 标记消息为已读
           const unreadMessages = response.data.filter(msg => 
@@ -348,7 +369,10 @@ export default {
 
     // 格式化消息数据
     formatMessage(msg) {
-      const isSent = msg.fromId === this.currentUser.id;
+      // 将两边都转为字符串进行比较，避免类型不一致导致比较失败
+      const fromId = String(msg.fromId || '');
+      const currentUserId = String(this.currentUser.id || '');
+      const isSent = fromId === currentUserId;
       
       // 处理时间，确保正确解析
       let messageTime = Date.now();
@@ -440,17 +464,21 @@ export default {
           msgContent: messageContent
         };
         
-        // 1. 先通过WebSocket实时发送（Protobuf编码）
-        if (this.wsConnected && wsManager.getStatus().isConnected) {
+        // 1. 先通过HTTP API保存到数据库
+        const response = await addMessage(messageData);
+        
+        // 2. 保存成功后，通过WebSocket实时推送给对方（不重复保存）
+        if (response.code === 200 && this.wsConnected && wsManager.getStatus().isConnected) {
           try {
-            wsManager.sendTextMessage(messageData);
+            // WebSocket只用于实时通知，消息已通过HTTP保存
+            wsManager.sendTextMessage({
+              ...messageData,
+              messageId: response.data.messageId // 带上消息ID
+            });
           } catch (error) {
-            console.error('WebSocket发送失败:', error);
+            console.error('WebSocket推送失败:', error);
           }
         }
-        
-        // 2. 同时保存到数据库（调用HTTP API）
-        const response = await addMessage(messageData);
         
         if (response.code === 200) {
           // 发送成功，更新本地消息
