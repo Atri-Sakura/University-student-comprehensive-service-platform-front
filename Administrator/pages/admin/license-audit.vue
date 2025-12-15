@@ -7,56 +7,59 @@
       </view>
     
     <view class="tabs">
-      <view :class="['tab', activeTab === 'pending' && 'active']" @click="activeTab = 'pending'">待审核</view>
-      <view :class="['tab', activeTab === 'approved' && 'active']" @click="activeTab = 'approved'">已通过</view>
-      <view :class="['tab', activeTab === 'rejected' && 'active']" @click="activeTab = 'rejected'">已拒绝</view>
+      <view :class="['tab', activeTab === 'pending' && 'active']" @click="switchTab('pending')">待审核</view>
+      <view :class="['tab', activeTab === 'approved' && 'active']" @click="switchTab('approved')">已通过</view>
+      <view :class="['tab', activeTab === 'rejected' && 'active']" @click="switchTab('rejected')">已拒绝</view>
     </view>
     
     <scroll-view scroll-y class="list-container">
-      <view class="audit-card" v-for="item in filteredList" :key="item.id">
+      <view class="audit-card" v-for="item in filteredList" :key="item.merchantId">
         <view class="card-header">
           <view class="company-info">
-            <text class="company-name">{{ item.companyName }}</text>
-            <text class="legal-person">法人：{{ item.legalPerson }}</text>
+            <text class="company-name">{{ item.shopName || item.merchantName || '未设置店铺名' }}</text>
+            <text class="legal-person">联系人：{{ item.contactName || item.nickname || '未设置' }}</text>
           </view>
-          <view :class="['status', item.status]">{{ statusText[item.status] }}</view>
+          <view :class="['status', getStatusClass(item.auditStatus)]">{{ getStatusText(item.auditStatus) }}</view>
         </view>
         
         <view class="card-body">
-          <view class="info-row">
+          <view class="info-row" v-if="item.creditCode">
             <text class="label">统一社会信用代码：</text>
             <text class="value">{{ item.creditCode }}</text>
           </view>
-          <view class="info-row">
+          <view class="info-row" v-if="item.address">
             <text class="label">注册地址：</text>
             <text class="value">{{ item.address }}</text>
           </view>
-          <view class="info-row">
+          <view class="info-row" v-if="item.businessScope">
             <text class="label">经营范围：</text>
             <text class="value">{{ item.businessScope }}</text>
           </view>
-          <view class="info-row">
+          <view class="info-row" v-if="item.phone">
+            <text class="label">联系电话：</text>
+            <text class="value">{{ item.phone }}</text>
+          </view>
+          <view class="info-row" v-if="item.createTime">
             <text class="label">申请时间：</text>
-            <text class="value">{{ item.applyTime }}</text>
+            <text class="value">{{ item.createTime }}</text>
           </view>
-          <view class="license-image">
+          <view class="license-image" v-if="item.businessLicense">
             <text class="label">营业执照：</text>
-            <image :src="item.licenseImage" mode="aspectFit" @click="previewImage(item.licenseImage)"></image>
+            <image :src="item.businessLicense" mode="aspectFit" @click="previewImage(item.businessLicense)"></image>
           </view>
         </view>
         
-        <view class="card-footer" v-if="item.status === 'pending'">
-          <button class="btn reject" @click="handleAudit(item, 'rejected')">拒绝</button>
-          <button class="btn approve" @click="handleAudit(item, 'approved')">通过</button>
-        </view>
-        
-        <view class="reject-reason" v-if="item.status === 'rejected' && item.rejectReason">
-          <text class="label">拒绝原因：</text>
-          <text class="reason">{{ item.rejectReason }}</text>
+        <view class="card-footer" v-if="item.auditStatus === 0">
+          <button class="btn reject" @click="handleAudit(item, 2)">拒绝</button>
+          <button class="btn approve" @click="handleAudit(item, 1)">通过</button>
         </view>
       </view>
       
-      <view class="empty" v-if="filteredList.length === 0">
+      <view class="loading" v-if="loading">
+        <text>加载中...</text>
+      </view>
+      
+      <view class="empty" v-if="!loading && filteredList.length === 0">
         <text>暂无数据</text>
       </view>
     </scroll-view>
@@ -66,63 +69,134 @@
 
 <script>
 import sidebar from '@/components/sidebar/sidebar.vue'
+
+const BASE_URL = 'http://localhost:8080'
+
 export default {
   components: { sidebar },
   data() {
     return {
       activeTab: 'pending',
-      statusText: { pending: '待审核', approved: '已通过', rejected: '已拒绝' },
-      list: [
-        {
-          id: 1, companyName: '某某科技有限公司', legalPerson: '王五',
-          creditCode: '91310000MA1FL8XXXX', address: '上海市浦东新区XX路XX号',
-          businessScope: '技术开发、技术咨询、技术服务',
-          applyTime: '2025-12-14 09:00', licenseImage: '/static/logo.png', status: 'pending'
-        },
-        {
-          id: 2, companyName: '某某餐饮管理公司', legalPerson: '赵六',
-          creditCode: '91310000MA1FL9XXXX', address: '上海市静安区XX路XX号',
-          businessScope: '餐饮服务、食品销售',
-          applyTime: '2025-12-13 15:30', licenseImage: '/static/logo.png', status: 'approved'
-        }
-      ]
+      list: [],
+      loading: false
     }
   },
   computed: {
     filteredList() {
-      return this.list.filter(item => item.status === this.activeTab)
+      return this.list.filter(item => {
+        const status = item.auditStatus
+        if (this.activeTab === 'pending') {
+          return status === 0
+        } else if (this.activeTab === 'approved') {
+          return status === 1
+        } else if (this.activeTab === 'rejected') {
+          return status === 2
+        }
+        return false
+      })
     }
   },
+  onLoad() {
+    this.fetchMerchantList()
+  },
   methods: {
+    // 获取商家资质审核列表
+    fetchMerchantList() {
+      this.loading = true
+      uni.request({
+        url: `${BASE_URL}/platform/qualificationReview/merchant`,
+        method: 'GET',
+        header: {
+          'Content-Type': 'application/json'
+        },
+        success: (res) => {
+          console.log('商家接口返回数据:', res.data)
+          if (res.statusCode === 200 && res.data) {
+            const data = res.data
+            if (data.code === 200 || data.msg === '查询成功') {
+              this.list = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : [])
+              console.log('商家列表数据:', this.list)
+            } else {
+              uni.showToast({ title: data.msg || '获取数据失败', icon: 'none' })
+            }
+          }
+        },
+        fail: (error) => {
+          console.error('获取商家列表失败:', error)
+          uni.showToast({ title: '网络请求失败', icon: 'none' })
+        },
+        complete: () => {
+          this.loading = false
+        }
+      })
+    },
+    
+    switchTab(tab) {
+      this.activeTab = tab
+    },
+    
+    getStatusClass(status) {
+      if (status === 0) return 'pending'
+      if (status === 1) return 'approved'
+      if (status === 2) return 'rejected'
+      return 'pending'
+    },
+    
+    getStatusText(status) {
+      if (status === 0) return '待审核'
+      if (status === 1) return '已通过'
+      if (status === 2) return '已拒绝'
+      return '未知'
+    },
+    
     previewImage(url) {
       uni.previewImage({ urls: [url], current: url })
     },
+    
     handleAudit(item, status) {
-      if (status === 'rejected') {
-        uni.showModal({
-          title: '请输入拒绝原因',
-          editable: true,
-          placeholderText: '请输入拒绝原因',
-          success: (res) => {
-            if (res.confirm) {
-              item.status = status
-              item.rejectReason = res.content || '资料不符合要求'
+      const statusText = status === 1 ? '通过' : '拒绝'
+      uni.showModal({
+        title: '确认操作',
+        content: `确定${statusText}该商家的营业执照审核？`,
+        success: (res) => {
+          if (res.confirm) {
+            this.submitAudit(item.merchantId, status)
+          }
+        }
+      })
+    },
+    
+    submitAudit(merchantId, status) {
+      uni.showLoading({ title: '提交中...' })
+      uni.request({
+        url: `${BASE_URL}/platform/qualificationReview/merchant`,
+        method: 'POST',
+        header: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        data: {
+          merchantId: merchantId,
+          status: status
+        },
+        success: (res) => {
+          if (res.statusCode === 200 && res.data) {
+            const data = res.data
+            if (data.code === 200 || data.msg === '修改成功') {
               uni.showToast({ title: '操作成功', icon: 'success' })
+              this.fetchMerchantList()
+            } else {
+              uni.showToast({ title: data.msg || '操作失败', icon: 'none' })
             }
           }
-        })
-      } else {
-        uni.showModal({
-          title: '确认操作',
-          content: '确定通过该营业执照审核？',
-          success: (res) => {
-            if (res.confirm) {
-              item.status = status
-              uni.showToast({ title: '操作成功', icon: 'success' })
-            }
-          }
-        })
-      }
+        },
+        fail: (error) => {
+          console.error('提交审核失败:', error)
+          uni.showToast({ title: '网络请求失败', icon: 'none' })
+        },
+        complete: () => {
+          uni.hideLoading()
+        }
+      })
     }
   }
 }
@@ -154,11 +228,9 @@ export default {
 .license-image { margin-top: 16rpx; }
 .license-image image { width: 100%; height: 300rpx; border-radius: 8rpx; margin-top: 12rpx; }
 .card-footer { display: flex; padding: 24rpx; border-top: 1rpx solid #f0f0f0; gap: 20rpx; }
-.btn { flex: 1; height: 80rpx; border-radius: 40rpx; font-size: 28rpx; }
+.btn { flex: 1; height: 80rpx; border-radius: 40rpx; font-size: 28rpx; line-height: 80rpx; }
 .btn.reject { background: #fff; border: 1rpx solid #f44336; color: #f44336; }
 .btn.approve { background: #4a90d9; color: #fff; }
-.reject-reason { padding: 20rpx 24rpx; background: #fff5f5; }
-.reject-reason .label { color: #f44336; font-size: 26rpx; }
-.reject-reason .reason { color: #666; font-size: 26rpx; }
+.loading { text-align: center; padding: 40rpx 0; color: #999; font-size: 26rpx; }
 .empty { text-align: center; padding: 100rpx 0; color: #999; font-size: 28rpx; }
 </style>
