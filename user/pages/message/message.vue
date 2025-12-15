@@ -147,15 +147,6 @@ export default {
           type: 'order'
         },
         {
-          id: 2,
-          title: '优惠活动',
-          content: '新用户专享优惠券已发放到您的账户',
-          icon: '🎁',
-          time: new Date().getTime() - 1200000,
-          read: false,
-          type: 'promotion'
-        },
-        {
           id: 3,
           title: '系统维护通知',
           content: '系统将于今晚23:00-01:00进行维护升级',
