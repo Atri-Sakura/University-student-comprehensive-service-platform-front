@@ -445,6 +445,21 @@ export default {
             'restaurantId',
             'userBaseId'
           ]);
+
+          // 预先获取每个商品近30天销量，保证首页“月售”与详情页一致
+          const monthlySalesMap = new Map();
+          await Promise.all(processedData.map(async (item) => {
+            const gid = item.merchantGoodsId || item.id;
+            if (!gid) return;
+            try {
+              const monthlyRes = await foodApi.getGoodsMonthlySales(gid);
+              if (monthlyRes && monthlyRes.code === 200 && monthlyRes.data !== undefined) {
+                monthlySalesMap.set(gid, Number(monthlyRes.data) || 0);
+              }
+            } catch (err) {
+              console.warn(`获取推荐外卖商品${gid}月售失败:`, err);
+            }
+          }));
           
           // 完整映射后端返回的所有字段，确保前端能正确显示所有信息
           const mappedList = processedData.map(item => {
@@ -465,15 +480,18 @@ export default {
             const restaurantId = item.restaurantId ? fixKnownId(safeStringifyId(item.restaurantId)) : merchantBaseId;
             
             // 处理销量字段，支持多种可能的字段名
-            let salesCount = 0;
-            if (item.salesCount !== undefined && item.salesCount !== null) {
-              salesCount = Number(item.salesCount) || 0;
-            } else if (item.sales_count !== undefined && item.sales_count !== null) {
-              salesCount = Number(item.sales_count) || 0;
-            } else if (item.monthlySales !== undefined && item.monthlySales !== null) {
-              salesCount = Number(item.monthlySales) || 0;
-            } else if (item.monthlySalesCount !== undefined && item.monthlySalesCount !== null) {
-              salesCount = Number(item.monthlySalesCount) || 0;
+            const monthlyKey = item.merchantGoodsId || item.id;
+            let salesCount = monthlySalesMap.has(monthlyKey) ? monthlySalesMap.get(monthlyKey) : 0;
+            if (!salesCount) {
+              if (item.salesCount !== undefined && item.salesCount !== null) {
+                salesCount = Number(item.salesCount) || 0;
+              } else if (item.sales_count !== undefined && item.sales_count !== null) {
+                salesCount = Number(item.sales_count) || 0;
+              } else if (item.monthlySales !== undefined && item.monthlySales !== null) {
+                salesCount = Number(item.monthlySales) || 0;
+              } else if (item.monthlySalesCount !== undefined && item.monthlySalesCount !== null) {
+                salesCount = Number(item.monthlySalesCount) || 0;
+              }
             }
             
             return {
