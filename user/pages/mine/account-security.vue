@@ -13,17 +13,11 @@
       </view>
     </view>
 
-    <!-- 安全等级区域 -->
+    <!-- 信誉分区域 -->
     <view class="security-level-section">
       <view class="level-header">
-        <text class="level-title">账号安全等级</text>
-        <text class="level-score">{{ securityScore }}分</text>
-      </view>
-      <view class="level-progress">
-        <view class="progress-bar">
-          <view class="progress-fill" :style="{ width: securityScore + '%' }"></view>
-        </view>
-        <view class="level-text">{{ securityLevelText }}</view>
+        <text class="level-title">信誉分</text>
+        <text class="level-score">{{ creditScore }}分</text>
       </view>
     </view>
 
@@ -50,57 +44,23 @@
           <view class="item-icon phone-icon">📱</view>
           <view class="item-content">
             <text class="item-title">手机号</text>
-            <text class="item-desc">{{ accountInfo.phone || '未绑定手机号' }}</text>
+            <text class="item-desc">{{ userInfo.phone || '未绑定手机号' }}</text>
           </view>
         </view>
         <view class="item-right">
-          <text class="item-status" :class="{ 'unbind': !accountInfo.phone }">
-            {{ accountInfo.phone ? '已绑定' : '未绑定' }}
+          <text class="item-status" :class="{ 'unbind': !userInfo.phone }">
+            {{ userInfo.phone ? '已绑定' : '未绑定' }}
           </text>
           <text class="arrow">></text>
         </view>
       </view>
 
-      <view class="security-item" @click="bindEmail">
+      <view class="security-item">
         <view class="item-left">
-          <view class="item-icon email-icon">📧</view>
+          <view class="item-icon student-icon">🎓</view>
           <view class="item-content">
-            <text class="item-title">邮箱</text>
-            <text class="item-desc">{{ accountInfo.email || '未绑定邮箱' }}</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="item-status" :class="{ 'unbind': !accountInfo.email }">
-            {{ accountInfo.email ? '已绑定' : '未绑定' }}
-          </text>
-          <text class="arrow">></text>
-        </view>
-      </view>
-    </view>
-
-    <view class="security-section">
-      <view class="section-title">登录管理</view>
-      
-      <view class="security-item" @click="viewLoginDevices">
-        <view class="item-left">
-          <view class="item-icon device-icon">💻</view>
-          <view class="item-content">
-            <text class="item-title">登录设备</text>
-            <text class="item-desc">查看和管理登录设备</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="item-badge">{{ loginDeviceCount }}台设备</text>
-          <text class="arrow">></text>
-        </view>
-      </view>
-
-      <view class="security-item" @click="viewLoginHistory">
-        <view class="item-left">
-          <view class="item-icon history-icon">📋</view>
-          <view class="item-content">
-            <text class="item-title">登录记录</text>
-            <text class="item-desc">查看最近登录记录</text>
+            <text class="item-title">学号</text>
+            <text class="item-desc">{{ userInfo.studentId || '未设置学号' }}</text>
           </view>
         </view>
         <view class="item-right">
@@ -108,6 +68,8 @@
         </view>
       </view>
     </view>
+
+
 
     <view class="security-section">
       <view class="section-title">账号操作</view>
@@ -142,31 +104,17 @@
 </template>
 
 <script>
+import { getUserInfo } from '@/api/user.js';
+
 export default {
   data() {
     return {
-      accountInfo: {
-        phone: '138****5678',
-        email: 'student@example.com'
-      },
-      loginDeviceCount: 2
+      userInfo: {},
+      creditScore: 0
     };
   },
-  computed: {
-    securityScore() {
-      let score = 40; // 基础分（已设置密码）
-      if (this.accountInfo.phone) score += 30;
-      if (this.accountInfo.email) score += 30;
-      return score;
-    },
-    securityLevelText() {
-      if (this.securityScore >= 80) return '安全';
-      if (this.securityScore >= 60) return '中等';
-      return '较低';
-    }
-  },
   onLoad() {
-    this.loadAccountInfo();
+    this.loadUserInfo();
   },
   methods: {
     goBack() {
@@ -181,12 +129,26 @@ export default {
         }
       });
     },
-    loadAccountInfo() {
-      // 从本地存储加载账号信息
-      const storedInfo = uni.getStorageSync('accountInfo');
+    loadUserInfo() {
+      // 从本地存储加载用户信息
+      const storedInfo = uni.getStorageSync('userInfo');
       if (storedInfo) {
-        this.accountInfo = { ...this.accountInfo, ...storedInfo };
+        this.userInfo = storedInfo;
+        this.creditScore = storedInfo.creditScore || 0;
       }
+      
+      // 调用API获取真实用户信息
+      getUserInfo().then(res => {
+        if (res.code === 200 && res.data) {
+          this.userInfo = res.data;
+          this.creditScore = res.data.creditScore || 0;
+          
+          // 保存到本地存储
+          uni.setStorageSync('userInfo', this.userInfo);
+        }
+      }).catch(err => {
+        console.error('获取用户信息失败:', err);
+      });
     },
     changePassword() {
       uni.navigateTo({
@@ -194,7 +156,7 @@ export default {
       });
     },
     bindPhone() {
-      if (this.accountInfo.phone) {
+      if (this.userInfo.phone) {
         // 已绑定，可以解绑或更换
         uni.showActionSheet({
           itemList: ['更换手机号', '解绑手机号'],
@@ -213,10 +175,10 @@ export default {
     },
     updatePhone() {
       uni.showModal({
-        title: this.accountInfo.phone ? '更换手机号' : '绑定手机号',
+        title: this.userInfo.phone ? '更换手机号' : '绑定手机号',
         editable: true,
         placeholderText: '请输入手机号',
-        content: this.accountInfo.phone || '',
+        content: this.userInfo.phone || '',
         success: (res) => {
           if (res.confirm && res.content) {
             // 验证手机号格式
@@ -229,8 +191,9 @@ export default {
               return;
             }
             // 这里应该发送验证码验证
-            this.accountInfo.phone = res.content;
-            this.saveAccountInfo();
+            this.userInfo.phone = res.content;
+            // 更新本地存储
+            uni.setStorageSync('userInfo', this.userInfo);
             uni.showToast({
               title: '操作成功',
               icon: 'success'
@@ -245,8 +208,9 @@ export default {
         content: '确定要解绑手机号吗？解绑后可能影响账号安全',
         success: (res) => {
           if (res.confirm) {
-            this.accountInfo.phone = '';
-            this.saveAccountInfo();
+            this.userInfo.phone = '';
+            // 更新本地存储
+            uni.setStorageSync('userInfo', this.userInfo);
             uni.showToast({
               title: '解绑成功',
               icon: 'success'
@@ -255,77 +219,7 @@ export default {
         }
       });
     },
-    bindEmail() {
-      if (this.accountInfo.email) {
-        // 已绑定，可以解绑或更换
-        uni.showActionSheet({
-          itemList: ['更换邮箱', '解绑邮箱'],
-          success: (res) => {
-            if (res.tapIndex === 0) {
-              this.updateEmail();
-            } else {
-              this.unbindEmail();
-            }
-          }
-        });
-      } else {
-        // 未绑定，进行绑定
-        this.updateEmail();
-      }
-    },
-    updateEmail() {
-      uni.showModal({
-        title: this.accountInfo.email ? '更换邮箱' : '绑定邮箱',
-        editable: true,
-        placeholderText: '请输入邮箱',
-        content: this.accountInfo.email || '',
-        success: (res) => {
-          if (res.confirm && res.content) {
-            // 验证邮箱格式
-            const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailReg.test(res.content)) {
-              uni.showToast({
-                title: '请输入正确的邮箱',
-                icon: 'none'
-              });
-              return;
-            }
-            this.accountInfo.email = res.content;
-            this.saveAccountInfo();
-            uni.showToast({
-              title: '操作成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    unbindEmail() {
-      uni.showModal({
-        title: '解绑邮箱',
-        content: '确定要解绑邮箱吗？解绑后可能影响账号安全',
-        success: (res) => {
-          if (res.confirm) {
-            this.accountInfo.email = '';
-            this.saveAccountInfo();
-            uni.showToast({
-              title: '解绑成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    viewLoginDevices() {
-      uni.navigateTo({
-        url: '/pages/mine/login-devices'
-      });
-    },
-    viewLoginHistory() {
-      uni.navigateTo({
-        url: '/pages/mine/login-history'
-      });
-    },
+
     logoutAllDevices() {
       uni.showModal({
         title: '退出所有设备',
@@ -391,12 +285,7 @@ export default {
         }
       });
     },
-    saveAccountInfo() {
-      // 保存到本地存储
-      uni.setStorageSync('accountInfo', this.accountInfo);
-      // 这里可以调用API保存到服务器
-      // this.updateAccountInfoAPI(this.accountInfo);
-    }
+
   }
 };
 </script>
@@ -578,16 +467,8 @@ export default {
   background-color: #E8F8F5;
 }
 
-.email-icon {
-  background-color: #FFF4E6;
-}
-
-.device-icon {
-  background-color: #F3E5F5;
-}
-
-.history-icon {
-  background-color: #E3F2FD;
+.student-icon {
+  background-color: #E8F5E9;
 }
 
 .logout-icon {
