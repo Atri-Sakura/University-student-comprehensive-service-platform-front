@@ -112,21 +112,6 @@
         </view>
         <text class="cert-action">{{ certImages.business ? '查看' : '上传' }}</text>
       </view>
-      <view class="cert-item" @click="viewCert('food')">
-        <view class="cert-left">
-          <view class="cert-icon" v-if="!certImages.food">
-            <text class="cert-icon-text">📄</text>
-          </view>
-          <image v-else class="cert-image" :src="certImages.food" mode="aspectFill"></image>
-          <view class="cert-info">
-            <text class="cert-name">食品经营许可证</text>
-            <text class="cert-status" :class="certImages.food ? 'cert-verified' : 'cert-unverified'">
-              {{ certImages.food ? '已认证' : '未上传' }}
-            </text>
-          </view>
-        </view>
-        <text class="cert-action">{{ certImages.food ? '查看' : '上传' }}</text>
-      </view>
     </view>
 
     <!-- 营业时间设置 -->
@@ -327,6 +312,7 @@ import {
   getDeliverySettings,
   updateDeliverySettings,
   uploadCertificate,
+  uploadQualification,
   getCertificates,
   deleteCertificate
 } from '@/utils/merchantApi.js';
@@ -454,6 +440,11 @@ export default {
             minPrice: data.deliveryMinPrice || 20,
             fee: data.deliveryFee || 5
           };
+          
+          // 营业执照（从商家基础信息获取）
+          if (data.licenseImg) {
+            this.certImages.business = data.licenseImg;
+          }
           
           // 保存到本地缓存
           this.saveToLocal();
@@ -964,28 +955,36 @@ export default {
         success: async (res) => {
           const tempFilePath = res.tempFilePaths[0];
           
-          // 显示加载提示
           uni.showLoading({
             title: '上传中...'
           });
           
           try {
-            // 调用上传接口
-            const uploadRes = await uploadCertificate(type, tempFilePath);
-            
-            if (uploadRes.code === 200) {
-              // 上传成功，更新图片地址
-              this.certImages[type] = uploadRes.data.imageUrl || tempFilePath;
-              this.saveCertImages();
-              
-              uni.hideLoading();
-              uni.showToast({
-                title: `${certName}上传成功`,
-                icon: 'success'
-              });
+            let uploadRes;
+            // 营业执照使用专用接口，其他证书使用通用接口
+            if (type === 'business') {
+              uploadRes = await uploadQualification(tempFilePath);
+              if (uploadRes.code === 200) {
+                // 从返回数据中获取图片URL
+                this.certImages[type] = uploadRes.data?.licenseUrl || uploadRes.data?.url || tempFilePath;
+              } else {
+                throw new Error(uploadRes.msg || '上传失败');
+              }
             } else {
-              throw new Error(uploadRes.msg || '上传失败');
+              uploadRes = await uploadCertificate(type, tempFilePath);
+              if (uploadRes.code === 200) {
+                this.certImages[type] = uploadRes.data?.imageUrl || tempFilePath;
+              } else {
+                throw new Error(uploadRes.msg || '上传失败');
+              }
             }
+            
+            this.saveCertImages();
+            uni.hideLoading();
+            uni.showToast({
+              title: `${certName}上传成功`,
+              icon: 'success'
+            });
           } catch (error) {
             console.error('上传失败:', error);
             uni.hideLoading();
