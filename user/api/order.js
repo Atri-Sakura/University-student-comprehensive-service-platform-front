@@ -10,6 +10,14 @@ const orderApi = {
   getOrderList: (params = {}) => {
     return 请求.get('/user/order/list', params)
   },
+
+    /**
+   * 获取用户作为卖家的订单列表
+   * @returns {Promise} - 返回卖家订单列表数据
+   */
+  getSellerOrderList: () => {
+    return 请求.get('/user/order/list/seller')
+  },
   
   /**
    * 获取订单详情
@@ -39,31 +47,24 @@ const orderApi = {
   },
   
   /**
-   * 获取二手交易订单详情（通过订单号）
+   * 获取二手交易订单详情
    * @param {String} orderNo - 订单号
    * @returns {Promise} - 返回订单详情数据
    */
   getSecondHandOrderDetail: (orderNo) => {
-    return 请求.get(`/user/order/secondHandOrder/${orderNo}`)
+    return 请求.get(`/api/user/secondhandGoods/order/detail/${orderNo}`)
   },
   
   /**
-   * 获取二手交易订单详情（通过订单主ID）
-   * @param {Number} orderMainId - 订单主ID
+   * 获取卖家订单的二手交易订单详情
+   * @param {String} orderMainId - 订单主表ID
    * @returns {Promise} - 返回订单详情数据
    */
-  getSecondHandOrderDetailById: (orderMainId) => {
+  getSellerSecondHandOrderDetail: (orderMainId) => {
     return 请求.get(`/user/order/secondHandOrder1/${orderMainId}`)
   },
   
-  /**
-   * 卖家查询自己的二手交易订单列表
-   * @param {Object} params - 查询参数
-   * @returns {Promise} - 返回卖家订单列表
-   */
-  getSellerSecondHandOrders: (params = {}) => {
-    return 请求.get('/user/order/list/seller', params)
-  },
+
   
   /**
    * 提交骑手评价
@@ -104,3 +105,4 @@ const orderApi = {
 
 
 export default orderApi
+
