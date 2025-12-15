@@ -21,9 +21,7 @@
 				<text class="status-label">当前状态:</text>
 				<text class="status-value" :class="statusClass">{{ statusText }}</text>
 			</view>
-			<view class="status-actions" v-if="certificationStatus === 'rejected'">
-				<button class="resubmit-btn" @tap="resubmitCertification">重新提交</button>
-			</view>
+			<!-- 重新提交按钮已移至表单区域，此处不再显示 -->
 		</view>
 
 		<!-- 认证流程 -->
@@ -100,7 +98,7 @@
 			</view>
 			
 			<!-- 提交按钮 -->
-			<view class="submit-section" v-if="certificationStatus === 'pending'">
+			<view class="submit-section">
 				<button 
 					class="submit-btn" 
 					:class="{ disabled: !canSubmit || submitting }"
