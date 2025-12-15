@@ -105,6 +105,8 @@ const request = (options) => {
 		const fullUrl = BASE_URL + options.url;
 		
 		// 处理不同类型的请求数据格式
+		// GET 请求保留对象，uni.request 会自动拼接为查询参数；其他请求再根据需要序列化
+		const method = (options.method || 'GET').toUpperCase();
 		let finalData = options.data;
 		let finalHeader = { ...header };
 		
@@ -115,11 +117,11 @@ const request = (options) => {
 			// 评价商家的API使用@ModelAttribute接收参数，需要表单格式
 			finalHeader['Content-Type'] = 'application/x-www-form-urlencoded';
 			// 不需要JSON.stringify，直接使用对象形式，uni.request会自动处理
-		} else if (options.data && typeof options.data === 'object' && options.data.userAddressId) {
+		} else if (method !== 'GET' && options.data && typeof options.data === 'object' && options.data.userAddressId) {
 			// 其他包含大整数ID的请求，使用JSON格式
 			finalData = JSON.stringify(options.data);
 			finalHeader['Content-Type'] = 'application/json';
-		} else if (options.data && typeof options.data === 'object') {
+		} else if (method !== 'GET' && options.data && typeof options.data === 'object') {
 			// 普通JSON请求
 			finalData = JSON.stringify(options.data);
 		}
