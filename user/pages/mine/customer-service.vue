@@ -1,14 +1,5 @@
 <template>
   <view class="chat-container">
-    <!-- 自定义导航栏 -->
-    <view class="nav-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
-      <view class="nav-content">
-        <text class="nav-back" @click="handleBack">&lt;</text>
-        <text class="nav-title">客服专线</text>
-        <view class="nav-right"></view>
-      </view>
-    </view>
-
     <!-- 聊天消息区域 -->
     <view class="chat-messages" ref="chatScrollView">
       <!-- 系统欢迎消息 -->
@@ -27,12 +18,79 @@
       <view class="message-item user-message" v-for="(msg, index) in userMessages" :key="'user-' + index">
         <view class="message-content user-content">
           <view class="message-bubble user-bubble">
-            <text class="message-text">{{ msg.content }}</text>
+            <!-- 如果是订单消息，显示订单卡片 -->
+            <view v-if="msg.type === 'order'" class="order-message-card">
+              <view class="order-card-header">
+                <text class="order-card-title">订单信息</text>
+                <text class="order-status-badge" :class="getOrderStatusClass(msg.order.orderStatus)">{{ getOrderStatusText(msg.order.orderStatus) }}</text>
+              </view>
+              <view class="order-card-content">
+                <view class="order-info-row">
+                  <text class="order-label">订单号：</text>
+                  <text class="order-value">{{ msg.order.orderNo }}</text>
+                </view>
+                <view class="order-info-row" v-if="msg.order.goodsName">
+                  <text class="order-label">商品：</text>
+                  <text class="order-value">{{ msg.order.goodsName }}</text>
+                </view>
+                <view class="order-info-row">
+                  <text class="order-label">金额：</text>
+                  <text class="order-value price">¥{{ msg.order.totalAmount || msg.order.paymentAmount || '0.00' }}</text>
+                </view>
+                <view class="order-info-row" v-if="msg.order.createTime">
+                  <text class="order-label">时间：</text>
+                  <text class="order-value">{{ msg.order.createTime }}</text>
+                </view>
+              </view>
+            </view>
+            <!-- 普通文本消息 -->
+            <text v-else class="message-text">{{ msg.content }}</text>
           </view>
         </view>
         <view class="message-avatar user-avatar">
             <text class="avatar-emoji">👤</text>
           </view>
+      </view>
+    </view>
+
+    <!-- 订单选择弹窗 -->
+    <view class="order-modal" v-if="showOrderModal" @click="closeOrderModal">
+      <view class="order-modal-content" @click.stop>
+        <view class="order-modal-header">
+          <text class="modal-title">选择订单</text>
+          <text class="modal-close" @click="closeOrderModal">✕</text>
+        </view>
+        <view class="order-modal-body">
+          <!-- 加载状态 -->
+          <view v-if="loadingOrders" class="loading-orders">
+            <text class="loading-text">加载中...</text>
+          </view>
+          <!-- 订单列表 -->
+          <scroll-view v-else class="order-list-scroll" scroll-y>
+            <view 
+              v-for="(order, index) in orderList" 
+              :key="order.orderNo || index" 
+              class="order-select-item"
+              @click="selectOrder(order)"
+            >
+              <view class="order-select-content">
+                <view class="order-select-info">
+                  <text class="order-select-no">订单号：{{ order.orderNo }}</text>
+                  <text class="order-select-goods" v-if="getOrderGoodsName(order)">{{ getOrderGoodsName(order) }}</text>
+                  <text class="order-select-time" v-if="order.createTime">{{ order.createTime }}</text>
+                </view>
+                <view class="order-select-right">
+                  <text class="order-select-price">¥{{ order.totalAmount || order.paymentAmount || '0.00' }}</text>
+                  <text class="order-select-status" :class="getOrderStatusClass(order.orderStatus)">{{ getOrderStatusText(order.orderStatus) }}</text>
+                </view>
+              </view>
+            </view>
+            <!-- 空状态 -->
+            <view v-if="!loadingOrders && orderList.length === 0" class="empty-orders">
+              <text class="empty-text">暂无订单</text>
+            </view>
+          </scroll-view>
+        </view>
       </view>
     </view>
 
@@ -59,14 +117,16 @@
           <button class="send-btn" @click="sendMessage" :disabled="!inputContent.trim()">发送</button>
         </view>
       </view>
+
   </view>
 </template>
 
 <script>
+import api from '@/api/index.js';
+
 export default {
   data() {
     return {
-      statusBarHeight: 0,
       systemMessages: [
         { id: 1, content: '我是校园服务平台客服，请问有什么能帮助您？' },
         { id: 2, content: '请选择您想退订的订单。' }
@@ -75,25 +135,13 @@ export default {
         { id: 1, content: '我想退订单' }
       ],
       inputContent: '',
-      isVoiceInput: false
+      isVoiceInput: false,
+      showOrderModal: false,
+      orderList: [],
+      loadingOrders: false
     };
   },
   methods: {
-    // 处理返回
-    handleBack() {
-      // 检查页面栈，如果只有1个页面（刷新后的情况），跳转到首页
-      const pages = getCurrentPages();
-      if (pages.length <= 1) {
-        // 页面栈只有当前页面，跳转到首页
-        uni.reLaunch({
-          url: '/pages/index/index'
-        });
-      } else {
-        // 正常返回上一页
-        uni.navigateBack();
-      }
-    },
-    
     // 发送消息
     sendMessage() {
       if (!this.inputContent.trim()) return;
@@ -127,13 +175,159 @@ export default {
     },
     
     // 选择订单
-    handleSelectOrder() {
-      console.log('选择订单');
-      // 这里可以跳转到订单选择页面或显示订单列表
-      uni.showToast({
-        title: '订单选择功能开发中',
-        icon: 'none'
+    async handleSelectOrder() {
+      this.showOrderModal = true;
+      await this.loadOrderList();
+    },
+    
+    // 加载订单列表
+    async loadOrderList() {
+      try {
+        this.loadingOrders = true;
+        uni.showLoading({ title: '加载中...' });
+        
+        const res = await api.order.getOrderList();
+        
+        if (res && res.code === 200) {
+          const orderList = res.rows || res.data || [];
+          // 只显示未取消的订单（状态不为5）
+          this.orderList = orderList.filter(order => order.orderStatus !== 5);
+        } else {
+          uni.showToast({
+            title: res?.msg || res?.message || '获取订单失败',
+            icon: 'none'
+          });
+          this.orderList = [];
+        }
+      } catch (error) {
+        console.error('获取订单列表失败:', error);
+        uni.showToast({
+          title: '网络错误，请稍后重试',
+          icon: 'none'
+        });
+        this.orderList = [];
+      } finally {
+        this.loadingOrders = false;
+        uni.hideLoading();
+      }
+    },
+    
+    // 选择订单
+    selectOrder(order) {
+      // 添加订单消息到用户消息列表
+      this.userMessages.push({
+        id: Date.now(),
+        type: 'order',
+        order: {
+          orderNo: order.orderNo,
+          orderStatus: order.orderStatus,
+          totalAmount: order.totalAmount || order.paymentAmount || '0.00',
+          createTime: order.createTime,
+          goodsName: this.getOrderGoodsName(order)
+        }
       });
+      
+      // 关闭弹窗
+      this.closeOrderModal();
+      
+      // 滚动到底部
+      this.$nextTick(() => {
+        this.scrollToBottom();
+      });
+      
+      // 模拟客服回复
+      setTimeout(() => {
+        this.systemMessages.push({
+          id: Date.now(),
+          content: `已收到您的订单信息（订单号：${order.orderNo}），正在为您处理...`
+        });
+        
+        this.$nextTick(() => {
+          this.scrollToBottom();
+        });
+      }, 1000);
+    },
+    
+    // 关闭订单选择弹窗
+    closeOrderModal() {
+      this.showOrderModal = false;
+    },
+    
+    // 获取订单商品名称
+    getOrderGoodsName(order) {
+      // 尝试从各种可能的路径获取商品名称
+      let goodsName = null;
+      
+      // 路径1: orderTakeoutDetailList
+      if (order.orderTakeoutDetailList && order.orderTakeoutDetailList.length > 0) {
+        for (const takeoutDetail of order.orderTakeoutDetailList) {
+          if (takeoutDetail.goodsName) {
+            goodsName = takeoutDetail.goodsName;
+            break;
+          }
+          if (takeoutDetail.createOrderItemList && takeoutDetail.createOrderItemList.length > 0) {
+            goodsName = takeoutDetail.createOrderItemList[0].goodsName;
+            break;
+          }
+        }
+      }
+      
+      // 路径2: orderItemList
+      if (!goodsName && order.orderItemList && order.orderItemList.length > 0) {
+        goodsName = order.orderItemList[0].goodsName;
+      }
+      
+      // 路径3: createOrderItemList（顶层）
+      if (!goodsName && order.createOrderItemList && order.createOrderItemList.length > 0) {
+        goodsName = order.createOrderItemList[0].goodsName;
+      }
+      
+      // 路径4: 尝试直接从order对象获取
+      if (!goodsName && order.goodsName) {
+        goodsName = order.goodsName;
+      }
+      
+      // 路径5: 检查其他可能的字段名
+      const otherFields = ['orderGoods', 'items', 'products'];
+      for (const field of otherFields) {
+        if (!goodsName && order[field] && order[field].length > 0) {
+          if (order[field][0].goodsName) {
+            goodsName = order[field][0].goodsName;
+            break;
+          }
+        }
+      }
+      
+      // 最后回退到默认文本
+      if (!goodsName) {
+        goodsName = order.pickAddress || '订单商品';
+      }
+      
+      return goodsName;
+    },
+    
+    // 获取订单状态文本
+    getOrderStatusText(status) {
+      const statusMap = {
+        1: '待接单',
+        2: '待取货',
+        3: '配送中',
+        4: '已完成',
+        5: '已取消'
+      };
+      return statusMap[status] || '未知状态';
+    },
+    
+    // 获取订单状态样式类
+    getOrderStatusClass(status) {
+      const statusMap = {
+        1: 'status-waiting',
+        2: 'status-progress',
+        3: 'status-progress',
+        4: 'status-completed',
+        5: 'status-canceled'
+      };
+      return statusMap[status] || '';
     },
     
     // 切换语音输入
@@ -178,9 +372,10 @@ export default {
     });
   },
   onLoad() {
-    // 获取状态栏高度
-    const systemInfo = uni.getSystemInfoSync();
-    this.statusBarHeight = systemInfo.statusBarHeight || 0;
+    // 设置导航栏标题
+    uni.setNavigationBarTitle({
+      title: '客服专线'
+    });
   }
 };
 </script>
@@ -194,47 +389,10 @@ export default {
   flex-direction: column;
 }
 
-/* 导航栏 */
-.nav-bar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(135deg, #5DCDFF 0%, #4AA9FF 100%);
-  z-index: 999;
-}
-
-.nav-content {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 30rpx;
-}
-
-.nav-back {
-  font-size: 36rpx;
-  color: #FFFFFF;
-  width: 60rpx;
-}
-
-.nav-title {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: #FFFFFF;
-  flex: 1;
-  text-align: center;
-}
-
-.nav-right {
-  width: 60rpx;
-}
-
 /* 聊天消息区域 */
 .chat-messages {
   flex: 1;
   padding: 30rpx;
-  padding-top: calc(44px + var(--status-bar-height, 20px) + 30rpx);
   overflow-y: auto;
   padding-bottom: 200rpx; /* 为底部输入区域留出空间 */
 }
@@ -413,12 +571,235 @@ input:-ms-input-placeholder {
 
 .bottom-action-area {
   position: fixed;
-  bottom: 0; /* 直接贴底 */
+  bottom: 0; /* 移除导航栏后，固定在底部 */
   left: 0;
   right: 0;
   z-index: 100;
   background-color: white;
   border-top: 1rpx solid #EEEEEE;
-  padding-bottom: env(safe-area-inset-bottom); /* 适配安全区域 */
+}
+
+/* 订单消息卡片样式 */
+.order-message-card {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 12rpx;
+  padding: 20rpx;
+  min-width: 400rpx;
+}
+
+.order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15rpx;
+  padding-bottom: 15rpx;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.3);
+}
+
+.order-card-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: white;
+}
+
+.order-status-badge {
+  font-size: 24rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
+}
+
+.order-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.order-info-row {
+  display: flex;
+  align-items: center;
+  font-size: 26rpx;
+  color: white;
+}
+
+.order-label {
+  color: rgba(255, 255, 255, 0.8);
+  margin-right: 10rpx;
+}
+
+.order-value {
+  color: white;
+  flex: 1;
+}
+
+.order-value.price {
+  color: #FFD700;
+  font-weight: bold;
+}
+
+/* 订单选择弹窗样式 */
+.order-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-modal-content {
+  width: 90%;
+  max-width: 700rpx;
+  max-height: 80vh;
+  background-color: white;
+  border-radius: 20rpx;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.order-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #EEEEEE;
+}
+
+.modal-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.modal-close {
+  font-size: 40rpx;
+  color: #999;
+  width: 50rpx;
+  height: 50rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.order-modal-body {
+  flex: 1;
+  overflow: hidden;
+}
+
+.loading-orders {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 100rpx 0;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999;
+}
+
+.order-list-scroll {
+  max-height: 60vh;
+}
+
+.order-select-item {
+  padding: 25rpx 30rpx;
+  border-bottom: 1rpx solid #F0F0F0;
+  background-color: white;
+}
+
+.order-select-item:active {
+  background-color: #F5F5F5;
+}
+
+.order-select-item:last-child {
+  border-bottom: none;
+}
+
+.order-select-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.order-select-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.order-select-no {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+.order-select-goods {
+  font-size: 26rpx;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-select-time {
+  font-size: 24rpx;
+  color: #999;
+}
+
+.order-select-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8rpx;
+  margin-left: 20rpx;
+}
+
+.order-select-price {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #FF4444;
+}
+
+.order-select-status {
+  font-size: 24rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  color: white;
+}
+
+.order-select-status.status-waiting {
+  background-color: #FFA500;
+}
+
+.order-select-status.status-progress {
+  background-color: #5DCDFF;
+}
+
+.order-select-status.status-completed {
+  background-color: #4CAF50;
+}
+
+.order-select-status.status-canceled {
+  background-color: #999;
+}
+
+.empty-orders {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 100rpx 0;
+}
+
+.empty-text {
+  font-size: 28rpx;
+  color: #999;
 }
 </style>
