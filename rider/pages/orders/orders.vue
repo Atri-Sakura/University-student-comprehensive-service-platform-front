@@ -28,9 +28,9 @@
 				<view class="order-header">
 						<text class="order-id">{{ order.orderNo }}</text>
 						<view class="status-tags">
-							<text class="status-tag" :class="order.orderStatus === 4 ? 'completed' : order.orderStatus === 5 ? 'cancelled' : order.orderStatus === 3 ? 'delivering' : 'pending'">
-				{{ getOrderStatusText(order.orderStatus) }}
-			</text>
+						<text class="status-tag" :class="getOrderStatusClass(order.orderStatus)">
+					{{ getOrderStatusText(order.orderStatus) }}
+				</text>
 							<text class="type-tag">{{ order.orderTypeName }}</text>
 						</view>
 					</view>
@@ -104,9 +104,9 @@
 				// 搜索筛选
 				if (this.searchKeyword) {
 					filtered = filtered.filter(order => 
-						order.id.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
-						order.address.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
-						order.merchant.toLowerCase().includes(this.searchKeyword.toLowerCase())
+						order.orderNo.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
+						order.deliverAddress.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
+						order.pickAddress.toLowerCase().includes(this.searchKeyword.toLowerCase())
 					);
 				}
 				
@@ -171,7 +171,15 @@
 			},
 			convertOrderData(item) {
 				const orderTypeMap = { 1: '外卖', 2: '跑腿', 3: '二手交易' };
-				const statusMap = { 1: '待接单', 2: '待取货', 3: '配送中', 4: '已完成', 5: '已取消', 6: '已拒单' };
+				const statusMap = { 
+					1: '商家待接单', 
+					2: '骑手待接单', 
+					3: '待取货', 
+					4: '配送中', 
+					5: '已完成', 
+					6: '已取消', 
+					7: '异常报备'
+				};
 				return {
 					id: item.orderNo || item.orderMainId,
 					orderMainId: item.orderMainId,
@@ -191,8 +199,28 @@
 				};
 			},
 			getOrderStatusText(status) {
-				const map = { 1: '待接单', 2: '待取货', 3: '配送中', 4: '已完成', 5: '已取消' };
+				const map = { 
+					1: '商家待接单', 
+					2: '骑手待接单', 
+					3: '待取货', 
+					4: '配送中', 
+					5: '已完成', 
+					6: '已取消', 
+					7: '异常报备'
+				};
 				return map[status] || '未知状态';
+			},
+			getOrderStatusClass(status) {
+				switch (status) {
+					case 4:
+						return 'delivering';
+					case 5:
+						return 'completed';
+					case 6:
+						return 'cancelled';
+					default:
+						return 'pending';
+				}
 			},
 			goBack() {
 				const pages = getCurrentPages();
@@ -244,6 +272,10 @@
 				uni.navigateTo({
 					url: `/pages/order/order-detail?orderId=${order.orderMainId}`
 				});
+			},
+			onSearch() {
+				// 搜索功能已在computed属性中实现实时筛选
+				// 此方法用于处理搜索按钮点击和输入框回车事件
 			}
 		}
 	}
