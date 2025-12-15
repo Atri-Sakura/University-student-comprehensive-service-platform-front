@@ -304,28 +304,26 @@ export default {
     
     // 订单状态样式
     statusClass(status) {
-      console.log('列表页orderStatus:', status, typeof status)
       const numStatus = Number(status)
-      if (numStatus >= 1 && numStatus <= 3) {
+      if (numStatus === 1 || numStatus === 2) {
         return 'status-selling' // 交易中
-      } else if (numStatus === 4) {
-        return 'status-completed' // 已完成
       } else if (numStatus === 5) {
-        return 'status-removed' // 已取消
-      }
+        return 'status-completed' // 已完成
+      } 
       return ''
     },
     
     // 订单状态文本
     orderStatusText(status) {
       const numStatus = Number(status)
-      if (numStatus >= 1 && numStatus <= 3) {
+      if (numStatus === 1) {
+        // 卖家订单的状态1显示为"交易中"，买家订单显示为"待支付"
+        return this.activeCategory === 'seller' ? '交易中' : '待支付'
+      } else if (numStatus === 2) {
         return '交易中'
-      } else if (numStatus === 4) {
-        return '已完成'
       } else if (numStatus === 5) {
-        return '已取消'
-      }
+        return '已完成'
+      } 
       return '未知状态'
     },
     

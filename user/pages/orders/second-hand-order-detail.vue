@@ -73,16 +73,23 @@
     
     <!-- 底部操作按钮 -->
     <view class="bottom-actions" v-if="!loading && !error">
+      <!-- 待支付状态且是买家订单：显示支付费用按钮 -->
+      <button 
+        v-if="order.orderStatus === 1 && role === 'buyer'" 
+        class="action-button confirm-button"
+        @click="payProductFee">
+        支付费用
+      </button>
+      
       <!-- 交易中状态且是买家订单：显示确认收货按钮 -->
       <button 
-        v-if="order.orderStatus >= 1 && order.orderStatus <= 3 && role === 'buyer'" 
+        v-if="order.orderStatus === 2 && role === 'buyer'" 
         class="action-button confirm-button"
         @click="confirmReceipt">
         确认收货
       </button>
       
       <!-- 已完成状态：不显示按钮 -->
-      <!-- 已取消状态：不显示按钮 -->
     </view>
   </view>
 </template>
@@ -181,12 +188,10 @@ export default {
     statusClass(status) {
       console.log('详情页orderStatus:', status, typeof status)
       const numStatus = Number(status)
-      if (numStatus >= 1 && numStatus <= 3) {
-        return 'status-selling'  // 交易中
-      } else if (numStatus === 4) {
-        return 'status-completed'  // 已完成
+      if (numStatus === 1 || numStatus === 2) {
+        return 'status-selling'  // 交易中/待支付
       } else if (numStatus === 5) {
-        return 'status-removed'  // 已取消
+        return 'status-completed'  // 已完成
       }
       return ''
     },
@@ -194,12 +199,15 @@ export default {
     // 订单状态文本
     orderStatusText(status) {
       const numStatus = Number(status)
-      if (numStatus >= 1 && numStatus <= 3) {
+      // 买家订单特殊处理状态1
+      if (this.role === 'buyer' && numStatus === 1) {
+        return '待支付'
+      } 
+      // 其他情况
+      if (numStatus === 1 || numStatus === 2) {
         return '交易中'
-      } else if (numStatus === 4) {
-        return '已完成'
       } else if (numStatus === 5) {
-        return '已取消'
+        return '已完成'
       }
       return '未知状态'
     },
@@ -207,6 +215,13 @@ export default {
     // 返回上一页
     goBack() {
       uni.navigateBack()
+    },
+    
+    // 支付费用
+    payProductFee() {
+      uni.navigateTo({
+        url: '/pages/orders/pay-product-fee?orderNo=' + this.order.orderNo
+      })
     },
     
     // 确认收货
