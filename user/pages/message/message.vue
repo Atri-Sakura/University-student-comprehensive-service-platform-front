@@ -371,27 +371,33 @@ export default {
         otherId = session.fromId;
       }
       
+      // 确保otherType是数字类型（后端可能返回字符串）
+      const otherTypeNum = Number(otherType) || 0;
+      console.log('[formatSessionToChat] session:', session.sessionId, 'otherType:', otherType, 'otherTypeNum:', otherTypeNum, 'otherId:', otherId);
+      
       // 根据对方类型确定头像和名称
       let avatar = '👤';
       let name = '未知用户';
       let type = 'user';
       
-      if (otherType === USER_TYPE.RIDER) {
+      if (otherTypeNum === USER_TYPE.RIDER || otherTypeNum === 2) {
         avatar = '🚴';
         name = `配送员 #${otherId}`;
         type = 'delivery';
-      } else if (otherType === USER_TYPE.MERCHANT) {
+      } else if (otherTypeNum === USER_TYPE.MERCHANT || otherTypeNum === 3) {
         avatar = '🏪';
         name = `商家 #${otherId}`;
         type = 'merchant';
-      } else if (otherType === USER_TYPE.SYSTEM) {
+      } else if (otherTypeNum === USER_TYPE.SYSTEM || otherTypeNum === 4) {
         avatar = '🔔';
         name = '系统消息';
         type = 'system';
-      } else if (otherType === USER_TYPE.USER) {
+      } else if (otherTypeNum === USER_TYPE.USER || otherTypeNum === 1) {
         avatar = '👤';
         name = `用户 #${otherId}`;
         type = 'user';
+      } else {
+        console.warn('[formatSessionToChat] 未知用户类型:', otherTypeNum, '原始值:', otherType, 'session:', session);
       }
       
       const formattedChat = {
@@ -466,26 +472,35 @@ export default {
     },
     
     async openChat(chat) {
-      // 标记会话为已读
-      if (chat.unread > 0) {
-        if (!chat.sessionId) {
-          console.warn('会话ID为空，跳过标记已读操作:', chat);
-          // 直接在本地更新未读数量
-          chat.unread = 0;
-          this.updateTabCount();
-        } else {
-          try {
-            const result = await markSessionAsRead(chat.sessionId);
-            
-            // 更新本地状态
-            chat.unread = 0;
-            this.updateTabCount();
-          } catch (error) {
-            console.error('标记会话已读失败:', error);
-            // 即使标记已读失败，也要在本地更新未读数量
-            chat.unread = 0;
-            this.updateTabCount();
-          }
+      // 找到chatList中对应的索引
+      const chatIndex = this.chatList.findIndex(c => String(c.sessionId) === String(chat.sessionId));
+      const sessionIdStr = String(chat.sessionId); // 统一转为字符串
+      
+      // 先立即更新本地UI（确保红点消失）
+      if (chat.unread > 0 && chatIndex !== -1) {
+        // 立即更新本地状态
+        this.chatList[chatIndex].unread = 0;
+        // 强制触发视图更新
+        this.chatList = [...this.chatList];
+        this.updateTabCount();
+        console.log('本地已更新未读数为0, sessionId:', sessionIdStr);
+        
+        // 记录已读会话到storage（防止onShow刷新后覆盖），统一用字符串
+        const readSessionIds = uni.getStorageSync('readSessionIds') || [];
+        if (!readSessionIds.includes(sessionIdStr)) {
+          readSessionIds.push(sessionIdStr);
+          uni.setStorageSync('readSessionIds', readSessionIds);
+          console.log('已记录到storage:', readSessionIds);
+        }
+        
+        // 异步调用API标记已读（不阻塞跳转）
+        if (chat.sessionId) {
+          markSessionAsRead(chat.sessionId)
+            .then(() => {
+              console.log('标记会话已读成功:', sessionIdStr);
+              // 注意：不要在这里清除storage，让onShow中确认后端数据正确后再清除
+            })
+            .catch(err => console.error('标记会话已读失败:', err));
         }
       }
       
@@ -518,6 +533,14 @@ export default {
     handleNotification(notification) {
       // 标记为已读
       notification.read = true;
+      
+      // 保存已读通知ID到storage（持久化）
+      const readNotificationIds = uni.getStorageSync('readNotificationIds') || [];
+      if (!readNotificationIds.includes(notification.id)) {
+        readNotificationIds.push(notification.id);
+        uni.setStorageSync('readNotificationIds', readNotificationIds);
+      }
+      
       this.updateTabCount();
       
       // 根据通知类型跳转到相应页面
@@ -562,6 +585,18 @@ export default {
       this.messageTabs[2].count = unreadOrders;
     },
     
+    // 恢复已读通知状态
+    restoreReadNotifications() {
+      const readNotificationIds = uni.getStorageSync('readNotificationIds') || [];
+      if (readNotificationIds.length > 0) {
+        this.notifications.forEach(notification => {
+          if (readNotificationIds.includes(notification.id)) {
+            notification.read = true;
+          }
+        });
+      }
+    },
+    
     formatTime(timestamp) {
       const now = new Date().getTime();
       const diff = now - timestamp;
@@ -586,14 +621,58 @@ export default {
     await this.initUserInfo();
     // 加载聊天会话列表
     await this.loadChatSessions();
+    // 恢复已读通知状态
+    this.restoreReadNotifications();
     // 更新未读消息数量
     this.updateTabCount();
   },
   
   onShow() {
-    // 页面显示时刷新数据
+    // 恢复已读通知状态
+    this.restoreReadNotifications();
+    this.updateTabCount();
+    
+    // 页面显示时延迟刷新数据，给后端时间处理已读状态
     if (this.currentUser) {
-      this.loadChatSessions();
+      setTimeout(() => {
+        this.loadChatSessions().then(() => {
+          // 刷新后，强制将已读会话的未读数设为0（防止后端响应慢导致覆盖）
+          const readSessionIds = uni.getStorageSync('readSessionIds') || [];
+          console.log('onShow - storage中的已读会话:', readSessionIds);
+          if (readSessionIds.length > 0) {
+            let hasUpdate = false;
+            const confirmedIds = []; // 记录后端已确认清零的会话
+            
+            this.chatList.forEach(chat => {
+              const chatSessionIdStr = String(chat.sessionId);
+              if (readSessionIds.includes(chatSessionIdStr)) {
+                if (chat.unread > 0) {
+                  // 后端还没更新，强制本地清零
+                  console.log('强制清零未读数:', chatSessionIdStr, '原未读:', chat.unread);
+                  chat.unread = 0;
+                  hasUpdate = true;
+                } else {
+                  // 后端已经清零，可以从storage移除
+                  confirmedIds.push(chatSessionIdStr);
+                }
+              }
+            });
+            
+            // 从storage中移除已确认的会话ID
+            if (confirmedIds.length > 0) {
+              const remainingIds = readSessionIds.filter(id => !confirmedIds.includes(id));
+              uni.setStorageSync('readSessionIds', remainingIds);
+              console.log('已从storage移除确认的会话:', confirmedIds);
+            }
+            
+            if (hasUpdate) {
+              this.chatList = [...this.chatList];
+              this.updateTabCount();
+              console.log('已强制更新UI');
+            }
+          }
+        });
+      }, 300);
     }
   }
 };
