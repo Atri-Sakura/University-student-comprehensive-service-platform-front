@@ -20,6 +20,11 @@ const foodApi = {
     return get(`/user/goods/${merchantGoodsId}`)
   },
   
+  // 获取商品近30天销量
+  getGoodsMonthlySales(merchantGoodsId) {
+    return get(`/merchant/goods/base/monthly/sales/${merchantGoodsId}`)
+  },
+  
   // 搜索某商家商品
   searchMerchantGoods(merchantBaseId, keyword) {
     return get(`/user/goods/merchant/${merchantBaseId}/search`, { keyword })
