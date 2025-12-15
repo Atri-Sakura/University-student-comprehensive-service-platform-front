@@ -104,7 +104,8 @@ async function startChatSession(merchantId, merchantName) {
       )
       
       if (createRes && createRes.code === 200 && createRes.data) {
-        sessionId = createRes.data
+        // createRes.data 可能是会话对象或直接是sessionId
+        sessionId = typeof createRes.data === 'object' ? createRes.data.sessionId : createRes.data
         console.log('创建会话成功:', sessionId)
       }
     }
