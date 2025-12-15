@@ -397,6 +397,18 @@ export default {
         // 处理基础信息
         if (baseInfoRes.data && baseInfoRes.data.code === 200) {
           const data = baseInfoRes.data.data;
+          const deliveryData = deliveryRes?.data?.data || {};
+          const localDelivery = uni.getStorageSync('deliverySettings') || {};
+          const defaultDelivery = { range: 3, minPrice: 20, fee: 5 };
+          const backendRange = deliveryData.range ?? deliveryData.deliveryRange ?? data.deliveryRange;
+          const backendMinPrice = deliveryData.minPrice ?? deliveryData.deliveryMinPrice ?? data.deliveryMinPrice ?? data.minOrderAmount;
+          const backendFee = deliveryData.fee ?? deliveryData.deliveryFee ?? data.deliveryFee;
+          const pickDelivery = (backendVal, localVal, fallback, backendDefault) => {
+            if (backendVal === undefined || backendVal === null) return localVal ?? fallback;
+            // 如果后端返回的是默认值而本地有用户设置，优先本地，避免被模拟数据覆盖
+            if (backendVal === backendDefault && localVal !== undefined && localVal !== null) return localVal;
+            return backendVal;
+          };
           
           // 如果后端没有返回 merchantBaseId，从登录缓存中获取
           if (!data.merchantBaseId) {
@@ -434,11 +446,11 @@ export default {
             }
           }
           
-          // 配送设置
+          // 配送设置（后端 > 本地，且后端为默认值时不覆盖本地）
           this.deliverySettings = {
-            range: data.deliveryRange || 3,
-            minPrice: data.deliveryMinPrice || 20,
-            fee: data.deliveryFee || 5
+            range: pickDelivery(backendRange, localDelivery.range, defaultDelivery.range, defaultDelivery.range),
+            minPrice: pickDelivery(backendMinPrice, localDelivery.minPrice, defaultDelivery.minPrice, defaultDelivery.minPrice),
+            fee: pickDelivery(backendFee, localDelivery.fee, defaultDelivery.fee, defaultDelivery.fee)
           };
           
           // 营业执照（从商家基础信息获取）
@@ -561,6 +573,7 @@ export default {
           logo: this.shopInfo.logo,
           deliveryRange: this.deliverySettings.range,
           deliveryMinPrice: this.deliverySettings.minPrice,
+          minOrderAmount: this.deliverySettings.minPrice,
           deliveryFee: this.deliverySettings.fee
         };
         
@@ -570,6 +583,7 @@ export default {
         if (res.data && res.data.code === 200) {
           // 保存到本地缓存
           this.saveToLocal();
+          this.saveDeliverySettings();
           return true;
         } else {
           // 若后端返回名称冲突之类提示，前端展示
