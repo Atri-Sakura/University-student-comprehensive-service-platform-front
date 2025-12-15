@@ -73,10 +73,6 @@
 					<view class="service-icon">❓</view>
 					<text class="service-text">常见问题</text>
 				</view>
-				<view class="service-item" @click="handleService('violation')">
-					<view class="service-icon">⚠️</view>
-					<text class="service-text">违规申诉</text>
-				</view>
 				<view class="service-item" @click="handleService('feedback')">
 					<view class="service-icon">💬</view>
 					<text class="service-text">意见反馈</text>
