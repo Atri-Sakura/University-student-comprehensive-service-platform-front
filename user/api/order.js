@@ -39,12 +39,30 @@ const orderApi = {
   },
   
   /**
-   * 获取二手交易订单详情
+   * 获取二手交易订单详情（通过订单号）
    * @param {String} orderNo - 订单号
    * @returns {Promise} - 返回订单详情数据
    */
   getSecondHandOrderDetail: (orderNo) => {
-    return 请求.get(`/api/user/secondhandGoods/order/detail/${orderNo}`)
+    return 请求.get(`/user/order/secondHandOrder/${orderNo}`)
+  },
+  
+  /**
+   * 获取二手交易订单详情（通过订单主ID）
+   * @param {Number} orderMainId - 订单主ID
+   * @returns {Promise} - 返回订单详情数据
+   */
+  getSecondHandOrderDetailById: (orderMainId) => {
+    return 请求.get(`/user/order/secondHandOrder1/${orderMainId}`)
+  },
+  
+  /**
+   * 卖家查询自己的二手交易订单列表
+   * @param {Object} params - 查询参数
+   * @returns {Promise} - 返回卖家订单列表
+   */
+  getSellerSecondHandOrders: (params = {}) => {
+    return 请求.get('/user/order/list/seller', params)
   },
   
   /**

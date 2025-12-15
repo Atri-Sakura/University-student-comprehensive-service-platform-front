@@ -198,12 +198,21 @@ export const confirmOrder = (orderNo) => {
 }
 
 /**
- * 获取二手商品订单详情
+ * 获取二手商品订单详情（通过订单号）
  * @param {String} orderNo 订单编号
  * @returns {Promise}
  */
 export const getOrderDetail = (orderNo) => {
-	return http.get(`/user/order/${orderNo}`)
+	return http.get(`/user/order/secondHandOrder/${orderNo}`)
+}
+
+/**
+ * 获取二手商品订单详情（通过订单主ID）
+ * @param {Number} orderMainId 订单主ID
+ * @returns {Promise}
+ */
+export const getOrderDetailById = (orderMainId) => {
+	return http.get(`/user/order/secondHandOrder1/${orderMainId}`)
 }
 
 /**
@@ -212,7 +221,7 @@ export const getOrderDetail = (orderNo) => {
  * @returns {Promise}
  */
 export const getSellerOrderList = (params = {}) => {
-	return http.get('/api/user/secondhandGoods/order/seller/list', params)
+	return http.get('/user/order/list/seller', params)
 }
 
 /**
@@ -232,6 +241,7 @@ export default {
 	payOrder,
 	confirmOrder,
 	getOrderDetail,
+	getOrderDetailById,
 	getSellerOrderList,
 	chooseGoodsImages,
 	generateRequestId
