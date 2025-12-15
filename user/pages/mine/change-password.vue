@@ -37,7 +37,7 @@
         <view class="form-input-wrapper">
           <input
             class="form-input"
-            type="password"
+            type="text"
             placeholder="请输入新密码（6-20位）"
             v-model="formData.newPassword"
             :password="!showNewPassword"
@@ -55,7 +55,7 @@
         <view class="form-input-wrapper">
           <input
             class="form-input"
-            type="password"
+            type="text"
             placeholder="请再次输入新密码"
             v-model="formData.confirmPassword"
             :password="!showConfirmPassword"
@@ -78,6 +78,8 @@
 </template>
 
 <script>
+import request from '@/api/request.js';
+
 export default {
   data() {
     return {
@@ -157,7 +159,7 @@ export default {
 
       return true;
     },
-    submitChange() {
+    async submitChange() {
       if (!this.validatePassword()) {
         return;
       }
@@ -166,80 +168,46 @@ export default {
         title: '修改中...'
       });
 
-      // 这里应该调用API修改密码
-      // 模拟API调用
-      setTimeout(() => {
+      try {
+        // 调用后端修改密码接口
+        const res = await request.put('/system/user/profile/updatePwd', {
+          oldPassword: this.formData.oldPassword,
+          newPassword: this.formData.newPassword
+        });
+
         uni.hideLoading();
-        
-        // 模拟API响应
-        // 实际应该根据API返回结果判断
-        const success = true; // 假设成功
-        
-        if (success) {
+
+        if (res.code === 200) {
           uni.showToast({
             title: '密码修改成功',
             icon: 'success',
             duration: 2000
           });
-          
+
           // 清空表单
           this.formData = {
             oldPassword: '',
             newPassword: '',
             confirmPassword: ''
           };
-          
+
           // 延迟返回上一页
           setTimeout(() => {
             uni.navigateBack();
           }, 2000);
         } else {
           uni.showToast({
-            title: '原密码错误',
+            title: res.msg || '修改失败',
             icon: 'none'
           });
         }
-      }, 1500);
-
-      // 实际API调用示例：
-      /*
-      uni.request({
-        url: 'https://your-api.com/user/change-password',
-        method: 'POST',
-        header: {
-          'Authorization': 'Bearer ' + uni.getStorageSync('token'),
-          'Content-Type': 'application/json'
-        },
-        data: {
-          oldPassword: this.formData.oldPassword,
-          newPassword: this.formData.newPassword
-        },
-        success: (res) => {
-          uni.hideLoading();
-          if (res.data.code === 200) {
-            uni.showToast({
-              title: '密码修改成功',
-              icon: 'success'
-            });
-            setTimeout(() => {
-              uni.navigateBack();
-            }, 1500);
-          } else {
-            uni.showToast({
-              title: res.data.message || '修改失败',
-              icon: 'none'
-            });
-          }
-        },
-        fail: (err) => {
-          uni.hideLoading();
-          uni.showToast({
-            title: '网络错误，请重试',
-            icon: 'none'
-          });
-        }
-      });
-      */
+      } catch (err) {
+        uni.hideLoading();
+        uni.showToast({
+          title: '网络错误，请重试',
+          icon: 'none'
+        });
+      }
     }
   }
 };
