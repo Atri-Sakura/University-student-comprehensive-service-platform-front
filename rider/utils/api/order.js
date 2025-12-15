@@ -4,7 +4,7 @@
  * 待后端接口完成后实现
  */
 
-import { request } from '../api.js';
+import { 请求 } from '../api.js';
 
 // API路径
 const ORDER_API = {
@@ -15,7 +15,8 @@ const ORDER_API = {
 	DELIVER_ORDER: '/api/rider/order/deliver',    // 配送中
 	COMPLETE_ORDER: '/api/rider/order/complete',  // 完成配送
 	HISTORY_ORDERS: '/rider/order/myOrders',      // 历史订单
-	ORDER_STATISTICS: '/api/rider/order/stats'    // 订单统计
+	ORDER_STATISTICS: '/api/rider/order/stats',  // 订单统计
+	REPORT_EXCEPTION: '/rider/order/report'       // 异常报备// 订单统计
 };
 
 /**
@@ -24,7 +25,7 @@ const ORDER_API = {
  * @param {Number} pageSize 每页数量
  */
 export async function getNewOrders(page = 1, pageSize = 10) {
-	return request({
+	return 请求({
 		url: ORDER_API.NEW_ORDERS,
 		method: 'GET',
 		data: { page, pageSize }
@@ -36,7 +37,7 @@ export async function getNewOrders(page = 1, pageSize = 10) {
  * @param {String} orderId 订单ID
  */
 export async function getOrderDetail(orderId) {
-	return request({
+	return 请求({
 		url: `${ORDER_API.ORDER_DETAIL}/${orderId}`,
 		method: 'GET'
 	});
@@ -47,7 +48,7 @@ export async function getOrderDetail(orderId) {
  * @param {String} orderId 订单ID
  */
 export async function acceptOrder(orderId) {
-	return request({
+	return 请求({
 		url: ORDER_API.ACCEPT_ORDER,
 		method: 'POST',
 		data: { orderId }
