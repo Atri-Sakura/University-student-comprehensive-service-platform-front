@@ -152,7 +152,6 @@
 <script>
 import { PAY_TYPES } from '@/api/config.js'
 import { payAndCreateOrder } from '@/api/errand.js'
-import { verifyPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js'
 
 export default {
   data() {
@@ -357,7 +356,10 @@ export default {
           
           setTimeout(() => {
             this.paying = false; // 重置支付状态
-            uni.navigateBack();
+            // 跳转到首页
+            uni.switchTab({
+              url: '/pages/index/index'
+            });
           }, 1500);
         } else {
           this.paying = false; // 支付失败，重置状态
@@ -425,21 +427,6 @@ export default {
           title: '请输入6位支付密码',
           icon: 'none'
         });
-        return;
-      }
-      
-      // 验证支付密码（前端比对）
-      uni.showLoading({ title: '验证中...' });
-      const verifyResult = await verifyPaymentPassword(this.paymentPassword);
-      uni.hideLoading();
-      
-      if (!verifyResult.valid) {
-        uni.showToast({
-          title: verifyResult.msg || '支付密码错误',
-          icon: 'none'
-        });
-        this.paymentPassword = '';
-        this.passwordInputFocus = true;
         return;
       }
       
