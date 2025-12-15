@@ -21,20 +21,20 @@
             <text class="avatar-text">{{ chatInfo.avatar }}</text>
           </view>
           <view class="message-content">
+            <text class="sender-name">{{ chatInfo.name }}</text>
             <view class="message-bubble received-bubble">
               <text class="message-text">{{ message.content }}</text>
             </view>
-            <text class="message-time">{{ formatTime(message.time) }}</text>
           </view>
         </view>
         
         <!-- 发送的消息 -->
         <view v-if="message.type === 'sent'" class="message-wrapper sent-wrapper">
           <view class="message-content sent-content">
+            <text class="sender-name sent-name">{{ currentUser.name || '我' }}</text>
             <view class="message-bubble sent-bubble">
               <text class="message-text">{{ message.content }}</text>
             </view>
-            <text class="message-time sent-time">{{ formatTime(message.time) }}</text>
           </view>
           <view class="message-avatar">
             <text class="avatar-text">👤</text>
@@ -349,12 +349,29 @@ export default {
     // 格式化消息数据
     formatMessage(msg) {
       const isSent = msg.fromId === this.currentUser.id;
+      
+      // 处理时间，确保正确解析
+      let messageTime = Date.now();
+      if (msg.sendTime) {
+        // 如果是字符串格式的时间
+        if (typeof msg.sendTime === 'string') {
+          // 尝试直接解析
+          const parsed = new Date(msg.sendTime);
+          if (!isNaN(parsed.getTime())) {
+            messageTime = parsed.getTime();
+          }
+        } else if (typeof msg.sendTime === 'number') {
+          // 如果是时间戳
+          messageTime = msg.sendTime;
+        }
+      }
+      
       return {
         id: msg.messageId,
         messageId: msg.messageId,
         type: isSent ? 'sent' : 'received',
         content: msg.msgContent,
-        time: new Date(msg.sendTime).getTime(),
+        time: messageTime,
         msgType: msg.msgType,
         msgStatus: msg.msgStatus,
         version: msg.version
@@ -533,9 +550,26 @@ export default {
     },
     
     formatTime(timestamp) {
+      // 确保timestamp是有效的数字
+      if (!timestamp || isNaN(timestamp)) {
+        return '';
+      }
+      
       const date = new Date(timestamp);
+      
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        return '';
+      }
+      
       const now = new Date();
       const diff = now.getTime() - timestamp;
+      
+      // 如果时间差为负数或非常大，说明时间可能有问题
+      if (diff < 0 || diff > 365 * 24 * 60 * 60 * 1000) {
+        // 直接显示时间
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+      }
       
       if (diff < 60000) { // 1分钟内
         return '刚刚';
@@ -718,6 +752,20 @@ export default {
 
 .sent-content {
   align-items: flex-end;
+}
+
+/* 发送者名称样式 */
+.sender-name {
+  font-size: 24rpx;
+  color: #666;
+  margin-bottom: 8rpx;
+  margin-left: 10rpx;
+}
+
+.sent-name {
+  margin-right: 10rpx;
+  margin-left: 0;
+  text-align: right;
 }
 
 .message-bubble {

@@ -136,44 +136,7 @@ export default {
       currentUser: null,
       loading: false,
       chatList: [],
-      notifications: [
-        {
-          id: 1,
-          title: '订单状态更新',
-          content: '您的外卖订单已送达，请确认收货',
-          icon: '📦',
-          time: new Date().getTime() - 600000,
-          read: false,
-          type: 'order'
-        },
-        {
-          id: 3,
-          title: '系统维护通知',
-          content: '系统将于今晚23:00-01:00进行维护升级',
-          icon: '⚙️',
-          time: new Date().getTime() - 7200000,
-          read: true,
-          type: 'system'
-        },
-        {
-          id: 4,
-          title: '账户安全',
-          content: '检测到您的账户在新设备登录',
-          icon: '🔒',
-          time: new Date().getTime() - 86400000,
-          read: true,
-          type: 'security'
-        },
-        {
-          id: 5,
-          title: '评价提醒',
-          content: '您的订单已完成，快来评价一下吧',
-          icon: '⭐',
-          time: new Date().getTime() - 172800000,
-          read: false,
-          type: 'review'
-        }
-      ],
+      notifications: [],
       orderMessages: [
         {
           id: 1,
@@ -613,10 +576,55 @@ export default {
         const date = new Date(timestamp);
         return `${date.getMonth() + 1}/${date.getDate()}`;
       }
+    },
+    
+    // 初始化通知数据
+    initNotifications() {
+      const now = Date.now();
+      this.notifications = [
+        {
+          id: 1,
+          title: '订单状态更新',
+          content: '您的外卖订单已送达，请确认收货',
+          icon: '📦',
+          time: now - 600000, // 10分钟前
+          read: false,
+          type: 'order'
+        },
+        {
+          id: 3,
+          title: '系统维护通知',
+          content: '系统将于今晚23:00-01:00进行维护升级',
+          icon: '⚙️',
+          time: now - 7200000, // 2小时前
+          read: true,
+          type: 'system'
+        },
+        {
+          id: 4,
+          title: '账户安全',
+          content: '检测到您的账户在新设备登录',
+          icon: '🔒',
+          time: now - 86400000, // 1天前
+          read: true,
+          type: 'security'
+        },
+        {
+          id: 5,
+          title: '评价提醒',
+          content: '您的订单已完成，快来评价一下吧',
+          icon: '⭐',
+          time: now - 172800000, // 2天前
+          read: false,
+          type: 'review'
+        }
+      ];
     }
   },
   
   async onLoad() {
+    // 初始化通知数据（使用当前时间计算）
+    this.initNotifications();
     // 初始化用户信息
     await this.initUserInfo();
     // 加载聊天会话列表
