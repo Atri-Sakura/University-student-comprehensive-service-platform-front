@@ -154,10 +154,17 @@
 
 			<!-- 操作按钮 -->
 			<view class="action-section">
-				<!-- 新订单状态 -->
-				<template v-if="orderStatus === 'new'">
-					<button class="action-btn secondary" @tap="rejectOrder">拒绝订单</button>
-					<button class="action-btn primary" @tap="acceptOrder">立即接单</button>
+				<!-- 商家待接单状态 -->
+				<template v-if="orderStatus === 'merchantPending'">
+					<view class="status-info">
+						<text class="status-text">⏳ 商家正在处理订单</text>
+						<text class="status-desc">请耐心等待商家确认接单</text>
+					</view>
+				</template>
+				
+					<!-- 骑手待接单状态 -->
+				<template v-else-if="orderStatus === 'riderPending'">
+					<button class="action-btn primary full-width" @tap="acceptOrder">立即接单</button>
 				</template>
 				
 				<!-- 待取货状态 -->
@@ -175,6 +182,30 @@
 					<view class="completed-info">
 						<text class="completed-text">✅ 订单已完成</text>
 						<text class="completed-time">完成时间：{{ orderInfo.completedTime }}</text>
+					</view>
+				</template>
+				
+				<!-- 已取消状态 -->
+				<template v-else-if="orderStatus === 'cancelled'">
+					<view class="cancelled-info">
+						<text class="cancelled-text">❌ 订单已取消</text>
+						<text class="cancelled-reason" v-if="orderInfo.cancelReason">取消原因：{{ orderInfo.cancelReason }}</text>
+					</view>
+				</template>
+				
+				<!-- 异常报备状态 -->
+				<template v-else-if="orderStatus === 'abnormal'">
+					<view class="abnormal-info">
+						<text class="abnormal-text">⚠️ 骑手异常报备</text>
+						<text class="abnormal-desc">此订单已进行异常报备，请等待处理</text>
+					</view>
+				</template>
+				
+				<!-- 未知状态 -->
+				<template v-else>
+					<view class="unknown-info">
+						<text class="unknown-text">❓ 未知状态</text>
+						<text class="unknown-desc">订单状态异常，请联系客服</text>
 					</view>
 				</template>
 			</view>
@@ -259,6 +290,10 @@ export default {
 				.then(res => {
 					if (res.code === 200) {
 						const order = res.data;
+						// 添加调试日志，查看后端返回的orderStatus
+						console.log('📌 后端返回的orderStatus:', order.orderStatus);
+						console.log('📌 orderStatus类型:', typeof order.orderStatus);
+						
 						this.orderInfo = {
 							id: order.orderMainId || order.orderId || order.id,
 							orderNo: order.orderNo || order.orderId || order.id,
@@ -288,7 +323,9 @@ export default {
 						};
 						
 						// 更新订单状态
-						this.orderStatus = this.mapOrderStatus(order.orderStatus);
+						const mappedStatus = this.mapOrderStatus(order.orderStatus);
+						console.log('📌 映射后的订单状态:', mappedStatus);
+						this.orderStatus = mappedStatus;
 					} else {
 						uni.showToast({ title: res.msg || '加载失败', icon: 'none' });
 					}
@@ -300,17 +337,20 @@ export default {
 		},
 		
 		// 映射订单状态
-		mapOrderStatus(orderStatus) {
-			const statusMap = {
-				1: 'new',       // 待接单
-				2: 'pickup',    // 待取货
-				3: 'delivery',  // 配送中
-				4: 'completed', // 已完成
-				5: 'cancelled', // 已取消
-				6: 'completed'  // 已完成（额外状态值）
-			};
-			return statusMap[orderStatus] || 'new';
-		},
+			mapOrderStatus(orderStatus) {
+				// 确保orderStatus是数字类型
+				const statusCode = Number(orderStatus);
+				const statusMap = {
+					1: 'merchantPending',  // 商家待接单
+					2: 'riderPending',     // 骑手待接单
+					3: 'pickup',           // 骑手待取货
+					4: 'delivery',         // 配送中
+					5: 'completed',        // 已完成
+					6: 'cancelled',        // 已取消
+					7: 'abnormal'          // 骑手异常报备
+				};
+				return statusMap[statusCode] || 'unknown';
+			},
 		
 		// 格式化配送时间
 		formatDeliveryTime(order) {
@@ -337,44 +377,62 @@ export default {
 		},
 		
 		getStatusIcon(status) {
-			const icons = {
-				new: '📋',
-				pickup: '🏪',
-				delivery: '🚴',
-				completed: '✅'
-			};
-			return icons[status] || '📋';
-		},
-		
-		getStatusText(status) {
-			const texts = {
-				new: '待接单',
-				pickup: '待取货',
-				delivery: '配送中',
-				completed: '已完成'
-			};
-			return texts[status] || '未知状态';
-		},
-		
-		getStatusDesc(status) {
-			const descs = {
-				new: '请确认是否接受此订单',
-				pickup: '请前往商家取货',
-				delivery: '请尽快送达顾客',
-				completed: '订单已成功完成'
-			};
-			return descs[status] || '';
-		},
+				// 添加调试日志，查看当前状态
+				console.log('📌 当前订单状态:', status);
+				const icons = {
+					merchantPending: '📋',
+					riderPending: '📞',
+					pickup: '🏪',
+					delivery: '🚴',
+					completed: '✅',
+					cancelled: '❌',
+					abnormal: '⚠️',
+					unknown: '❓'
+				};
+				return icons[status] || '❓';
+			},
+			
+			getStatusText(status) {
+				const texts = {
+					merchantPending: '商家待接单',
+					riderPending: '骑手待接单',
+					pickup: '待取货',
+					delivery: '配送中',
+					completed: '已完成',
+					cancelled: '已取消',
+					abnormal: '骑手异常报备',
+					unknown: '未知状态'
+				};
+				return texts[status] || '未知状态';
+			},
+			
+			getStatusDesc(status) {
+				const descs = {
+					merchantPending: '商家正在处理此订单',
+					riderPending: '请确认是否接受此订单',
+					pickup: '请前往商家取货',
+					delivery: '请尽快送达顾客',
+					completed: '订单已成功完成',
+					cancelled: '订单已取消',
+					abnormal: '骑手已发起异常报备',
+					unknown: '订单状态未知'
+				};
+				return descs[status] || '';
+			},
 		
 		getProgressWidth() {
-			const widths = {
-				new: '25%',
-				pickup: '50%',
-				delivery: '75%',
-				completed: '100%'
-			};
-			return widths[this.orderStatus] || '25%';
-		},
+				const widths = {
+					merchantPending: '15%',
+					riderPending: '25%',
+					pickup: '50%',
+					delivery: '75%',
+					completed: '100%',
+					cancelled: '0%',
+					abnormal: '75%',
+					unknown: '0%'
+				};
+				return widths[this.orderStatus] || '0%';
+			},
 		
 		// 脱敏顾客姓名：只显示姓氏，名字用星号代替
 		maskCustomerName(name) {
@@ -481,7 +539,7 @@ export default {
 		acceptOrder() {
 			uni.showModal({
 				title: '确认接单',
-				content: `确定要接受订单 ${this.orderInfo.id} 吗？`,
+				content: `确定要接受订单 ${this.orderInfo.orderNo} 吗？`,
 				success: async (res) => {
 					if (res.confirm) {
 						try {
@@ -520,7 +578,7 @@ export default {
 		confirmPickup() {
 			uni.showModal({
 				title: '确认取货',
-				content: `确定已取到订单 ${this.orderInfo.id} 的货物吗？`,
+				content: `确定已取到订单 ${this.orderInfo.orderNo} 的货物吗？`,
 				success: async (res) => {
 					if (res.confirm) {
 						try {
@@ -559,7 +617,7 @@ export default {
 		confirmDelivery() {
 			uni.showModal({
 				title: '确认送达',
-				content: `确定订单 ${this.orderInfo.id} 已送达吗？`,
+				content: `确定订单 ${this.orderInfo.orderNo} 已送达吗？`,
 				success: async (res) => {
 					if (res.confirm) {
 						try {
