@@ -2,7 +2,7 @@
 	<view class="page">
 		<!-- 自定义导航栏 -->
 		<view class="nav-bar">
-			<text class="nav-back" @tap="goBack">�?/text>
+			<text class="nav-back" @tap="goBack">←</text>
 			<text class="nav-title">{{ title }}</text>
 			<view class="nav-actions">
 				<!-- <text class="service-status online">在线</text> -->
@@ -53,14 +53,14 @@
 				<input 
 					class="message-input" 
 					v-model="inputMessage"
-					placeholder="请输入消�?.."
+					placeholder="请输入消息..."
 					confirm-type="send"
 					@confirm="handleSendMessage"
 					:focus="inputFocus"
 				/>
 				<view class="input-actions">
 					<text class="action-btn" @tap="showMoreActions">+</text>
-					<button class="send-btn" :disabled="!inputMessage.trim()" @tap="handleSendMessage">发�?/button>
+					<button class="send-btn" :disabled="!inputMessage.trim()" @tap="handleSendMessage">发送</button>
 				</view>
 			</view>
 		</view>
@@ -75,7 +75,7 @@
 				<view class="panel-actions">
 					<view class="action-item" @tap="chooseImage">
 						<text class="action-icon">📷</text>
-						<text class="action-text">发送图�?/text>
+						<text class="action-text">发送图片</text>
 					</view>
 					<!-- 暂时只实现图片发送逻辑，其他功能可扩展 -->
 				</view>
@@ -143,7 +143,7 @@ export default {
 			}
 		}
 		
-		console.log('最终参�?');
+		console.log('最终参数:');
 		console.log('  sessionId:', this.sessionId);
 		console.log('  fromType:', this.fromType);
 		console.log('  fromId:', this.fromId);
@@ -152,7 +152,8 @@ export default {
 		
 		this.loadMessages();
 		
-		// 开始轮询新消息（暂时禁用，便于调试�?		// this.startPolling();
+		// 开始轮询新消息（暂时禁用，便于调试）
+		// this.startPolling();
 	},
 	
 	onUnload() {
@@ -182,20 +183,21 @@ export default {
 				'this.fromType': this.fromType,
 				'fromId匹配': message.fromId == this.fromId,
 				'fromType匹配': message.fromType == this.fromType,
-				'最终结�?: result
+				'最终结果': result
 			});
 			return result;
 		},
 		
 		async loadMessages() {
 			try {
-				console.log('====== 开始加载消�?======');
+				console.log('====== 开始加载消息 ======');
 				console.log('sessionId:', this.sessionId);
 				console.log('fromId:', this.fromId);
 				console.log('toId:', this.toId);
 				
 				// 临时方案：由于后端getMessageList存在bug，强制使用getMessagesFromTo
-				// 需要双向查询：骑手→用�?+ 用户→骑�?				const [res1, res2] = await Promise.all([
+				// 需要双向查询：骑手→用户 + 用户→骑手
+				const [res1, res2] = await Promise.all([
 					getMessagesFromTo({
 						fromType: this.fromType,
 						fromId: String(this.fromId),
@@ -244,7 +246,8 @@ export default {
 			}
 		},
 		
-		// 格式化消息数�?		formatMessage(msg) {
+		// 格式化消息数据
+		formatMessage(msg) {
 			const isSelf = String(msg.fromId) === String(this.fromId) && 
 			                Number(msg.fromType) === Number(this.fromType);
 			
@@ -265,7 +268,8 @@ export default {
 			};
 		},
 		
-		// 发送消�?		async handleSendMessage() {
+		// 发送消息
+		async handleSendMessage() {
 			if (!this.inputMessage.trim()) {
 				return;
 			}
@@ -315,7 +319,8 @@ export default {
 					tempMessage.sending = false;
 					tempMessage.messageId = response.data.messageId || response.data;
 					
-					// 通过WebSocket实时推�?					const status = wsManager.getStatus();
+					// 通过WebSocket实时推送
+					const status = wsManager.getStatus();
 					if (status.isConnected && status.isRegistered) {
 						try {
 							await wsManager.sendTextMessage({
@@ -333,15 +338,15 @@ export default {
 				} else {
 					tempMessage.sendFailed = true;
 					uni.showToast({
-						title: response.msg || '发送失�?,
+						title: response.msg || '发送失败',
 						icon: 'none'
 					});
 				}
 			} catch (error) {
-				console.error('发送消息失�?', error);
+				console.error('发送消息失败:', error);
 				tempMessage.sendFailed = true;
 				uni.showToast({
-					title: '发送失�?,
+					title: '发送失败',
 					icon: 'none'
 				});
 			}
@@ -376,7 +381,8 @@ export default {
 			this.wsConnected = false;
 		},
 		
-		// 处理WebSocket接收的消�?		handleWebSocketMessage(message) {
+		// 处理WebSocket接收的消息
+		handleWebSocketMessage(message) {
 			// 兼容字段命名
 			const msgType = message.msg_type || message.msgType;
 			const msgContent = message.msg_content || message.msgContent || message.content;
@@ -396,7 +402,8 @@ export default {
 				}
 			}
 			
-			// 只处理文本消�?			if (msgType !== MSG_TYPE.TEXT) {
+			// 只处理文本消息
+			if (msgType !== MSG_TYPE.TEXT) {
 				return;
 			}
 			
@@ -409,7 +416,8 @@ export default {
 				return;
 			}
 			
-			// 添加到消息列�?			const newMessage = {
+			// 添加到消息列表
+			const newMessage = {
 				messageId: message.message_id || message.messageId || Date.now(),
 				msgContent: msgContent,
 				sendTime: sendTime || Date.now(),
@@ -423,7 +431,8 @@ export default {
 			});
 		},
 		
-		// 滚动到底�?		scrollToBottom() {
+		// 滚动到底部
+		scrollToBottom() {
 			const query = uni.createSelectorQuery().in(this);
 			query.select('.chat-list').boundingClientRect(data => {
 				if (data) {
