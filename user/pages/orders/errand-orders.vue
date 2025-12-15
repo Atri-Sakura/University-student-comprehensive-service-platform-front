@@ -106,6 +106,7 @@
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
 import api from '@/api/index.js';
+import { openChatWithRider } from '@/utils/chat-helper.js';
 
 export default {
   components: {
@@ -288,15 +289,42 @@ export default {
       console.log('再来一单:', orderId);
       // 这里可以跳转到下单页面，预填之前的信息
     },
-    contactRider(orderId) {
-      // 这里需要获取跑腿员的联系方式，假设从order对象中可以获取
+    // 联系跑腿员 - 打开聊天界面
+    async contactRider(orderId) {
       const order = this.orders.find(o => o.id === orderId);
-      if (order && order.riderPhone) {
-        uni.makePhoneCall({
-          phoneNumber: order.riderPhone
-        });
-      } else {
-        uni.showToast({ title: '无法获取跑腿员联系方式', icon: 'none' });
+      if (!order) {
+        uni.showToast({ title: '订单信息不存在', icon: 'none' });
+        return;
+      }
+      
+      // 如果订单列表中已有骑手信息，直接使用
+      if (order.riderId) {
+        const riderName = order.riderName || order.riderNickname || '跑腿员';
+        await openChatWithRider(order.riderId, riderName);
+        return;
+      }
+      
+      // 否则调用订单详情API获取骑手信息
+      try {
+        uni.showLoading({ title: '获取跑腿员信息...' });
+        const res = await api.order.getErrandOrderDetail(order.orderNo);
+        uni.hideLoading();
+        
+        if (res && res.code === 200 && res.data) {
+          const detail = res.data;
+          if (detail.riderId) {
+            const riderName = detail.riderName || detail.riderNickname || '跑腿员';
+            await openChatWithRider(detail.riderId, riderName);
+          } else {
+            uni.showToast({ title: '该订单暂无跑腿员接单', icon: 'none' });
+          }
+        } else {
+          uni.showToast({ title: '获取跑腿员信息失败', icon: 'none' });
+        }
+      } catch (err) {
+        uni.hideLoading();
+        console.error('获取订单详情失败:', err);
+        uni.showToast({ title: '网络错误，请稍后重试', icon: 'none' });
       }
     },
     viewLocation(orderId) {
