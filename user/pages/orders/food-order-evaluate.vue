@@ -80,6 +80,7 @@ export default {
       currentRating: 0,
       commentText: '',
       wordCount: 0,
+      orderStatus: 0, // 订单状态，0表示未加载
       info: {
         name: ''
       },
@@ -91,6 +92,7 @@ export default {
   },
   onLoad(options) {
     // 接收订单ID/订单号参数和评价类型
+    console.log('onLoad接收的参数:', options);
     if (options.orderId) {
       this.orderId = options.orderId;
       this.numericOrderId = options.orderId; // 使用页面参数作为备选
@@ -120,6 +122,7 @@ export default {
     async loadOrderData() {
       try {
         let response;
+        console.log('请求订单详情，orderId:', this.orderId);
         // 根据评价类型选择合适的接口
         if (this.evaluateType === 'merchant') {
           // 评价商家，使用通用订单详情接口获取外卖订单详情
@@ -129,7 +132,7 @@ export default {
           response = await orderApi.getOrderDetail(this.orderId);
         }
         
-        console.log('订单详情接口返回:', response);
+        console.log('订单详情接口返回:', JSON.stringify(response, null, 2));
         
         let orderData;
         // 兼容API返回的两种格式：含code字段的标准格式和直接返回数据的格式
@@ -140,9 +143,13 @@ export default {
           orderData = response;
         }
         
-        console.log('订单数据:', orderData);
+        console.log('订单数据:', JSON.stringify(orderData, null, 2));
         // 确保orderData存在
         if (orderData) {
+          // 保存订单状态
+          this.orderStatus = orderData.orderStatus || 0;
+          console.log('订单状态:', this.orderStatus);
+          
           // 从订单数据中提取任务内容
           let taskContent = orderData.taskContent || '';
           if (!taskContent && orderData.productName) {
@@ -164,11 +171,13 @@ export default {
           
           // 保存订单ID用于提交评价，使用字符串类型避免大整数精度丢失
         console.log('orderData.orderId:', orderData.orderId);
+        console.log('orderData.orderMainId:', orderData.orderMainId);
         let orderIdStr = '';
-        if (orderData.orderId) {
-          orderIdStr = String(orderData.orderId);
-        } else if (orderData.orderMainId) {
+        // 优先使用orderMainId作为评价的订单ID，因为后端使用order_main_id查询订单
+        if (orderData.orderMainId) {
           orderIdStr = String(orderData.orderMainId);
+        } else if (orderData.orderId) {
+          orderIdStr = String(orderData.orderId);
         } else if (orderData.orderNo) {
           // 从订单号中提取数字部分
           orderIdStr = orderData.orderNo.replace(/[^\d]/g, '');
@@ -228,7 +237,8 @@ export default {
         currentRating: this.currentRating,
         numericOrderId: this.numericOrderId,
         commentText: this.commentText,
-        evaluateType: this.evaluateType
+        evaluateType: this.evaluateType,
+        orderStatus: this.orderStatus // 添加订单状态检查
       });
       
       if (this.currentRating === 0) {
@@ -242,6 +252,15 @@ export default {
       if (!this.numericOrderId) {
         uni.showToast({
           title: '获取订单信息失败',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 检查订单状态是否为已完成（status=5）
+      if (this.orderStatus !== 5) {
+        uni.showToast({
+          title: '订单未完成无法评价',
           icon: 'none'
         });
         return;

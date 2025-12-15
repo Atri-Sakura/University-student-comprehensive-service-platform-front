@@ -79,6 +79,7 @@ export default {
       currentRating: 0,
       commentText: '',
       wordCount: 0,
+      orderStatus: 0, // 订单状态，0表示未加载
       deliveryInfo: {
         name: ''
       },
@@ -129,6 +130,10 @@ export default {
         console.log('订单数据:', orderData);
         // 确保orderData存在
         if (orderData) {
+          // 保存订单状态
+          this.orderStatus = orderData.orderStatus || 0;
+          console.log('订单状态:', this.orderStatus);
+          
           // 从orderTakeoutDetailList获取商品信息作为任务内容
           let taskContent = orderData.taskContent || '';
           if (!taskContent && orderData.orderTakeoutDetailList && orderData.orderTakeoutDetailList.length > 0) {
@@ -144,7 +149,9 @@ export default {
           
           // 保存数字类型的订单ID用于提交评价
           console.log('orderData.orderId:', orderData.orderId);
-          this.numericOrderId = orderData.orderId || orderData.orderMainId || orderData.orderNo || '';
+          console.log('orderData.orderMainId:', orderData.orderMainId);
+          // 优先使用orderMainId作为评价的订单ID，因为后端使用order_main_id查询订单
+          this.numericOrderId = orderData.orderMainId || orderData.orderId || orderData.orderNo || '';
           console.log('this.numericOrderId:', this.numericOrderId);
           
           // 更新配送员信息，兼容不同的骑手姓名字段
@@ -188,9 +195,26 @@ export default {
     
     // 提交评价
     async submitRating() {
+      // 添加详细调试日志，查看提交前的数据
+      console.log('提交评价前的数据检查:', {
+        currentRating: this.currentRating,
+        numericOrderId: this.numericOrderId,
+        commentText: this.commentText,
+        orderStatus: this.orderStatus
+      });
+      
       if (this.currentRating === 0) {
         uni.showToast({
           title: '请选择评分',
+          icon: 'none'
+        });
+        return;
+      }
+      
+      // 检查订单状态是否为已完成（status=5）
+      if (this.orderStatus !== 5) {
+        uni.showToast({
+          title: '订单未完成无法评价',
           icon: 'none'
         });
         return;
