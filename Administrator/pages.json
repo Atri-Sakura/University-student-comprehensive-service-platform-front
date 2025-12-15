@@ -1,0 +1,60 @@
+{
+	"easycom": {
+		"autoscan": true,
+		"custom": {
+			"sidebar": "@/components/sidebar/sidebar.vue"
+		}
+	},
+	"pages": [
+		{
+			"path": "pages/admin/login",
+			"style": {
+				"navigationBarTitleText": "管理员登录",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/admin/index",
+			"style": {
+				"navigationBarTitleText": "管理后台",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/admin/rider-audit",
+			"style": {
+				"navigationBarTitleText": "骑手资质审核",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/admin/license-audit",
+			"style": {
+				"navigationBarTitleText": "营业执照审核",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/admin/error-audit",
+			"style": {
+				"navigationBarTitleText": "骑手异常审核",
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/admin/banner-manage",
+			"style": {
+				"navigationBarTitleText": "轮播图管理",
+				"navigationStyle": "custom"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "uni-app",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+
+	"uniIdRouter": {}
+}
