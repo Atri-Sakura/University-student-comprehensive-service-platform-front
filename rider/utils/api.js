@@ -92,14 +92,6 @@ async function request(options) {
 				}
 			}
 			
-			console.log('🚀 发送请求:', {
-				url: fullUrl,
-				method: httpMethod,
-				originalData: data,
-				requestData: requestData,
-				headers: requestHeaders
-			});
-			
 			uni.request({
 				url: fullUrl,
 				method: httpMethod,
@@ -236,7 +228,6 @@ function processLargeIntegers(data) {
 			if (largeIntegerFields.includes(key) && typeof value === 'number') {
 				// 对于ID类字段，直接转换为字符串（避免精度丢失）
 				processed[key] = value.toString();
-				console.log(`转换ID字段 ${key}: ${value} -> "${value}"`);
 			} else if (typeof value === 'object') {
 				processed[key] = processObject(value);
 			} else {
@@ -253,13 +244,6 @@ function processLargeIntegers(data) {
  * 处理响应数据
  */
 function handleResponse(result) {
-	console.log('📥 后端响应:', {
-		code: result.code,
-		msg: result.msg,
-		data: result.data,
-		fullResult: result
-	});
-	
 	// 根据code判断请求是否成功
 	if (result.code === 200) {
 		return result;
@@ -270,13 +254,6 @@ function handleResponse(result) {
 		handleTokenExpired();
 		throw new Error(result.msg || 'Token已过期，请重新登录');
 	}
-	
-	// 其他错误
-	console.error('❌ 业务错误:', {
-		code: result.code,
-		msg: result.msg,
-		data: result.data
-	});
 	
 	// 钱包相关错误不显示通用错误提示，让具体页面处理
 	if (!(result.msg && result.msg.includes('未找到钱包信息'))) {

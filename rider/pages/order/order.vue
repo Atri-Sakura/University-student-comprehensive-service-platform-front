@@ -193,9 +193,9 @@
 						// 待取货/配送中：调用我的订单列表接口
 						let orderStatus;
 						if (this.activeTab === 'pickup') {
-							orderStatus = 2; // 待取货
+							orderStatus = 3; // 骑手待取货（数据库状态码3）
 						} else if (this.activeTab === 'delivery') {
-							orderStatus = 3; // 配送中
+							orderStatus = 4; // 配送中（数据库状态码4）
 						}
 						
 						response = await getMyOrders({
@@ -205,19 +205,12 @@
 						});
 					}
 					
-					console.log('📦 API响应:', JSON.stringify(response));
-					
 					if (response.code === 200) {
-					// 转换后端数据格式为前端格式
-					// 后端直接返回 {code, msg, total, rows}，没有 data 包装
-					const rows = response.rows || [];
-					console.log('📦 订单数据rows:', JSON.stringify(rows));
-					console.log('📦 订单数量:', rows.length);
-					this.orders = rows.map(item => this.convertOrderData(item, isAvailableList));
-					console.log('📦 转换后订单:', JSON.stringify(this.orders));
-				} else {
-					console.log('❌ API返回错误:', response.code, response.msg);
-				}
+						// 转换后端数据格式为前端格式
+						// 后端直接返回 {code, msg, total, rows}，没有 data 包装
+						const rows = response.rows || [];
+						this.orders = rows.map(item => this.convertOrderData(item, isAvailableList));
+					}
 				} catch (error) {
 					console.error('加载订单失败:', error);
 					uni.showToast({
@@ -237,12 +230,13 @@
 				};
 				
 				const statusMap = {
-					1: 'new',      // 待接单
-					2: 'pickup',   // 待取货
-					3: 'delivery', // 配送中
-					4: 'completed', // 已完成
-					5: 'cancelled', // 已取消
-					6: 'rejected'  // 已拒单
+					1: 'new',      // 商家待接单
+					2: 'new',      // 骑手待接单（新任务）
+					3: 'pickup',   // 骑手待取货
+					4: 'delivery', // 配送中（待送达）
+					5: 'completed', // 已完成
+					6: 'cancelled', // 已取消
+					7: 'exception' // 骑手异常报备
 				};
 				
 				const typeInfo = orderTypeMap[item.orderType] || { type: 'takeout', typeText: '外卖' };
@@ -257,9 +251,6 @@
 				
 				// 确保orderMainId始终存在
 				const orderMainId = item.orderMainId || item.id;
-				console.log('🔄 convertOrderData，item.orderMainId:', item.orderMainId);
-				console.log('🔄 convertOrderData，item.id:', item.id);
-				console.log('🔄 convertOrderData，最终orderMainId:', orderMainId);
 				
 				return {
 					id: item.orderNo || orderMainId,
@@ -276,10 +267,6 @@
 				};
 			},
 			viewDetail(order) {
-				console.log('📤 准备跳转到详情页，orderMainId:', order.orderMainId);
-				console.log('📤 orderMainId类型:', typeof order.orderMainId);
-				console.log('📤 完整URL:', `/pages/order/order-detail?orderId=${order.orderMainId}`);
-				
 				// 跳转到订单详情页面（使用 orderMainId）
 				uni.navigateTo({
 					url: `/pages/order/order-detail?orderId=${order.orderMainId}`
@@ -382,24 +369,15 @@
 			},
 			reportException(order) {
 				// 跳转到异常报备页面，使用orderMainId作为订单ID
-				console.log('📤 异常报备跳转，完整order对象:', JSON.stringify(order));
-				console.log('📤 异常报备跳转，order.id:', order.id);
-				console.log('📤 异常报备跳转，order.id类型:', typeof order.id);
-				console.log('📤 异常报备跳转，order.orderMainId:', order.orderMainId);
-				console.log('📤 异常报备跳转，order.orderMainId类型:', typeof order.orderMainId);
-				
-				// 确保传递的是orderMainId而不是订单号
 				let orderMainId = order.orderMainId;
 				
 				// 如果orderMainId不存在但id是数字格式，使用id作为orderMainId
 				if (!orderMainId && /^\d+$/.test(order.id)) {
 					orderMainId = order.id;
-					console.log('⚠️  警告：orderMainId不存在，使用order.id作为orderMainId:', orderMainId);
 				}
 				
 				// 再次检查是否是订单号格式
 				if (/^T\d+$/.test(orderMainId)) {
-					console.error('❌ 错误：orderMainId是订单号格式:', orderMainId);
 					uni.showToast({
 						title: '参数错误，需传递orderMainId',
 						icon: 'error'
@@ -408,8 +386,6 @@
 				}
 				
 				const url = `/pages/order/exception-report?orderId=${orderMainId}&status=${this.activeTab}`;
-				console.log('📤 异常报备跳转，完整URL:', url);
-				
 				uni.navigateTo({
 					url: url
 				});

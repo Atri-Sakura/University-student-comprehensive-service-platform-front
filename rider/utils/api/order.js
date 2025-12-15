@@ -36,13 +36,8 @@ export async function getNewOrders(page = 1, pageSize = 10) {
  * @param {String} orderId 订单ID
  */
 export async function getOrderDetail(orderId) {
-	console.log('🔗 getOrderDetail接收到的orderId:', orderId);
-	console.log('🔗 orderId类型:', typeof orderId);
-	const url = `${ORDER_API.ORDER_DETAIL}/${orderId}`;
-	console.log('🔗 最终请求URL:', url);
-	
 	return request({
-		url: url,
+		url: `${ORDER_API.ORDER_DETAIL}/${orderId}`,
 		method: 'GET'
 	});
 }
