@@ -83,6 +83,11 @@
 				</view>
 			</view>
 		</view>
+
+		<!-- 退出登录按钮 -->
+		<view class="logout-section">
+			<button class="logout-btn" @click="handleLogout">退出登录</button>
+		</view>
 		
 		<tabbar :current="3"></tabbar>
 	</view>
@@ -92,6 +97,7 @@
 	import { getRiderBaseInfo } from '@/utils/profile-api.js';
 	import { getMyEvaluationStatistics } from '@/utils/api/evaluation.js';
 	import { getRiderWalletFlow } from '@/utils/api/wallet.js';
+	import { logout } from '@/utils/api/auth.js';
 	
 	export default {
 		data() {
@@ -337,7 +343,45 @@
 				title: '功能开发中',
 				icon: 'none'
 				});
-		}
+		},
+			
+			// 退出登录
+			handleLogout() {
+				uni.showModal({
+					title: '提示',
+					content: '确定要退出登录吗？',
+					success: async (res) => {
+						if (res.confirm) {
+							try {
+								// 调用后端退出接口
+								await logout();
+							} catch (error) {
+								console.log('退出登录接口调用失败:', error);
+							} finally {
+								// 无论接口是否成功，都清除本地存储并跳转
+								uni.removeStorageSync('token');
+								uni.removeStorageSync('userType');
+								uni.removeStorageSync('identity');
+								uni.removeStorageSync('identityKey');
+								uni.removeStorageSync('userInfo');
+								uni.removeStorageSync('riderInfo');
+								
+								uni.showToast({
+									title: '已退出登录',
+									icon: 'success',
+									duration: 1500
+								});
+								
+								setTimeout(() => {
+									uni.reLaunch({
+										url: '/pages/login/login'
+									});
+								}, 1500);
+							}
+						}
+					}
+				});
+			}
 		}
 	}
 </script>
@@ -528,6 +572,28 @@
 		color: #666;
 		text-align: center;
 		line-height: 1.4;
+	}
+
+	/* 退出登录区域 */
+	.logout-section {
+		margin: 40rpx 30rpx 30rpx 30rpx;
+		padding-bottom: 30rpx;
+	}
+
+	.logout-btn {
+		width: 100%;
+		height: 88rpx;
+		line-height: 88rpx;
+		background-color: #ffffff;
+		color: #ff4d4f;
+		font-size: 32rpx;
+		font-weight: 500;
+		border: 1rpx solid #ff4d4f;
+		border-radius: 12rpx;
+	}
+
+	.logout-btn::after {
+		border: none;
 	}
 </style>
 
