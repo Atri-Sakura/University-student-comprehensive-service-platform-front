@@ -357,7 +357,7 @@ export default {
           setTimeout(() => {
             this.paying = false; // 重置支付状态
             // 跳转到首页
-            uni.switchTab({
+            uni.reLaunch({
               url: '/pages/index/index'
             });
           }, 1500);
