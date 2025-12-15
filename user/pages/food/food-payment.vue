@@ -1125,6 +1125,7 @@ export default {
   justify-content: space-between;
   margin-bottom: 40rpx;
   padding: 0 20rpx;
+  position: relative; /* 作为隐藏输入框的定位容器 */
 }
 
 .password-dot-box {
@@ -1150,11 +1151,17 @@ export default {
   color: #333333;
 }
 
-/* 隐藏的输入框 */
+/* 隐藏的输入框：覆盖整个密码格子区域，透明但可接收输入与焦点 */
 .password-input-hidden {
   position: absolute;
-  left: -9999rpx;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
+  z-index: 1;
 }
 
 /* 按钮区域 */

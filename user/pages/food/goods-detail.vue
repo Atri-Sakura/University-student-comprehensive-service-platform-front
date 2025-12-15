@@ -204,6 +204,16 @@ export default {
         if (result && result.code === 200) {
           let goodsData = result.data;
           
+          // 获取近30天销量并覆盖默认销量
+          try {
+            const monthlyRes = await foodApi.getGoodsMonthlySales(this.goodsId);
+            if (monthlyRes && monthlyRes.code === 200 && monthlyRes.data !== undefined) {
+              goodsData.salesCount = Number(monthlyRes.data) || goodsData.salesCount || 0;
+            }
+          } catch (err) {
+            console.warn('获取商品月售失败:', err);
+          }
+          
           // 处理商品图片URL，支持多种字段名称
           let imageUrl = '';
           

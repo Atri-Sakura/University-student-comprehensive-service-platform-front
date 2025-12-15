@@ -607,6 +607,21 @@ export default {
               }
             }
             
+            // 预拉取每个商品的月售数据，便于前端直接展示近30天销量
+            const monthlySalesMap = new Map();
+            await Promise.all((goodsList || []).map(async (goods) => {
+              const gid = goods.merchantGoodsId || goods.id;
+              if (!gid) return;
+              try {
+                const monthlyRes = await foodApi.getGoodsMonthlySales(gid);
+                if (monthlyRes && monthlyRes.code === 200 && monthlyRes.data !== undefined) {
+                  monthlySalesMap.set(gid, Number(monthlyRes.data) || 0);
+                }
+              } catch (err) {
+                console.warn(`获取商品${gid}月售失败:`, err);
+              }
+            }));
+            
             // 完整映射后端返回的商品字段，确保前端能正确显示所有信息
             const mappedGoods = goodsList.map((item, index) => {
               // 调试：输出第一个商品的原始数据
@@ -616,11 +631,18 @@ export default {
               }
               
               // 处理销量字段，支持多种可能的字段名，保留原始值
-              let salesCount = 0;
-              if (item.salesCount !== undefined && item.salesCount !== null) {
-                salesCount = Number(item.salesCount) || 0;
-              } else if (item.sales_count !== undefined && item.sales_count !== null) {
-                salesCount = Number(item.sales_count) || 0;
+              const monthlyKey = item.merchantGoodsId || item.id;
+              let salesCount = monthlySalesMap.has(monthlyKey) ? monthlySalesMap.get(monthlyKey) : 0;
+              if (!salesCount) {
+                if (item.salesCount !== undefined && item.salesCount !== null) {
+                  salesCount = Number(item.salesCount) || 0;
+                } else if (item.sales_count !== undefined && item.sales_count !== null) {
+                  salesCount = Number(item.sales_count) || 0;
+                } else if (item.monthlySales !== undefined && item.monthlySales !== null) {
+                  salesCount = Number(item.monthlySales) || 0;
+                } else if (item.monthlySalesCount !== undefined && item.monthlySalesCount !== null) {
+                  salesCount = Number(item.monthlySalesCount) || 0;
+                }
               }
               
               // 处理商品图片URL，支持多种可能的字段名
@@ -681,8 +703,8 @@ export default {
                 // 销量和月售字段 - 使用处理后的值，但保留原始字段
                 salesCount: salesCount || item.salesCount || 0,
                 sales_count: item.sales_count || salesCount || 0,
-                monthlySales: item.monthlySales || 0,
-                monthlySalesCount: item.monthlySalesCount || 0,
+                monthlySales: salesCount,
+                monthlySalesCount: salesCount,
                 // 图片字段 - 使用处理后的图片URL
                 image: goodsImageUrl,
                 mainImageUrl: goodsImageUrl,

@@ -445,16 +445,32 @@ export default {
           }
         }
         
-        // 计算商家月售（累加所有商品的销量）
+        // 预拉取每个商品的月售数据
+        const monthlySalesMap = new Map();
+        await Promise.all((goodsList || []).map(async (goods) => {
+          const gid = goods.merchantGoodsId || goods.id;
+          if (!gid) return;
+          try {
+            const monthlyRes = await foodApi.getGoodsMonthlySales(gid);
+            if (monthlyRes && monthlyRes.code === 200 && monthlyRes.data !== undefined) {
+              monthlySalesMap.set(gid, Number(monthlyRes.data) || 0);
+            }
+          } catch (err) {
+            console.warn(`获取商品${gid}月售失败:`, err);
+          }
+        }));
+        
+        // 计算商家月售（累加所有商品的销量，优先使用月售接口）
         let totalSales = 0;
         if (goodsList && goodsList.length > 0) {
           totalSales = goodsList.reduce((sum, goods) => {
-            // 支持多种销量字段名
-            let goodsSales = 0;
-            if (goods.salesCount !== undefined && goods.salesCount !== null) {
-              goodsSales = Number(goods.salesCount) || 0;
-            } else if (goods.sales_count !== undefined && goods.sales_count !== null) {
-              goodsSales = Number(goods.sales_count) || 0;
+            let goodsSales = monthlySalesMap.get(goods.merchantGoodsId || goods.id) || 0;
+            if (!goodsSales) {
+              if (goods.salesCount !== undefined && goods.salesCount !== null) {
+                goodsSales = Number(goods.salesCount) || 0;
+              } else if (goods.sales_count !== undefined && goods.sales_count !== null) {
+                goodsSales = Number(goods.sales_count) || 0;
+              }
             }
             return sum + goodsSales;
           }, 0);
@@ -691,7 +707,7 @@ export default {
     loadCartData() {
       const cartData = uni.getStorageSync('foodCart');
       if (cartData && cartData.items) {
-        // 只加载当前餐厅的商品到显示列表
+        // 只保留当前餐厅的商品
         this.cartItems = cartData.items.filter(item => item.restaurantId === this.restaurant.id);
       } else {
         this.cartItems = [];
@@ -700,21 +716,9 @@ export default {
     
     // 保存购物车数据
     saveCartData() {
-      // 获取已保存的所有购物车数据
-      const existingCartData = uni.getStorageSync('foodCart');
-      let allItems = [];
-      
-      if (existingCartData && existingCartData.items) {
-        // 保留其他餐厅的商品，移除当前餐厅的旧数据
-        allItems = existingCartData.items.filter(item => item.restaurantId !== this.restaurant.id);
-      }
-      
-      // 添加当前餐厅的商品
-      allItems = [...allItems, ...this.cartItems];
-      
       uni.setStorageSync('foodCart', {
         restaurant: this.restaurant,
-        items: allItems,
+        items: this.cartItems,
         totalAmount: this.totalAmount,
         totalCount: this.totalCount
       });
@@ -741,10 +745,6 @@ export default {
         this.cartItems.push({
           ...food,
           restaurantId: this.restaurant.id,
-          restaurantName: this.restaurant.name,
-          restaurantImage: this.restaurant.image,
-          restaurantMinOrder: this.restaurant.minOrder,
-          restaurantDeliveryFee: this.restaurant.deliveryFee,
           count: 1
         });
       }
