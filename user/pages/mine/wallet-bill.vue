@@ -95,6 +95,7 @@
 <script>
 import { getWalletRecords } from '@/api/wallet.js';
 import { processApiResponseIds, safeStringifyId } from '@/utils/id-utils.js';
+import orderApi from '@/api/order.js';
 
 export default {
   data() {
@@ -290,48 +291,131 @@ export default {
           params.type = this.currentFilter === 'income' ? '1,4' : '2,3'; // 1充值,4退款为收入；2消费,3提现为支出
         }
         
-        const response = await getWalletRecords(params);
+        // 并行获取钱包流水和二手交易订单
+        const [walletResponse, buyerOrdersRes, sellerOrdersRes] = await Promise.all([
+          getWalletRecords(params),
+          orderApi.getOrderList({ orderType: 3, pageNum: 1, pageSize: 100 }), // 买家二手订单
+          orderApi.getSellerSecondHandOrders({ pageNum: 1, pageSize: 100 }) // 卖家二手订单
+        ]);
         
-        if (response && response.code === 200) {
-          const records = response.data || [];
+        let newBills = [];
+        
+        // 处理钱包流水记录
+        if (walletResponse && walletResponse.code === 200) {
+          const records = walletResponse.data || [];
           
           // 转换后端数据格式为前端格式
-          const newBills = records.map(record => {
+          const walletBills = records.map(record => {
             // 尝试多个可能的时间字段
             const timeValue = record.createTime || record.transactionTime || record.tradeTime || record.trade_time;
             
+            // 金额使用绝对值，正负号由前端根据type决定显示
+            const amount = Math.abs(parseFloat(record.amount || 0));
+            
+            // 获取标题
+            const title = record.remark || record.description || this.getTransactionTitle(record.flowType || record.type);
+            
+            // 根据flowType和remark综合判断交易类型
+            let type = this.mapTransactionType(record.flowType || record.type);
+            // 如果remark包含"退款"，强制设为income（收入）
+            if (title && (title.includes('退款') || title.includes('refund'))) {
+              type = 'income';
+            }
+            // 如果remark包含"充值"，强制设为income（收入）
+            if (title && (title.includes('充值') || title.includes('recharge'))) {
+              type = 'income';
+            }
+            
             return {
               id: safeStringifyId(record.id || record.recordId),
-              type: this.mapTransactionType(record.flowType || record.type),
-              title: record.remark || record.description || this.getTransactionTitle(record.flowType),
-              amount: parseFloat(record.amount || 0),
+              type: type,
+              title: title,
+              amount: amount,
               time: new Date(timeValue).getTime(),
               status: this.mapTransactionStatus(record.status),
               orderId: record.orderId,
-              balance: parseFloat(record.balance || 0)
+              balance: Math.abs(parseFloat(record.balance || 0)),
+              source: 'wallet'
             };
           });
           
-          if (this.pageNum === 1) {
-            this.allBills = newBills;
-          } else {
-            this.allBills = [...this.allBills, ...newBills];
-          }
-          
-          // 判断是否还有更多数据
-          this.hasMore = newBills.length === this.pageSize;
-          
-          // 保存到本地存储
-          uni.setStorageSync('walletBills', this.allBills);
-          
-        } else {
-          if (this.pageNum === 1) {
-            uni.showToast({
-              title: response?.msg || '获取账单失败',
-              icon: 'none'
+          newBills = [...newBills, ...walletBills];
+        }
+        
+        // 处理买家二手交易订单（支出）
+        if (buyerOrdersRes && buyerOrdersRes.code === 200) {
+          const buyerOrders = buyerOrdersRes.rows || buyerOrdersRes.data || [];
+          const buyerBills = buyerOrders
+            .filter(order => order.payStatus === 1) // 只显示已支付的订单
+            .map(order => {
+              const goodsName = order.orderSecondhandDetailList?.[0]?.goodsName || '二手商品';
+              return {
+                id: `buyer_${order.orderMainId || order.orderNo}`,
+                type: 'expense',
+                title: `购买二手商品-${goodsName}`,
+                amount: Math.abs(parseFloat(order.payAmount || order.totalAmount || 0)),
+                time: new Date(order.payTime || order.createTime).getTime(),
+                status: this.mapOrderStatus(order.orderStatus),
+                orderId: order.orderNo,
+                orderMainId: order.orderMainId,
+                source: 'secondhand_buyer'
+              };
             });
+          
+          newBills = [...newBills, ...buyerBills];
+        }
+        
+        // 处理卖家二手交易订单（收入）
+        if (sellerOrdersRes && sellerOrdersRes.code === 200) {
+          const sellerOrders = sellerOrdersRes.rows || sellerOrdersRes.data || [];
+          const sellerBills = sellerOrders
+            .filter(order => order.confirmTime) // 只显示已确认收货的订单（卖家才能收到钱）
+            .map(order => {
+              const goodsName = order.goodsName || '二手商品';
+              return {
+                id: `seller_${order.orderSecondhandDetailId || order.orderMainId}`,
+                type: 'income',
+                title: `出售二手商品-${goodsName}`,
+                amount: Math.abs(parseFloat(order.depositAmount || 0)),
+                time: new Date(order.confirmTime).getTime(),
+                status: 'success',
+                orderId: order.orderMainId,
+                source: 'secondhand_seller'
+              };
+            });
+          
+          newBills = [...newBills, ...sellerBills];
+        }
+        
+        // 根据筛选条件过滤
+        if (this.currentFilter !== 'all') {
+          newBills = newBills.filter(bill => bill.type === this.currentFilter);
+        }
+        
+        // 按时间倒序排序
+        newBills.sort((a, b) => b.time - a.time);
+        
+        // 去重（根据id）
+        const uniqueBills = [];
+        const seenIds = new Set();
+        for (const bill of newBills) {
+          if (!seenIds.has(bill.id)) {
+            seenIds.add(bill.id);
+            uniqueBills.push(bill);
           }
         }
+        
+        if (this.pageNum === 1) {
+          this.allBills = uniqueBills;
+        } else {
+          this.allBills = [...this.allBills, ...uniqueBills];
+        }
+        
+        // 判断是否还有更多数据
+        this.hasMore = newBills.length >= this.pageSize;
+        
+        // 保存到本地存储
+        uni.setStorageSync('walletBills', this.allBills);
         
       } catch (error) {
         console.error('获取账单数据失败:', error);
@@ -347,6 +431,19 @@ export default {
           uni.hideLoading();
         }
       }
+    },
+    
+    // 映射订单状态到账单状态
+    mapOrderStatus(orderStatus) {
+      // 订单状态：1-待接单 2-待取货 3-配送中 4-已完成 5-已取消
+      const statusMap = {
+        1: 'pending',
+        2: 'pending',
+        3: 'pending',
+        4: 'success',
+        5: 'failed'
+      };
+      return statusMap[orderStatus] || 'success';
     },
     
     // 映射后端交易类型到前端类型

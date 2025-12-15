@@ -103,6 +103,7 @@
 import { getUserWallet, getWalletBalance, getWalletRecords } from '@/api/wallet.js';
 import { processApiResponseIds, safeStringifyId } from '@/utils/id-utils.js';
 import http from '@/api/request.js';
+import orderApi from '@/api/order.js';
 
 export default {
   data() {
@@ -352,50 +353,130 @@ export default {
 
     async loadRecentTransactions() {
       try {
-        const recordsRes = await getWalletRecords({
-          pageNum: 1,
-          pageSize: 5
-        });
+        // 并行获取钱包流水和二手交易订单
+        const [recordsRes, buyerOrdersRes, sellerOrdersRes] = await Promise.all([
+          getWalletRecords({ pageNum: 1, pageSize: 10 }),
+          orderApi.getOrderList({ orderType: 3, pageNum: 1, pageSize: 10 }), // 买家二手订单
+          orderApi.getSellerSecondHandOrders({ pageNum: 1, pageSize: 10 }) // 卖家二手订单
+        ]);
 
+        let allTransactions = [];
+
+        // 处理钱包流水记录
         if (recordsRes && recordsRes.code === 200) {
           const records = recordsRes.data || [];
 
-          // 转换后端数据格式为前端格式
-          this.recentTransactions = records.map(record => {
-            // 尝试多个可能的时间字段
+          const walletTransactions = records.map(record => {
             const timeValue = record.createTime || record.transactionTime || record.tradeTime || record.trade_time;
             
-            // 确保时间值有效
             let timeStamp;
             if (timeValue) {
               timeStamp = new Date(timeValue).getTime();
-              // 检查时间戳是否有效
               if (isNaN(timeStamp)) {
-                timeStamp = Date.now(); // 使用当前时间作为备用
+                timeStamp = Date.now();
               }
             } else {
-              timeStamp = Date.now(); // 使用当前时间作为备用
+              timeStamp = Date.now();
+            }
+            
+            const amount = Math.abs(parseFloat(record.amount || 0));
+            const title = record.remark || record.description || this.getTransactionTitle(record.flowType || record.type);
+            
+            let type = this.mapTransactionType(record.flowType || record.type);
+            if (title && (title.includes('退款') || title.includes('refund'))) {
+              type = 'income';
+            }
+            if (title && (title.includes('充值') || title.includes('recharge'))) {
+              type = 'income';
             }
             
             return {
               id: safeStringifyId(record.id || record.recordId),
-              type: this.mapTransactionType(record.flowType || record.type),
-              title: record.remark || record.description || this.getTransactionTitle(record.flowType),
-              amount: parseFloat(record.amount || 0),
+              type: type,
+              title: title,
+              amount: amount,
               time: timeStamp,
-              status: this.mapTransactionStatus(record.status)
+              status: this.mapTransactionStatus(record.status),
+              source: 'wallet'
             };
           });
-        } else {
-          // 保持默认的模拟数据或清空
-          if (!recordsRes) {
-            this.recentTransactions = [];
+          
+          allTransactions = [...allTransactions, ...walletTransactions];
+        }
+
+        // 处理买家二手交易订单（支出）
+        if (buyerOrdersRes && buyerOrdersRes.code === 200) {
+          const buyerOrders = buyerOrdersRes.rows || buyerOrdersRes.data || [];
+          const buyerTransactions = buyerOrders
+            .filter(order => order.payStatus === 1)
+            .map(order => {
+              const goodsName = order.orderSecondhandDetailList?.[0]?.goodsName || '二手商品';
+              return {
+                id: `buyer_${order.orderMainId || order.orderNo}`,
+                type: 'expense',
+                title: `购买二手商品-${goodsName}`,
+                amount: Math.abs(parseFloat(order.payAmount || order.totalAmount || 0)),
+                time: new Date(order.payTime || order.createTime).getTime(),
+                status: this.mapOrderStatusToTransaction(order.orderStatus),
+                source: 'secondhand_buyer'
+              };
+            });
+          
+          allTransactions = [...allTransactions, ...buyerTransactions];
+        }
+
+        // 处理卖家二手交易订单（收入）
+        if (sellerOrdersRes && sellerOrdersRes.code === 200) {
+          const sellerOrders = sellerOrdersRes.rows || sellerOrdersRes.data || [];
+          const sellerTransactions = sellerOrders
+            .filter(order => order.confirmTime)
+            .map(order => {
+              const goodsName = order.goodsName || '二手商品';
+              return {
+                id: `seller_${order.orderSecondhandDetailId || order.orderMainId}`,
+                type: 'income',
+                title: `出售二手商品-${goodsName}`,
+                amount: Math.abs(parseFloat(order.depositAmount || 0)),
+                time: new Date(order.confirmTime).getTime(),
+                status: 'success',
+                source: 'secondhand_seller'
+              };
+            });
+          
+          allTransactions = [...allTransactions, ...sellerTransactions];
+        }
+
+        // 按时间倒序排序
+        allTransactions.sort((a, b) => b.time - a.time);
+
+        // 去重并只取前5条
+        const uniqueTransactions = [];
+        const seenIds = new Set();
+        for (const trans of allTransactions) {
+          if (!seenIds.has(trans.id) && uniqueTransactions.length < 5) {
+            seenIds.add(trans.id);
+            uniqueTransactions.push(trans);
           }
         }
+
+        this.recentTransactions = uniqueTransactions;
+
       } catch (error) {
         console.error('获取交易记录失败:', error);
         // 保持现有数据，不清空
       }
+    },
+
+    // 映射订单状态到交易状态
+    mapOrderStatusToTransaction(orderStatus) {
+      const statusMap = {
+        1: 'pending',
+        2: 'pending',
+        3: 'pending',
+        4: 'success',
+        5: 'failed'
+      };
+      return statusMap[orderStatus] || 'success';
     },
 
     // 初始化用户钱包
