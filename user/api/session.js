@@ -16,7 +16,8 @@ export const SESSION_STATUS = {
 export const USER_TYPE = {
   USER: 1,      // 用户
   RIDER: 2,     // 骑手
-  MERCHANT: 3   // 商家
+  MERCHANT: 3,  // 商家
+  SYSTEM: 4     // 系统
 }
 
 /**
