@@ -58,26 +58,26 @@
         
         <!-- 操作按钮 -->
         <view class="order-actions">
-          <!-- 未接单状态 -->
-          <template v-if="order.orderStatus === 1">
+          <!-- 未接单状态：状态2-骑手待接单 -->
+          <template v-if="order.orderStatus === 2">
             <button class="action-button cancel" @click="cancelOrder(order.orderMainId)">取消订单</button>
           </template>
           
-          <!-- 进行中状态 -->
-          <template v-else-if="order.orderStatus === 2 || order.orderStatus === 3">
+          <!-- 进行中状态：状态3-骑手待取货、状态4-配送中 -->
+          <template v-else-if="order.orderStatus === 3 || order.orderStatus === 4">
             <button class="action-button primary" @click="contactRider(order.id)">联系跑腿员</button>
             <button class="action-button secondary" @click="contactCustomerService()">联系客服</button>
           </template>
           
-          <!-- 已完成状态 -->
-          <template v-else-if="order.orderStatus === 4">
+          <!-- 已完成状态：状态5-已完成 -->
+          <template v-else-if="order.orderStatus === 5">
             <button class="action-button primary" @click="rateDelivery(order.orderNo)">评价跑腿员</button>
             <button class="action-button secondary" @click="viewOrderDetail(order.orderNo)">查看详情</button>
             <button class="action-button secondary" @click="contactCustomerService()">联系客服</button>
           </template>
           
-          <!-- 已取消状态 -->
-          <template v-else-if="order.orderStatus === 5">
+          <!-- 已取消状态：状态6-已取消 -->
+          <template v-else-if="order.orderStatus === 6">
             <!-- 已取消订单不显示任何操作按钮 -->
           </template>
         </view>
@@ -187,11 +187,11 @@ export default {
       if (this.currentTab === 0) {
         filtered = [...this.orders];
       } else if (this.currentTab === 1) {
-        filtered = this.orders.filter(order => order.orderStatus === 1); // 未接单：待接单
+        filtered = this.orders.filter(order => order.orderStatus === 2); // 未接单：骑手待接单
       } else if (this.currentTab === 2) {
-        filtered = this.orders.filter(order => order.orderStatus === 2 || order.orderStatus === 3); // 进行中：待取货、配送中
+        filtered = this.orders.filter(order => order.orderStatus === 3 || order.orderStatus === 4); // 进行中：骑手待取货、配送中
       } else if (this.currentTab === 3) {
-        filtered = this.orders.filter(order => order.orderStatus === 4 || order.orderStatus === 5); // 已完成：已完成、已取消
+        filtered = this.orders.filter(order => order.orderStatus === 5 || order.orderStatus === 6); // 已完成：已完成、已取消
       } else {
         filtered = [...this.orders];
       }
@@ -203,23 +203,29 @@ export default {
       });
     },
     statusClass(status) {
+      // 订单状态：1-商家待接单 2-骑手待接单 3-骑手待取货 4-配送中 5-已完成 6-已取消 7-骑手异常报备
       const statusMap = {
-        1: 'status-waiting',   // 待接单
-        2: 'status-progress',  // 待取货
-        3: 'status-progress',  // 配送中
-        4: 'status-completed', // 已完成
-        5: 'status-canceled'   // 已取消
+        1: 'status-waiting',   // 商家待接单
+        2: 'status-waiting',   // 骑手待接单（未接单）
+        3: 'status-progress',  // 骑手待取货（进行中）
+        4: 'status-progress',  // 配送中（进行中）
+        5: 'status-completed', // 已完成
+        6: 'status-canceled',  // 已取消
+        7: 'status-warning'    // 异常报备
       };
       return statusMap[status] || '';
     },
     // 订单状态文本
+    // 订单状态：1-商家待接单 2-骑手待接单 3-骑手待取货 4-配送中 5-已完成 6-已取消 7-骑手异常报备
     orderStatusText(status) {
       const statusMap = {
-        1: '未接单',
-        2: '进行中',
+        1: '商家处理中',
+        2: '未接单',
         3: '进行中',
-        4: '已完成',
-        5: '已取消'
+        4: '进行中',
+        5: '已完成',
+        6: '已取消',
+        7: '异常报备'
       };
       return statusMap[status] || '未知状态';
     },
