@@ -136,6 +136,47 @@ export const previewWithdraw = (amount) => {
   return request(`${baseUrl}/api/merchant/finance/withdraw/preview?amount=${amount}`, { method: 'POST' });
 };
 
+// 查询提现状态
+export const getWithdrawStatus = (withdrawId) => {
+  if (!withdrawId && withdrawId !== 0) return Promise.reject(new Error('无效的提现记录ID'));
+  return request(`${baseUrl}/api/merchant/finance/withdraw/status/${withdrawId}`, { method: 'GET' });
+};
+
+// 支付宝充值
+export const rechargeAlipay = (rechargeData) => {
+  if (!rechargeData || !rechargeData.amount) {
+    return Promise.reject(new Error('缺少必要的充值金额参数'));
+  }
+  if (typeof rechargeData.amount !== 'number' || rechargeData.amount <= 0) {
+    return Promise.reject(new Error('充值金额必须为大于0的数字'));
+  }
+  return request(`${baseUrl}/api/merchant/finance/recharge/alipay`, {
+    method: 'POST',
+    data: {
+      amount: rechargeData.amount,
+      payChannel: rechargeData.payChannel || 1
+    }
+  });
+};
+
+// 支付宝提现
+export const withdrawAlipay = (withdrawData) => {
+  if (!withdrawData || !withdrawData.amount) {
+    return Promise.reject(new Error('缺少必要的提现金额参数'));
+  }
+  if (typeof withdrawData.amount !== 'number' || withdrawData.amount <= 0) {
+    return Promise.reject(new Error('提现金额必须为大于0的数字'));
+  }
+  return request(`${baseUrl}/api/merchant/finance/withdraw/alipay`, {
+    method: 'POST',
+    data: {
+      amount: withdrawData.amount,
+      payChannel: withdrawData.payChannel || 1,
+      payPassword: withdrawData.payPassword
+    }
+  });
+};
+
 export const handleRefund = (refundData) => {
   if (!refundData || !refundData.orderId || !refundData.refundAmount) {
     return Promise.reject(new Error('缺少必要的退款信息参数'));
@@ -156,6 +197,8 @@ export const merchantFinanceApi = {
   getWalletFlowListWithOrder,
   getWithdrawalAccounts,
   addWithdrawalAccount,
+  deleteWithdrawAccount,
+  setDefaultWithdrawAccount,
   applyWithdrawal,
   applyWithdraw,
   getWithdrawalRecords,
@@ -164,17 +207,24 @@ export const merchantFinanceApi = {
   getWithdrawalFeeRate,
   printReceipt,
   previewWithdraw,
-  getWithdrawRecordList
+  getWithdrawRecordList,
+  getWithdrawOverview,
+  getWithdrawStatus,
+  rechargeAlipay,
+  withdrawAlipay
 };
 
 export default {
   getFinancialOverview,
   getTodayIncome,
+  getMerchantWallet,
   getTransactionList,
   getTransactionDetail,
   getWalletFlowListWithOrder,
   getWithdrawalAccounts,
   addWithdrawalAccount,
+  deleteWithdrawAccount,
+  setDefaultWithdrawAccount,
   applyWithdrawal,
   applyWithdraw,
   getWithdrawalRecords,
@@ -184,6 +234,10 @@ export default {
   printReceipt,
   handleRefund,
   previewWithdraw,
-  getWithdrawRecordList
+  getWithdrawRecordList,
+  getWithdrawOverview,
+  getWithdrawStatus,
+  rechargeAlipay,
+  withdrawAlipay
 };
 

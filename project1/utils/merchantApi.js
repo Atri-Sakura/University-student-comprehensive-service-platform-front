@@ -193,7 +193,7 @@ export const updateDeliverySettings = (data) => {
 // ==================== 资质认证（扩展接口）====================
 
 /**
- * 上传资质证书图片
+ * 上传资质证书图片（通用上传）
  * @param {String} type - 证书类型（business: 营业执照, food: 食品许可证）
  * @param {String} filePath - 图片路径
  * @returns {Promise}
@@ -201,7 +201,7 @@ export const updateDeliverySettings = (data) => {
 export const uploadCertificate = (type, filePath) => {
   return new Promise((resolve, reject) => {
     uni.uploadFile({
-      url: `${baseUrl}/common/upload`, // 使用通用上传接口
+      url: `${baseUrl}/common/upload`,
       filePath: filePath,
       name: 'file',
       formData: {
@@ -213,11 +213,8 @@ export const uploadCertificate = (type, filePath) => {
       success: (uploadRes) => {
         try {
           const data = JSON.parse(uploadRes.data);
-          
           console.log('🔍 证书上传响应数据:', data);
-          
           if (data.code === 200) {
-            // 构建标准响应格式
             const result = {
               code: 200,
               msg: '上传成功',
@@ -234,6 +231,47 @@ export const uploadCertificate = (type, filePath) => {
         }
       },
       fail: (err) => {
+        reject(err);
+      }
+    });
+  });
+};
+
+/**
+ * 上传商家营业执照/资质凭证（专用接口）
+ * 自动替换旧凭证并删除旧文件
+ * @param {String} filePath - 图片文件路径
+ * @returns {Promise}
+ */
+export const uploadQualification = (filePath) => {
+  return new Promise((resolve, reject) => {
+    uni.uploadFile({
+      url: `${baseUrl}/merchant/info/qualifaction/upload`,
+      filePath: filePath,
+      name: 'file',
+      header: {
+        'Authorization': `Bearer ${uni.getStorageSync('token')}`
+      },
+      success: (uploadRes) => {
+        try {
+          const data = JSON.parse(uploadRes.data);
+          console.log('🔍 资质上传响应数据:', data);
+          if (data.code === 200) {
+            resolve({
+              code: 200,
+              msg: data.msg || '资质上传成功',
+              data: data.data
+            });
+          } else {
+            reject(new Error(data.msg || '资质上传失败'));
+          }
+        } catch (error) {
+          console.error('资质上传响应解析失败:', error);
+          reject(new Error('响应数据解析失败'));
+        }
+      },
+      fail: (err) => {
+        console.error('资质上传失败:', err);
         reject(err);
       }
     });
@@ -278,6 +316,7 @@ export default {
   getDeliverySettings,
   updateDeliverySettings,
   uploadCertificate,
+  uploadQualification,
   getCertificates,
   deleteCertificate
 };
