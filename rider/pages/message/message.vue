@@ -8,7 +8,7 @@
 			</view>
 		</view>
 
-		<!-- 标签页导�?-->
+		<!-- 标签页导航 -->
 		<view class="tab-bar">
 			<view 
 				class="tab-item" 
@@ -72,7 +72,7 @@
 				</view>
 			</template>
 
-			<!-- 空状�?-->
+			<!-- 空状态 -->
 			<view class="empty-state" v-if="(activeTab === 'all' && sessions.length === 0 && systemMessages.length === 0) || (activeTab !== 'all' && currentTabMessages.length === 0)">
 				<text class="empty-icon">💬</text>
 				<text class="empty-text">{{ emptyStateText }}</text>
@@ -110,57 +110,59 @@ export default {
 	},
 	
 	onShow() {
-		// 每次显示时刷新会话列�?		this.loadChatSessions();
+		// 每次显示时刷新会话列表
+		this.loadChatSessions();
 	},
+	
+	computed: {
+		allMessages() {
+			return [...this.systemMessages, ...this.announcements]
+				.sort((a, b) => new Date(b.time) - new Date(a.time));
+		},
 		
-		computed: {
-			allMessages() {
-				return [...this.systemMessages, ...this.announcements]
-					.sort((a, b) => new Date(b.time) - new Date(a.time));
-			},
-			
-			currentTabMessages() {
-				switch (this.activeTab) {
-					case 'all':
-						return [...this.systemMessages, ...this.announcements];
-					case 'group':
-						return this.orderGroupChats;
-					case 'system':
-						return [...this.systemMessages, ...this.announcements];
-					default:
-						return [];
-				}
-			},
-			
-			emptyStateText() {
-				switch (this.activeTab) {
-					case 'all':
-						return '暂无消息';
-					case 'group':
-						return '暂无群聊';
-					case 'system':
-						return '暂无系统通知';
-					default:
-						return '暂无消息';
-				}
-			},
-			
-			emptyStateDesc() {
-				switch (this.activeTab) {
-					case 'all':
-						return '您的消息将在这里显示';
-					case 'group':
-						return '订单群聊将在这里显示';
-					case 'system':
-						return '系统通知将在这里显示';
-					default:
-						return '消息将在这里显示';
-				}
+		currentTabMessages() {
+			switch (this.activeTab) {
+				case 'all':
+					return [...this.systemMessages, ...this.announcements];
+				case 'group':
+					return this.orderGroupChats;
+				case 'system':
+					return [...this.systemMessages, ...this.announcements];
+				default:
+					return [];
 			}
 		},
 		
+		emptyStateText() {
+			switch (this.activeTab) {
+				case 'all':
+					return '暂无消息';
+				case 'group':
+					return '暂无群聊';
+				case 'system':
+					return '暂无系统通知';
+				default:
+					return '暂无消息';
+			}
+		},
+		
+		emptyStateDesc() {
+			switch (this.activeTab) {
+				case 'all':
+					return '您的消息将在这里显示';
+				case 'group':
+					return '订单群聊将在这里显示';
+				case 'system':
+					return '系统通知将在这里显示';
+				default:
+					return '消息将在这里显示';
+			}
+		}
+	},
+	
 	methods: {
-		// 初始化骑手信�?		async initRiderInfo() {
+		// 初始化骑手信息
+		async initRiderInfo() {
 			try {
 				const riderInfo = uni.getStorageSync('riderInfo');
 				const riderId = uni.getStorageSync('riderId');
@@ -186,7 +188,7 @@ export default {
 		// 加载聊天会话列表
 		async loadChatSessions() {
 			if (!this.currentUser) {
-				console.warn('loadChatSessions: 骑手信息不存�?);
+				console.warn('loadChatSessions: 骑手信息不存在');
 				return;
 			}
 			
@@ -221,72 +223,74 @@ export default {
 				]);
 				
 				let allSessions = [];
-			
-			if (response1.code === 200 && response1.data) {
-				allSessions = allSessions.concat(response1.data);
-			}
-			if (response2.code === 200 && response2.data) {
-				allSessions = allSessions.concat(response2.data);
-			}
-			
-			if (allSessions.length > 0) {
-				// 筛选正确的会话：骑手作为其中一方，用户作为另一�?				const validSessions = allSessions.filter(session => {
-					const isRiderFrom = session.fromType === 2 && String(session.fromId) === String(currentRiderId);
-					const isRiderTo = session.toType === 2 && String(session.toId) === String(currentRiderId);
-					const isUserFrom = session.fromType === 1;
-					const isUserTo = session.toType === 1;
-					
-					// 正确的会话：(骑手→用�? �?(用户→骑�?
-					return (isRiderFrom && isUserTo) || (isUserFrom && isRiderTo);
-				});
 				
-				// 按对话双方合并：同一组用户的会话只保留最新的
-				const dialogMap = new Map();
-				validSessions.forEach(session => {
-					// 找出对方的ID（不管是fromId还是toId�?					let otherUserId;
-					if (session.fromType === 1) {
-						otherUserId = String(session.fromId);
-					} else if (session.toType === 1) {
-						otherUserId = String(session.toId);
-					}
-					
-					if (!otherUserId) {
-						return;
-					}
-					
-					// 使用对方ID�?5位作为key（同一个用户）
-					const dialogKey = otherUserId.substring(0, 15);
-					
-					// 如果已存在，比较时间，保留最新的
-					if (dialogMap.has(dialogKey)) {
-						const existing = dialogMap.get(dialogKey);
-						const existingTime = new Date(existing.lastMsgTime || 0);
-						const currentTime = new Date(session.lastMsgTime || 0);
+				if (response1.code === 200 && response1.data) {
+					allSessions = allSessions.concat(response1.data);
+				}
+				if (response2.code === 200 && response2.data) {
+					allSessions = allSessions.concat(response2.data);
+				}
+				
+				if (allSessions.length > 0) {
+					// 筛选正确的会话：骑手作为其中一方，用户作为另一方
+					const validSessions = allSessions.filter(session => {
+						const isRiderFrom = session.fromType === 2 && String(session.fromId) === String(currentRiderId);
+						const isRiderTo = session.toType === 2 && String(session.toId) === String(currentRiderId);
+						const isUserFrom = session.fromType === 1;
+						const isUserTo = session.toType === 1;
 						
-						if (currentTime > existingTime) {
+						// 正确的会话：(骑手→用户) 或 (用户→骑手)
+						return (isRiderFrom && isUserTo) || (isUserFrom && isRiderTo);
+					});
+					
+					// 按对话双方合并：同一组用户的会话只保留最新的
+					const dialogMap = new Map();
+					validSessions.forEach(session => {
+						// 找出对方的ID（不管是fromId还是toId）
+						let otherUserId;
+						if (session.fromType === 1) {
+							otherUserId = String(session.fromId);
+						} else if (session.toType === 1) {
+							otherUserId = String(session.toId);
+						}
+						
+						if (!otherUserId) {
+							return;
+						}
+						
+						// 使用对方ID前15位作为key（同一个用户）
+						const dialogKey = otherUserId.substring(0, 15);
+						
+						// 如果已存在，比较时间，保留最新的
+						if (dialogMap.has(dialogKey)) {
+							const existing = dialogMap.get(dialogKey);
+							const existingTime = new Date(existing.lastMsgTime || 0);
+							const currentTime = new Date(session.lastMsgTime || 0);
+							
+							if (currentTime > existingTime) {
+								session.sessionId = String(session.sessionId || '');
+								session.fromId = String(session.fromId || '');
+								session.toId = String(session.toId || '');
+								dialogMap.set(dialogKey, session);
+							}
+						} else {
 							session.sessionId = String(session.sessionId || '');
 							session.fromId = String(session.fromId || '');
 							session.toId = String(session.toId || '');
 							dialogMap.set(dialogKey, session);
 						}
-					} else {
-						session.sessionId = String(session.sessionId || '');
-						session.fromId = String(session.fromId || '');
-						session.toId = String(session.toId || '');
-						dialogMap.set(dialogKey, session);
-					}
-				});
-				
-				this.sessions = Array.from(dialogMap.values())
-					.sort((a, b) => new Date(b.lastMsgTime) - new Date(a.lastMsgTime));
-			} else {
-				this.sessions = [];
+					});
+					
+					this.sessions = Array.from(dialogMap.values())
+						.sort((a, b) => new Date(b.lastMsgTime) - new Date(a.lastMsgTime));
+				} else {
+					this.sessions = [];
+				}
+			} catch (error) {
+				console.error('加载会话失败:', error);
+			} finally {
+				this.loading = false;
 			}
-		} catch (error) {
-			console.error('加载会话失败:', error);
-		} finally {
-			this.loading = false;
-		}
 		},
 		
 		// 打开聊天
@@ -301,7 +305,8 @@ export default {
 				}
 			}
 			
-			// 跳转到聊天页�?			const params = {
+			// 跳转到聊天页面
+			const params = {
 				sessionId: String(item.sessionId),
 				fromType: String(item.fromType),
 				fromId: String(item.fromId),
@@ -318,86 +323,93 @@ export default {
 				url: `/pages/message/chat?${queryString}`
 			});
 		},
-			formatTime(time) {
-				const now = new Date();
-				const msgTime = new Date(time);
-				const diff = now - msgTime;
-				
-				const minutes = Math.floor(diff / (1000 * 60));
-				const hours = Math.floor(diff / (1000 * 60 * 60));
-				const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-				
-				if (minutes < 60) {
-					return minutes <= 1 ? '刚刚' : `${minutes}分钟前`;
-				} else if (hours < 24) {
-					return `${hours}小时前`;
-				} else if (days < 7) {
-					return `${days}天前`;
-				} else {
-					return msgTime.toLocaleDateString();
-				}
-			},
+		
+		formatTime(time) {
+			const now = new Date();
+			const msgTime = new Date(time);
+			const diff = now - msgTime;
 			
-			viewMessage(message) {
-				// 标记为已�?				message.isRead = true;
-				
-				// 跳转到消息详情页�?				uni.navigateTo({
-					url: `/pages/message/message-detail?id=${message.id}&type=${message.type}`
-				});
-			},
+			const minutes = Math.floor(diff / (1000 * 60));
+			const hours = Math.floor(diff / (1000 * 60 * 60));
+			const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 			
-			openCustomerService() {
-				// 标记客服消息为已�?				this.hasUnreadService = false;
-				
-				// 跳转到客服聊天页�?				uni.navigateTo({
-					url: '/pages/message/customer-service'
-				});
-			},
-			
-			switchTab(tab) {
-				this.activeTab = tab;
-			},
-			
-			viewGroupChat(orderGroup) {
-				// 标记订单群聊为已�?				orderGroup.isRead = true;
-				orderGroup.unreadCount = 0;
-				
-				// 跳转到订单群聊页面（暂时显示提示�?				uni.showToast({
-					title: `订单${orderGroup.orderId}群聊功能开发中`,
-					icon: 'none'
-				});
-			},
-			
-			clearAllMessages() {
-				const tabName = this.activeTab === 'all' ? '所有消�? : 
-							this.activeTab === 'group' ? '群聊消息' : '系统通知';
-							
-				uni.showModal({
-					title: '清空消息',
-					content: `确定要清�?{tabName}吗？此操作不可恢复。`,
-					confirmColor: '#ff4d4f',
-					success: (res) => {
-						if (res.confirm) {
-							if (this.activeTab === 'all') {
-								this.systemMessages = [];
-								this.announcements = [];
-							} else if (this.activeTab === 'group') {
-								this.orderGroupChats = [];
-							} else if (this.activeTab === 'system') {
-								this.systemMessages = [];
-								this.announcements = [];
-							}
-							
-							uni.showToast({
-								title: `已清�?{tabName}`,
-								icon: 'success'
-							});
-						}
-					}
-				});
+			if (minutes < 60) {
+				return minutes <= 1 ? '刚刚' : `${minutes}分钟前`;
+			} else if (hours < 24) {
+				return `${hours}小时前`;
+			} else if (days < 7) {
+				return `${days}天前`;
+			} else {
+				return msgTime.toLocaleDateString();
 			}
+		},
+		
+		viewMessage(message) {
+			// 标记为已读
+			message.isRead = true;
+			
+			// 跳转到消息详情页面
+			uni.navigateTo({
+				url: `/pages/message/message-detail?id=${message.id}&type=${message.type}`
+			});
+		},
+		
+		openCustomerService() {
+			// 标记客服消息为已读
+			this.hasUnreadService = false;
+			
+			// 跳转到客服聊天页面
+			uni.navigateTo({
+				url: '/pages/message/customer-service'
+			});
+		},
+		
+		switchTab(tab) {
+			this.activeTab = tab;
+		},
+		
+		viewGroupChat(orderGroup) {
+			// 标记订单群聊为已读
+			orderGroup.isRead = true;
+			orderGroup.unreadCount = 0;
+			
+			// 跳转到订单群聊页面（暂时显示提示）
+			uni.showToast({
+				title: `订单${orderGroup.orderId}群聊功能开发中`,
+				icon: 'none'
+			});
+		},
+			
+		clearAllMessages() {
+			const tabName = this.activeTab === 'all' ? '所有消息' : 
+						this.activeTab === 'group' ? '群聊消息' : '系统通知';
+						
+			uni.showModal({
+				title: '清空消息',
+				content: `确定要清空${tabName}吗？此操作不可恢复。`,
+				confirmColor: '#ff4d4f',
+				success: (res) => {
+					if (res.confirm) {
+						if (this.activeTab === 'all') {
+							this.systemMessages = [];
+							this.announcements = [];
+						} else if (this.activeTab === 'group') {
+							this.orderGroupChats = [];
+						} else if (this.activeTab === 'system') {
+							this.systemMessages = [];
+							this.announcements = [];
+						}
+						
+						uni.showToast({
+							title: `已清空${tabName}`,
+							icon: 'success'
+						});
+					}
+				}
+			});
 		}
 	}
+}
 </script>
 
 <style scoped>
@@ -408,7 +420,7 @@ export default {
 		padding-bottom: 120rpx;
 	}
 
-	/* 导航�?*/
+	/* 导航栏 */
 	.nav-bar {
 		position: fixed;
 		top: 0;
@@ -441,7 +453,7 @@ export default {
 		padding: 8rpx 16rpx;
 	}
 
-	/* 标签页导�?*/
+	/* 标签页导航 */
 	.tab-bar {
 		display: flex;
 		background-color: #ffffff;
@@ -639,7 +651,7 @@ export default {
 		flex-shrink: 0;
 	}
 
-	/* 空状�?*/
+	/* 空状态 */
 	.empty-state {
 		display: flex;
 		flex-direction: column;
