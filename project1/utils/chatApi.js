@@ -137,10 +137,12 @@ export const deleteChatBatch = (sessionIds) => {
   return chatRequest(`${baseUrl}/platform/chat/session/${idsString}`, { method: 'DELETE' });
 };
 
-export const markChatRead = (sessionId) => chatRequest(`${baseUrl}/platform/chat/session/readUnreadCount`, {
-  method: 'POST',
-  data: { sessionId }
-});
+export const markChatRead = (sessionId) => {
+  console.log('markChatRead发送请求，sessionId:', sessionId);
+  return chatRequest(`${baseUrl}/platform/chat/session/readUnreadCount?sessionId=${sessionId}`, {
+    method: 'POST'
+  });
+};
 
 export const getUnreadCount = (fromType, fromId) => {
   if (!fromType || !fromId) {
