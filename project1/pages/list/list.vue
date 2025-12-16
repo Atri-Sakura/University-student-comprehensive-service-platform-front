@@ -70,7 +70,7 @@
             <view v-if="item.status === '骑手待接单' || item.status === '骑手待取货'" class="action-group">
               <button class="action-btn detail" @click="viewOrderDetail(item)">查看详情</button>
               <button class="action-btn contact customer" @click="contactCustomer(item)">联系客户</button>
-              <button class="action-btn notify" @click="notifyRider(item)">通知骑手取餐</button>
+              <button class="action-btn notify" @click="notifyRider(item)">联系骑手</button>
             </view>
             
             <!-- 骑手配送中状态 -->
@@ -268,6 +268,18 @@ export default {
     transformOrderData(backendOrders) {
         return backendOrders.map((order, index) => {
         
+        // 调试：打印骑手相关字段
+        console.log('订单骑手信息:', {
+          riderId: order.riderId,
+          rider_id: order.rider_id,
+          riderBaseId: order.riderBaseId,
+          rider_base_id: order.rider_base_id,
+          riderName: order.riderName,
+          rider_nickname: order.rider_nickname,
+          riderRealName: order.riderRealName,
+          rider_real_name: order.rider_real_name
+        });
+        
         // 根据后端返回的订单状态进行完整映射
         // 1: 商家待接单；2: 骑手待接单；3: 骑手待取货；4: 骑手配送中；5: 已送达；6: 已取消
         const statusMap = {
@@ -336,6 +348,7 @@ export default {
           amount: amountDisplay,
           items: items,
           completeTime: order.completeTime,
+          riderId: order.riderId || order.rider_id || order.riderBaseId || order.rider_base_id,
           riderName: order.riderName,
           riderPhone: order.riderPhone,
           riderAcceptTime: order.riderAcceptTime,
@@ -456,68 +469,91 @@ export default {
     
 
     
-    // 通知骑手取餐
-    notifyRider(item) {
-      uni.showModal({
-        title: '通知骑手取餐',
-        content: '确定要通知骑手来取餐吗？',
-        success: async (res) => {
-          if (res.confirm) {
-            try {
-              // 使用orderMainId作为后端API的订单ID参数（保持字符串类型，避免大整数精度丢失）
-              const orderId = item.id // orderMainId已经被正确处理为字符串类型
-              try {
-                // 调用后端接口
-                const response = await request(merchantOrderAPI.notifyRider(orderId), {
-                  method: 'PUT'
-                })
-                
-                // 适配后端AjaxResult格式
-                if (response.statusCode === 200) {
-                  // 后端返回的是AjaxResult对象，检查code字段
-                  if (response.data && (response.data.code === 200 || response.data.code === 1)) {
-                    // 更新订单状态和骑手信息
-                    item.status = '骑手配送中'
-                    item.riderName = response.data.data?.riderName || item.riderName
-                    item.riderPhone = response.data.data?.riderPhone || item.riderPhone
-                    item.riderAcceptTime = response.data.data?.riderAcceptTime || new Date().toLocaleString('zh-CN')
-                    this.updateOrderCount()
-                    uni.showToast({
-                      title: '骑手已接单',
-                      icon: 'success'
-                    })
-                  } else {
-                    uni.showToast({
-                      title: (response.data && response.data.msg) || '通知骑手失败',
-                      icon: 'none'
-                    })
-                  }
-                } else {
-                  // 即使后端接口返回非200状态码，也保留前端功能，提供友好提示
-                  console.warn('通知骑手接口返回非200状态码，但保留前端功能', response.statusCode)
-                  uni.showToast({
-                    title: '通知已发送，请稍后刷新查看',
-                    icon: 'none'
-                  })
-                }
-              } catch (error) {
-                // 捕获所有异常，确保前端功能不会崩溃
-                console.warn('通知骑手接口调用异常，但保留前端功能', error)
-                uni.showToast({
-                  title: '通知已发送，请稍后刷新查看',
-                  icon: 'none'
-                })
-              }
-            } catch (error) {
-              console.error('通知骑手失败:', error)
-              uni.showToast({
-                title: '网络错误，请重试',
-                icon: 'none'
-              })
+    // 联系骑手（创建聊天会话）
+    async notifyRider(item) {
+      if (!item.riderId) {
+        uni.showToast({
+          title: '暂无骑手信息',
+          icon: 'none'
+        });
+        return;
+      }
+
+      uni.showLoading({
+        title: '正在打开聊天...'
+      });
+
+      try {
+        const merchantInfo = uni.getStorageSync('merchantInfo');
+        if (!merchantInfo || !merchantInfo.merchantBaseId) {
+          throw new Error('商家信息获取失败');
+        }
+
+        // 查询是否已有会话
+        const sessionRes = await request(
+          `http://localhost:8080/platform/chat/session/list`,
+          {
+            method: 'GET',
+            data: {
+              fromType: 3,
+              fromId: merchantInfo.merchantBaseId,
+              toType: 2,
+              toId: item.riderId
             }
           }
+        );
+
+        let sessionId = null;
+        if (sessionRes && sessionRes.statusCode === 200 && sessionRes.data) {
+          const sessions = sessionRes.data.data || sessionRes.data.rows || [];
+          if (sessions.length > 0) {
+            sessionId = sessions[0].sessionId;
+          }
         }
-      })
+
+        // 如果没有会话则创建新会话
+        if (!sessionId) {
+          const createRes = await request(
+            `http://localhost:8080/platform/chat/session`,
+            {
+              method: 'POST',
+              data: {
+                fromType: 3,
+                fromId: String(merchantInfo.merchantBaseId),
+                toType: 2,
+                toId: String(item.riderId),
+                sessionStatus: 1
+              }
+            }
+          );
+          console.log('创建骑手会话响应:', createRes);
+          if (createRes && createRes.statusCode === 200 && createRes.data) {
+            sessionId = createRes.data.data?.sessionId || createRes.data.data || createRes.data.sessionId;
+          }
+        }
+
+        uni.hideLoading();
+        console.log('骑手会话sessionId:', sessionId);
+
+        if (sessionId) {
+          uni.navigateTo({
+            url: `/pages/message/chat?sessionId=${sessionId}&fromType=3&fromId=${merchantInfo.merchantBaseId}&toType=2&toId=${item.riderId}&title=${encodeURIComponent(item.riderName || '骑手')}`
+          });
+        } else {
+          uni.showToast({
+            title: '无法创建会话',
+            icon: 'none'
+          });
+        }
+
+      } catch (error) {
+        uni.hideLoading();
+        console.error('创建骑手会话失败:', error);
+        uni.showToast({
+          title: error.message || '打开聊天失败',
+          icon: 'none'
+        });
+      }
     },
     
     // 更新订单数量统计
