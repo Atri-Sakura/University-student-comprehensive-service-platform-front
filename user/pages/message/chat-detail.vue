@@ -308,10 +308,18 @@ export default {
     async loadMessages() {
       if (!this.chatInfo.sessionId) return;
       
+      // 确保sessionId是有效的值（不是对象）
+      let sessionId = this.chatInfo.sessionId;
+      if (typeof sessionId === 'object' && sessionId !== null) {
+        sessionId = sessionId.sessionId || sessionId.id;
+        // 同时更新chatInfo中的sessionId
+        this.chatInfo.sessionId = sessionId;
+      }
+      
       this.loading = true;
       try {
         const response = await getMessageList({
-          sessionId: this.chatInfo.sessionId,
+          sessionId: sessionId,
           pageSize: 100
         });
         
@@ -453,9 +461,15 @@ export default {
       });
       
       try {
+        // 确保sessionId是有效的值（不是对象）
+        let sessionId = this.chatInfo.sessionId;
+        if (typeof sessionId === 'object' && sessionId !== null) {
+          sessionId = sessionId.sessionId || sessionId.id;
+        }
+        
         // 准备发送的消息数据
         const messageData = {
-          sessionId: this.chatInfo.sessionId,
+          sessionId: String(sessionId),
           fromType: this.chatInfo.fromType || USER_TYPE.USER,
           fromId: String(this.currentUser.id), // 确保转换为字符串
           toType: this.chatInfo.toType || USER_TYPE.RIDER,
@@ -464,21 +478,8 @@ export default {
           msgContent: messageContent
         };
         
-        // 1. 先通过HTTP API保存到数据库
+        // 通过HTTP API保存到数据库（不再通过WebSocket发送，避免重复保存）
         const response = await addMessage(messageData);
-        
-        // 2. 保存成功后，通过WebSocket实时推送给对方（不重复保存）
-        if (response.code === 200 && this.wsConnected && wsManager.getStatus().isConnected) {
-          try {
-            // WebSocket只用于实时通知，消息已通过HTTP保存
-            wsManager.sendTextMessage({
-              ...messageData,
-              messageId: response.data.messageId // 带上消息ID
-            });
-          } catch (error) {
-            console.error('WebSocket推送失败:', error);
-          }
-        }
         
         if (response.code === 200) {
           // 发送成功，更新本地消息
@@ -626,7 +627,14 @@ export default {
     
     // 获取传递的参数
     if (options.sessionId) {
-      this.chatInfo.sessionId = options.sessionId;
+      // 确保sessionId不是对象字符串
+      let sid = options.sessionId;
+      if (sid === '[object Object]' || sid === '[objectObject]') {
+        console.error('sessionId参数无效:', sid);
+        uni.showToast({ title: '会话参数错误', icon: 'none' });
+        return;
+      }
+      this.chatInfo.sessionId = sid;
     }
     if (options.chatId) {
       this.chatInfo.id = options.chatId;
@@ -657,7 +665,8 @@ export default {
           toId: this.chatInfo.toId || '1002'
         });
         
-        this.chatInfo.sessionId = session.sessionId;
+        // 确保获取正确的sessionId（可能是对象或直接是ID）
+        this.chatInfo.sessionId = typeof session === 'object' ? (session.sessionId || session.id) : session;
       } catch (error) {
         console.error('创建会话失败:', error);
         uni.showToast({
