@@ -20,6 +20,10 @@ import http from './request.js';
  * @param {String} data.remark - 订单备注
  * @param {String} data.expectTime - 预期送达时间（格式：yyyy-MM-dd HH:mm:ss）
  * @param {String} data.goodsDesc - 商品描述
+ * @param {String} data.pickProvince - 取货省份
+ * @param {String} data.pickCity - 取货城市
+ * @param {String} data.pickDistrict - 取货区/县
+ * @param {String} data.pickDetailAddress - 取货详细地址
  */
 export function createErrandPrepay(data) {
   return http.post('/user/errandOrder/prepay', data);
