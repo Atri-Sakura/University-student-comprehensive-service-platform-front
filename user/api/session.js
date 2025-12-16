@@ -170,6 +170,7 @@ export const markSessionAsRead = (sessionId) => {
 /**
  * 获取或创建会话
  * @param {Object} params 会话参数
+ * @returns {Object} 返回会话对象，确保包含sessionId字段
  */
 export const getOrCreateSession = async (params) => {
   try {
@@ -183,12 +184,22 @@ export const getOrCreateSession = async (params) => {
     })
     
     if (sessions.data && sessions.data.length > 0) {
-      // 找到现有会话
-      return sessions.data[0]
+      // 找到现有会话，确保返回的对象有sessionId
+      const session = sessions.data[0]
+      console.log('找到现有会话:', session)
+      return session
     } else {
       // 创建新会话
       const newSession = await addSession(params)
-      return newSession.data
+      console.log('创建新会话响应:', newSession)
+      // newSession.data 可能是会话对象或直接是sessionId
+      const sessionData = newSession.data
+      if (typeof sessionData === 'object') {
+        return sessionData
+      } else {
+        // 如果返回的是sessionId，构造一个包含sessionId的对象
+        return { sessionId: sessionData }
+      }
     }
   } catch (error) {
     console.error('获取或创建会话失败:', error)
