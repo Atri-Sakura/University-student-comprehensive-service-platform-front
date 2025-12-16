@@ -13,7 +13,7 @@
     </view>
     
     <scroll-view scroll-y class="list-container">
-      <view class="audit-card" v-for="item in filteredList" :key="item.merchantId">
+      <view class="audit-card" v-for="item in filteredList" :key="item.merchantBaseId">
         <view class="card-header">
           <view class="company-info">
             <text class="company-name">{{ item.shopName || item.merchantName || '未设置店铺名' }}</text>
@@ -154,13 +154,18 @@ export default {
     },
     
     handleAudit(item, status) {
+      const merchantId = item.merchantBaseId
+      if (!merchantId) {
+        uni.showToast({ title: '商家ID不存在', icon: 'none' })
+        return
+      }
       const statusText = status === 1 ? '通过' : '拒绝'
       uni.showModal({
         title: '确认操作',
         content: `确定${statusText}该商家的营业执照审核？`,
         success: (res) => {
           if (res.confirm) {
-            this.submitAudit(item.merchantId, status)
+            this.submitAudit(merchantId, status)
           }
         }
       })
