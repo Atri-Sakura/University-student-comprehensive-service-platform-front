@@ -118,6 +118,7 @@
 <script>
 import CustomTabbar from '@/components/custom-tabbar/custom-tabbar.vue';
 import { getSessionList, getUnreadSessions, markSessionAsRead, USER_TYPE } from '@/api/session.js';
+import { getMessagesFromTo } from '@/api/chat.js';
 import { getUserInfo } from '@/api/user.js';
 
 export default {
@@ -156,7 +157,9 @@ export default {
           status: '已完成',
           statusClass: 'status-completed'
         }
-      ]
+      ],
+      pollingTimer: null, // 轮询定时器
+      pollingInterval: 5000 // 轮询间隔（5秒）
     };
   },
   computed: {
@@ -291,10 +294,14 @@ export default {
           
           const uniqueSessions = Array.from(sessionMap.values());
           
-          // 格式化并排序（按最后消息时间倒序）
-          this.chatList = uniqueSessions
-            .map(session => this.formatSessionToChat(session, currentUserId))
-            .sort((a, b) => b.lastTime - a.lastTime);
+          // 格式化会话列表
+          let chatList = uniqueSessions.map(session => this.formatSessionToChat(session, currentUserId));
+          
+          // 为每个会话获取最新消息（解决双向会话lastMsgContent不同步问题）
+          await this.fetchLatestMessagesForChats(chatList, currentUserId);
+          
+          // 排序（按最后消息时间倒序）
+          this.chatList = chatList.sort((a, b) => b.lastTime - a.lastTime);
           
           this.updateTabCount();
         } else {
@@ -313,6 +320,50 @@ export default {
       }
     },
 
+    // 为会话列表获取最新消息
+    async fetchLatestMessagesForChats(chatList, currentUserId) {
+      const promises = chatList.map(async (chat) => {
+        // 如果会话已有最新消息内容，跳过
+        if (chat.lastMessage && chat.lastMessage !== '暂无消息') {
+          return;
+        }
+        
+        try {
+          // 使用 getMessagesFromTo 获取与对方的消息
+          const response = await getMessagesFromTo({
+            fromType: USER_TYPE.USER,
+            fromId: currentUserId,
+            toType: chat.otherType,
+            toId: chat.otherId
+          });
+          
+          if (response.code === 200 && response.data && response.data.length > 0) {
+            // 按时间排序，获取最新消息
+            const sortedMessages = [...response.data].sort((a, b) => {
+              const timeA = new Date(a.createTime || a.sendTime || 0).getTime();
+              const timeB = new Date(b.createTime || b.sendTime || 0).getTime();
+              return timeB - timeA; // 降序，最新的在前
+            });
+            
+            const latestMsg = sortedMessages[0];
+            chat.lastMessage = latestMsg.msgContent || '暂无消息';
+            chat.lastTime = new Date(latestMsg.createTime || latestMsg.sendTime || Date.now()).getTime();
+            
+            // 计算未读数（对方发给我的未读消息）
+            const unreadMessages = response.data.filter(msg => 
+              String(msg.fromId) !== String(currentUserId) && 
+              msg.msgStatus !== 2 // 2 = 已读
+            );
+            chat.unread = unreadMessages.length;
+          }
+        } catch (error) {
+          console.error('获取会话最新消息失败:', chat.sessionId, error);
+        }
+      });
+      
+      await Promise.all(promises);
+    },
+    
     // 格式化会话数据为聊天列表格式
     formatSessionToChat(session, currentUserId) {
       // 验证sessionId
@@ -362,6 +413,14 @@ export default {
       } else {
         console.warn('[formatSessionToChat] 未知用户类型:', otherTypeNum, '原始值:', otherType, 'session:', session);
       }
+      
+      // 调试日志
+      console.log('[formatSessionToChat] session详情:', {
+        sessionId: session.sessionId,
+        lastMsgContent: session.lastMsgContent,
+        lastMsgTime: session.lastMsgTime,
+        unreadCount: session.unreadCount
+      });
       
       const formattedChat = {
         id: session.sessionId,
@@ -593,6 +652,108 @@ export default {
       }
     },
     
+    // 开始轮询
+    startPolling() {
+      this.stopPolling();
+      console.log('🔄 消息列表启动轮询，间隔:', this.pollingInterval, 'ms');
+      this.pollingTimer = setInterval(async () => {
+        if (this.currentUser && this.currentTab === 0) {
+          await this.pollChatSessions();
+        }
+      }, this.pollingInterval);
+    },
+    
+    // 停止轮询
+    stopPolling() {
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer);
+        this.pollingTimer = null;
+      }
+    },
+    
+    // 轮询获取会话列表更新
+    async pollChatSessions() {
+      if (!this.currentUser) return;
+      
+      try {
+        const userId = this.currentUser.id || this.currentUser.userId || this.currentUser.userBaseId;
+        if (!userId) return;
+        
+        const params1 = {
+          fromType: USER_TYPE.USER,
+          fromId: userId,
+          sessionStatus: 1,
+          pageSize: 50
+        };
+        
+        const params2 = {
+          toType: USER_TYPE.USER,
+          toId: userId,
+          sessionStatus: 1,
+          pageSize: 50
+        };
+        
+        const [response1, response2] = await Promise.all([
+          getSessionList(params1),
+          getSessionList(params2)
+        ]);
+        
+        let allSessions = [];
+        if (response1.code === 200 && response1.data) {
+          allSessions = allSessions.concat(response1.data);
+        }
+        if (response2.code === 200 && response2.data) {
+          allSessions = allSessions.concat(response2.data);
+        }
+        
+        if (allSessions.length > 0) {
+          const sessionMap = new Map();
+          allSessions.forEach(session => {
+            if (!sessionMap.has(session.sessionId)) {
+              sessionMap.set(session.sessionId, session);
+            }
+          });
+          
+          const uniqueSessions = Array.from(sessionMap.values());
+          let newChatList = uniqueSessions
+            .map(session => this.formatSessionToChat(session, userId));
+          
+          // 获取最新消息
+          await this.fetchLatestMessagesForChats(newChatList, userId);
+          
+          // 排序
+          newChatList = newChatList.sort((a, b) => b.lastTime - a.lastTime);
+          
+          // 检查是否有变化（新消息或未读数变化）
+          const hasChanges = this.checkForChanges(newChatList);
+          if (hasChanges) {
+            console.log('📩 消息列表有更新');
+            this.chatList = newChatList;
+            this.updateTabCount();
+          }
+        }
+      } catch (error) {
+        console.error('轮询会话列表失败:', error);
+      }
+    },
+    
+    // 检查会话列表是否有变化
+    checkForChanges(newChatList) {
+      if (this.chatList.length !== newChatList.length) return true;
+      
+      for (let i = 0; i < newChatList.length; i++) {
+        const newChat = newChatList[i];
+        const oldChat = this.chatList.find(c => String(c.sessionId) === String(newChat.sessionId));
+        
+        if (!oldChat) return true;
+        if (oldChat.lastMessage !== newChat.lastMessage) return true;
+        if (oldChat.lastTime !== newChat.lastTime) return true;
+        if (oldChat.unread !== newChat.unread) return true;
+      }
+      
+      return false;
+    },
+    
     // 初始化通知数据
     initNotifications() {
       const now = Date.now();
@@ -648,6 +809,8 @@ export default {
     this.restoreReadNotifications();
     // 更新未读消息数量
     this.updateTabCount();
+    // 启动轮询
+    this.startPolling();
   },
   
   onShow() {
@@ -697,6 +860,21 @@ export default {
         });
       }, 300);
     }
+    
+    // 恢复轮询
+    if (!this.pollingTimer) {
+      this.startPolling();
+    }
+  },
+  
+  onHide() {
+    // 页面隐藏时停止轮询
+    this.stopPolling();
+  },
+  
+  onUnload() {
+    // 页面卸载时停止轮询
+    this.stopPolling();
   }
 };
 </script>
