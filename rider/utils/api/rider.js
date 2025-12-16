@@ -37,40 +37,100 @@ export async function getRiderFullInfo() {
 
 /**
  * 修改骑手基本信息
+ * 后端使用 @RequestParam 接收参数，需要发送表单格式数据
  * @param {Object} data 修改数据
  * @param {String} data.nickname 昵称（可选）
  * @param {String} data.phone 手机号（可选）
- * @param {File} data.avatar 头像文件（可选）
+ * @param {String|File} data.avatar 头像文件路径或文件对象（可选）
  */
 export async function updateRiderBaseInfo(data) {
-	// 检查是否包含文件
-	const hasFile = data.avatar && (data.avatar instanceof File || typeof data.avatar === 'object');
+	// 检查是否包含头像（可能是文件路径字符串或文件对象）
+	const hasAvatar = data.avatar && (
+		typeof data.avatar === 'string' ||  // 文件路径
+		data.avatar instanceof File ||       // File 对象
+		typeof data.avatar === 'object'      // 其他对象类型
+	);
 	
-	// 如果有文件，使用FormData
-	if (hasFile) {
-		const formData = new FormData();
-		if (data.nickname) formData.append('nickname', data.nickname);
-		if (data.phone) formData.append('phone', data.phone);
-		if (data.avatar) formData.append('avatar', data.avatar);
-		
-		return request({
-			url: RIDER_API.BASE_UPDATE,
-			method: 'POST',
-			data: formData,
-			headers: {
-				'Content-Type': 'multipart/form-data'
-			}
+	// 获取token
+	const token = uni.getStorageSync('token');
+	const fullUrl = `${API_BASE_URL}${RIDER_API.BASE_UPDATE}`;
+	
+	return new Promise((resolve, reject) => {
+		uni.showLoading({
+			title: '加载中...',
+			mask: true
 		});
-	}
-	
-	// 如果没有文件，使用表单格式发送
-	// request.js会自动将对象转换为URL编码格式
-	return request({
-		url: RIDER_API.BASE_UPDATE,
-		method: 'POST',
-		data: data,
-		headers: {
-			'Content-Type': 'application/x-www-form-urlencoded'
+		
+		if (hasAvatar) {
+			// 如果有头像，使用 uni.uploadFile 上传
+			const formData = {};
+			if (data.nickname) formData.nickname = data.nickname;
+			if (data.phone) formData.phone = data.phone;
+			
+			// 获取文件路径：如果是字符串直接使用，如果是对象则取 path 属性
+			const filePath = typeof data.avatar === 'string' ? data.avatar : (data.avatar.path || data.avatar);
+			
+			uni.uploadFile({
+				url: fullUrl,
+				filePath: filePath,
+				name: 'avatar',
+				formData: formData,
+				header: {
+					'Authorization': token ? `Bearer ${token}` : ''
+				},
+				success: (res) => {
+					uni.hideLoading();
+					try {
+						const result = JSON.parse(res.data);
+						if (result.code === 200) {
+							resolve(result);
+						} else {
+							reject(new Error(result.msg || '修改失败'));
+						}
+					} catch (e) {
+						reject(new Error('响应解析失败'));
+					}
+				},
+				fail: (error) => {
+					uni.hideLoading();
+					reject(error);
+				}
+			});
+		} else {
+			// 没有头像时，使用 uni.request 发送表单格式数据
+			// 后端使用 @RequestParam，需要发送 application/x-www-form-urlencoded 格式
+			uni.request({
+				url: fullUrl,
+				method: 'POST',
+				data: data,  // uni.request 会自动将对象转换为表单格式
+				header: {
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'Authorization': token ? `Bearer ${token}` : ''
+				},
+				success: (res) => {
+					uni.hideLoading();
+					if (res.data.code === 200) {
+						resolve(res.data);
+					} else if (res.data.code === 401) {
+						// token过期
+						uni.removeStorageSync('token');
+						uni.showToast({
+							title: '登录已过期，请重新登录',
+							icon: 'none'
+						});
+						setTimeout(() => {
+							uni.redirectTo({ url: '/pages/login/login' });
+						}, 1500);
+						reject(new Error('登录已过期'));
+					} else {
+						reject(new Error(res.data.msg || '修改失败'));
+					}
+				},
+				fail: (error) => {
+					uni.hideLoading();
+					reject(error);
+				}
+			});
 		}
 	});
 }

@@ -51,7 +51,7 @@
 </template>
 
 <script>
-	import { getRiderBaseInfo } from '@/utils/api/index.js';
+	import { getRiderBaseInfo, getRiderFullInfo } from '@/utils/api/index.js';
 	import { logout } from '@/utils/api/auth.js';
 	
 	export default {
@@ -63,7 +63,8 @@
 					nickname: '未设置',
 					phone: '未设置',
 					riderId: '--',
-					auditStatus: 'pending'
+					auditStatus: null,
+					idCard: ''
 				},
 				userInfo: {
 					avatar: '/static/logo.png',
@@ -71,7 +72,8 @@
 					nickname: '未设置',
 					phone: '未设置',
 					riderId: '--',
-					auditStatus: 'pending' // 'pending', 'passed', 'failed'
+					auditStatus: null,
+					idCard: ''
 				},
 				loading: false
 			}
@@ -91,14 +93,28 @@
 				return phone || '未设置';
 			},
 			certificationStatus() {
-			// 根据 accountStatus 判断认证状态，与资质认证页面保持一致
-			if (this.userInfo.accountStatus === 1) {
-				return { text: '已通过', class: 'certified' };
-			} else {
-				return { text: '待提交', class: 'not-certified' };
+				// 与资质认证页面保持一致的逻辑
+				// 1. 如果 idCard 为空，显示"待认证"
+				if (!this.userInfo.idCard || this.userInfo.idCard.trim() === '') {
+					return { text: '待认证', class: 'not-certified' };
+				}
+				
+				// 2. idCard 不为空，根据 auditStatus 判断
+				// auditStatus: 0-审核中, 1-已通过, 2-未通过
+				const auditStatus = this.userInfo.auditStatus;
+				switch (auditStatus) {
+					case 0:
+						return { text: '审核中', class: 'reviewing' };
+					case 1:
+						return { text: '已通过', class: 'certified' };
+					case 2:
+						return { text: '未通过', class: 'rejected' };
+					default:
+						// 有 idCard 但没有 auditStatus，说明已提交待审核
+						return { text: '审核中', class: 'reviewing' };
+				}
 			}
-		}
-	},
+		},
 	onLoad() {
 		this.refreshUserInfo();
 	},
@@ -112,21 +128,29 @@
 				
 				this.loading = true;
 				try {
-					const response = await getRiderBaseInfo();
+					// 同时获取基本信息和完整信息
+					const [baseResponse, fullResponse] = await Promise.all([
+						getRiderBaseInfo(),
+						getRiderFullInfo()
+					]);
 					
-					if (response.code === 200 && response.data) {
-						const data = response.data;
+					if (baseResponse.code === 200 && baseResponse.data) {
+						const baseData = baseResponse.data;
+						const fullData = fullResponse.code === 200 ? fullResponse.data : {};
 						
 						// 映射后端数据到前端字段
 						this.userInfo = {
-							avatar: data.avatar || this.defaultUserInfo.avatar,
-							name: data.realName || '未认证',
-							nickname: data.nickname || '未设置',
-							phone: data.phone || '未设置',
-							riderId: data.riderBaseId || '--',
-							accountStatus: data.accountStatus || 0,
-							creditScore: data.creditScore || 0,
-							createTime: data.createTime
+							avatar: baseData.avatar || this.defaultUserInfo.avatar,
+							name: baseData.realName || '未认证',
+							nickname: baseData.nickname || '未设置',
+							phone: baseData.phone || '未设置',
+							riderId: baseData.riderBaseId || '--',
+							accountStatus: baseData.accountStatus || 0,
+							creditScore: baseData.creditScore || 0,
+							createTime: baseData.createTime,
+							// 从完整信息中获取认证相关字段
+							idCard: fullData.idCard || '',
+							auditStatus: fullData.auditStatus
 						};
 						
 						// 同时保存到本地存储作为缓存
@@ -342,11 +366,19 @@
 	}
 	
 	.certification-badge.certified {
-		background-color: #007aff;
+		background-color: #52c41a;
 	}
 	
 	.certification-badge.not-certified {
-		background-color: #ff6400;
+		background-color: #999999;
+	}
+	
+	.certification-badge.reviewing {
+		background-color: #fa8c16;
+	}
+	
+	.certification-badge.rejected {
+		background-color: #ff4d4f;
 	}
 
 	/* 退出登录区域 */

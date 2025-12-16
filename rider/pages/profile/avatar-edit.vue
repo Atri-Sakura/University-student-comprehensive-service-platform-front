@@ -19,7 +19,7 @@
 </template>
 
 <script>
-	import { updateRiderBaseInfo } from '@/utils/profile-api.js';
+	import { updateRiderBaseInfo } from '@/utils/api/index.js';
 	
 	export default {
 		data() {
@@ -85,9 +85,9 @@
 				this.saving = true;
 				
 				try {
-					// 使用 API 上传头像
+					// 使用 API 上传头像，传递文件路径作为 avatar 参数
 					const response = await updateRiderBaseInfo({
-						avatarPath: this.selectedImagePath
+						avatar: this.selectedImagePath
 					});
 					
 					if (response.code === 200) {
@@ -133,7 +133,7 @@
 				} catch (error) {
 					console.error('上传头像失败:', error);
 					uni.showToast({
-						title: '上传失败，请重试',
+						title: error.message || '上传失败，请重试',
 						icon: 'none',
 						duration: 2000
 					});
