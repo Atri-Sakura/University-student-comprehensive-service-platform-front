@@ -347,6 +347,26 @@ export default {
         });
         return;
       }
+      
+      // 验证取货地址经纬度
+      if (!this.selectedPickupAddress.longitude || !this.selectedPickupAddress.latitude) {
+        uni.showToast({
+          title: '取货地址缺少位置信息，请重新选择',
+          icon: 'none',
+          duration: 2000
+        });
+        return;
+      }
+      
+      // 验证送货地址经纬度
+      if (!this.selectedDeliverAddress.longitude || !this.selectedDeliverAddress.latitude) {
+        uni.showToast({
+          title: '收货地址缺少位置信息，请重新选择',
+          icon: 'none',
+          duration: 2000
+        });
+        return;
+      }
 
       try {
         this.submitting = true;
@@ -372,6 +392,14 @@ export default {
           orderType: 2, // 订单类型：2-跑腿单
           senderId: 1, // 发送者ID（可以从用户信息获取，暂时写死）
           merchantName: this.selectedPickupAddress.receiverName || '取货点', // 商家名称（使用取货地址联系人）
+          // 取货地址信息
+          pickAddressId: pickupAddressId, // 取货地址ID
+          pickAddress: this.selectedPickupAddress.fullAddress, // 取货地址文本
+          pickContact: this.selectedPickupAddress.receiverName, // 取货联系人
+          pickPhone: this.selectedPickupAddress.receiverPhone, // 取货电话
+          pickLongitude: this.selectedPickupAddress.longitude || 0, // 取货经度
+          pickLatitude: this.selectedPickupAddress.latitude || 0, // 取货纬度
+          // 送货地址信息
           deliverAddressId: deliverAddressId, // 送货地址ID（必填）
           deliverAddress: this.selectedDeliverAddress.fullAddress, // 送货地址文本
           goodsPrice: goodsPrice, // 商品价格（取快递时为0）
