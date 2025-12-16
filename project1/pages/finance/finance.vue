@@ -26,37 +26,7 @@
         </view>
       </view>
       
-      <!-- 日期筛选 -->
-      <view class="date-filter">
-        <view class="filter-tabs">
-          <view class="filter-tab active">今日</view>
-        </view>
-        <text class="current-date">{{ displayDate }}</text>
-      </view>
-      
-      <!-- 收入列表 -->
-      <view class="income-list">
-        <view class="section-title">
-          <text class="title-text">收入明细</text>
-        </view>
-        <view class="order-item" v-for="(order, index) in orderList" :key="index">
-          <view class="order-header">
-            <text class="order-time">{{ order.time }}</text>
-            <text class="order-amount positive">+¥{{ order.amount }}</text>
-          </view>
-          <view class="order-info">
-            <text class="order-id">订单号: {{ order.orderId }}</text>
-            <text class="customer-name">{{ order.customerName }}</text>
-          </view>
-          <view class="order-details">
-            <text class="detail-text">商品金额: ¥{{ order.productAmount }} | {{ order.platformSubsidy ? '平台补贴: ¥' + order.platformSubsidy + ' | ' : '' }}实际收入: ¥{{ order.actualIncome }}</text>
-          </view>
-          <view class="order-details">
-            <text class="detail-text">分成: 平台服务费 ¥{{ order.platformFee }} | 配送费 ¥{{ order.deliveryFee }}</text>
-          </view>
-          <button class="view-detail-btn" @click="viewOrderDetail(order.orderId)">查看详情</button>
-        </view>
-      </view>
+  
       
       <!-- 提现管理 -->
     <view class="withdrawal-section">
@@ -99,7 +69,7 @@ export default {
       },
 
       displayDate: new Date().toISOString().split('T')[0],
-      orderList: [], // 初始化为空数组，由API动态填充
+
       withdrawalRecords: [
         {
           date: '2023-11-14',
@@ -117,7 +87,6 @@ export default {
   onLoad() {
     this.loadShopInfo();
     this.loadFinancialData();
-    this.loadOrderList();
     this.loadWithdrawalRecords();
   },
   methods: {
@@ -297,12 +266,6 @@ export default {
         icon: 'none'
       });
     },
-    viewOrderDetail(orderId) {
-      // 跳转到交易详情页面
-      uni.navigateTo({
-        url: `/pages/finance/order-detail?orderId=${orderId}`
-      });
-    },
     applyWithdrawal() {
       // 跳转到申请提现页面
       uni.navigateTo({
@@ -396,84 +359,7 @@ export default {
       });
     },
     
-    // 加载收入明细列表
-    loadOrderList() {
-      console.log('开始加载收入明细...');
-      // 根据当前选择的日期范围构建查询参数
-      const params = this.getDateRangeParams();
-      console.log('收入明细查询参数:', params);
-      
-      merchantFinanceApi.getWalletFlowListWithOrder(params).then(res => {
-        console.log('收入明细API响应:', res);
-        
-        // 检查响应格式 - 该接口返回 { code: 200, rows: [...], total: 0 }
-        if (res && res.data && res.data.code === 200) {
-          // 优先从rows获取，该接口返回的是rows而不是data
-          const flowData = res.data.rows || res.data.data || [];
-          console.log('收入明细数据:', flowData);
-          
-          // 转换收入明细格式为页面需要的格式
-          const formattedOrders = flowData.map(flow => {
-            console.log('处理单条流水记录:', flow);
-            // 提取订单信息
-            const orderInfo = flow.orderInfo || {};
-            return {
-              time: this.formatDateTime(flow.createTime || ''),
-              amount: flow.amount || '0.00',
-              orderId: flow.orderNo || orderInfo.orderNo || '',
-              customerName: orderInfo.customerName || '',
-              productAmount: orderInfo.totalAmount || '0.00',
-              platformSubsidy: orderInfo.platformSubsidy || '0.00',
-              actualIncome: flow.amount || '0.00',
-              platformFee: orderInfo.platformFee || '0.00',
-              deliveryFee: orderInfo.deliveryFee || '0.00'
-            };
-          });
-          
-          console.log('格式化后的收入明细:', formattedOrders);
-          this.orderList = formattedOrders;
-        } else {
-          console.error('获取收入明细失败:', res);
-          uni.showToast({
-            title: '获取收入明细失败',
-            icon: 'none'
-          });
-        }
-      }).catch(err => {
-        console.error('获取收入明细异常:', err);
-        uni.showToast({
-          title: '网络异常，请重试',
-          icon: 'none'
-        });
-      });
-    },
-    
-    // 获取今日日期范围参数
-    getDateRangeParams() {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      return {
-        startTime: today + ' 00:00:00',
-        endTime: today + ' 23:59:59'
-      };
-    },
-    
-    // 格式化日期时间
-    formatDateTime(dateString) {
-      if (!dateString) return '';
-      try {
-        const date = new Date(dateString);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day} ${hours}:${minutes}`;
-      } catch (error) {
-        console.error('日期时间格式化错误:', error);
-        return dateString;
-      }
-    },
+
     
     // 格式化日期
     formatDate(dateString) {
@@ -593,140 +479,7 @@ export default {
   color: #333;
 }
 
-/* 日期筛选 */
-.date-filter {
-  background: white;
-  border-radius: 16rpx;
-  padding: 24rpx 30rpx;
-  margin-bottom: 24rpx;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.filter-tabs {
-  display: flex;
-  gap: 30rpx;
-}
-
-.filter-tab {
-  font-size: 28rpx;
-  color: #999;
-  padding: 8rpx 0;
-  position: relative;
-}
-
-.filter-tab.active {
-  color: #4A90E2;
-  font-weight: bold;
-}
-
-.filter-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 4rpx;
-  background-color: #4A90E2;
-  border-radius: 2rpx;
-}
-
-.current-date {
-  font-size: 26rpx;
-  color: #999;
-}
-
-/* 收入列表 */
-.income-list {
-  background: white;
-  border-radius: 16rpx;
-  padding: 30rpx;
-  margin-bottom: 24rpx;
-}
-
-.section-title {
-  margin-bottom: 24rpx;
-}
-
-.title-text {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333;
-}
-
-.order-item {
-  padding: 24rpx 0;
-  border-bottom: 2rpx solid #f0f0f0;
-}
-
-.order-item:last-child {
-  border-bottom: none;
-}
-
-.order-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12rpx;
-}
-
-.order-time {
-  font-size: 28rpx;
-  color: #333;
-  font-weight: bold;
-}
-
-.order-amount {
-  font-size: 32rpx;
-  font-weight: bold;
-}
-
-.amount.positive {
-  color: #52c41a;
-}
-
-.amount.negative {
-  color: #ff4d4f;
-}
-
-.order-info {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8rpx;
-}
-
-.order-id {
-  font-size: 26rpx;
-  color: #666;
-}
-
-.customer-name {
-  font-size: 26rpx;
-  color: #666;
-}
-
-.order-details {
-  margin-bottom: 8rpx;
-}
-
-.detail-text {
-  font-size: 24rpx;
-  color: #999;
-}
-
-.view-detail-btn {
-  margin-top: 16rpx;
-  background: none;
-  border: 2rpx solid #4A90E2;
-  color: #4A90E2;
-  font-size: 24rpx;
-  padding: 8rpx 20rpx;
-  border-radius: 16rpx;
-  width: auto;
-  height: auto;
-  line-height: 1.5;
-}
+/* 收入明细模块已删除 */
 
 /* 提现管理 */
 .withdrawal-section {
