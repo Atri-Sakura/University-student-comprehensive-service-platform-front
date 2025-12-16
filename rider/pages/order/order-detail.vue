@@ -57,10 +57,6 @@
 						<text class="card-title">商家信息</text>
 						<view class="merchant-name">{{ orderInfo.merchant }}</view>
 					</view>
-					<button class="contact-btn" @tap="contactMerchant">
-						<text class="contact-icon">📞</text>
-						<text class="contact-text">联系</text>
-					</button>
 				</view>
 				
 				<view class="merchant-info">
