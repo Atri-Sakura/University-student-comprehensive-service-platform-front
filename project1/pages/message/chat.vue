@@ -120,7 +120,9 @@ export default {
       pageSize: 50,
       hasMore: true,
       loading: false,
-      handlePopState: null
+      handlePopState: null,
+      pollingTimer: null,
+      pollingInterval: 3000 // 轮询间隔3秒
     }
   },
   onLoad(options) {
@@ -138,11 +140,14 @@ export default {
     window.addEventListener('popstate', this.handlePopState);
     // #endif
 
+    console.log('chat.vue onLoad options:', options);
     if (options.sessionId) {
       this.sessionId = options.sessionId;
+      console.log('设置sessionId:', this.sessionId);
     }
     if (options.chatId) {
       this.chatId = options.chatId;
+      this.sessionId = this.sessionId || options.chatId;
     }
     if (options.title) {
       this.chatInfo.title = decodeURIComponent(options.title);
@@ -169,8 +174,10 @@ export default {
       this.markAsRead();
     }
     this.connectWebSocket();
+    this.startPolling();
   },
   onUnload() {
+    this.stopPolling();
     try {
       const index = wsManager.messageHandlers.indexOf(this.handleWebSocketMessage);
       if (index > -1) {
@@ -184,6 +191,12 @@ export default {
       window.removeEventListener('popstate', this.handlePopState);
     }
     // #endif
+  },
+  onHide() {
+    this.stopPolling();
+  },
+  onShow() {
+    this.startPolling();
   },
   onBackPress() {
     const pages = getCurrentPages();
@@ -421,11 +434,93 @@ export default {
     },
 
     async markAsRead() {
-      if (!this.sessionId) return;
+      console.log('markAsRead调用，sessionId:', this.sessionId);
+      if (!this.sessionId) {
+        console.warn('sessionId为空，跳过标记已读');
+        return;
+      }
       try {
         await markChatRead(this.sessionId);
       } catch (error) {
         console.error('标记已读失败:', error);
+      }
+    },
+
+    // 开始轮询
+    startPolling() {
+      if (this.pollingTimer) return;
+      console.log('开始消息轮询');
+      this.pollingTimer = setInterval(() => {
+        this.pollMessages();
+      }, this.pollingInterval);
+    },
+
+    // 停止轮询
+    stopPolling() {
+      if (this.pollingTimer) {
+        console.log('停止消息轮询');
+        clearInterval(this.pollingTimer);
+        this.pollingTimer = null;
+      }
+    },
+
+    // 轮询获取新消息
+    async pollMessages() {
+      if (!this.sessionId) return;
+      try {
+        const res = await getMessageList({
+          sessionId: this.sessionId,
+          pageNum: 1,
+          pageSize: 20
+        });
+        if (res.data && (res.data.code === 200 || res.data.code === 0)) {
+          const messages = res.data.data || res.data.rows || [];
+          const merchantInfo = uni.getStorageSync('merchantInfo') || {};
+          const merchantId = String(merchantInfo.merchantBaseId || merchantInfo.id || '');
+          
+          // 过滤新消息：排除已存在的消息（通过ID或内容匹配）
+          const newMessages = messages.filter(msg => {
+            const msgId = msg.messageId || msg.id;
+            const msgContent = msg.msgContent || msg.content;
+            // 检查ID是否已存在
+            const idExists = this.messageList.some(m => m.id && m.id === msgId);
+            // 检查内容是否已存在（用于匹配发送中的消息）
+            const contentExists = this.messageList.some(m => 
+              m.content === msgContent && m.isSelf && !m.id
+            );
+            return !idExists && !contentExists;
+          });
+          
+          if (newMessages.length > 0) {
+            // 只添加对方发送的新消息
+            const otherMessages = newMessages.filter(msg => {
+              const isSelf = String(msg.fromId) === merchantId && msg.fromType === 3;
+              return !isSelf;
+            });
+            
+            if (otherMessages.length > 0) {
+              console.log('轮询发现对方新消息:', otherMessages.length);
+              otherMessages.forEach(msg => {
+                this.messageList.push({
+                  id: msg.messageId || msg.id,
+                  type: 'normal',
+                  isSelf: false,
+                  avatar: '👤',
+                  content: msg.msgContent || msg.content,
+                  time: this.formatTime(new Date(msg.sendTime || msg.createTime)),
+                  showTime: false
+                });
+              });
+              
+              this.$nextTick(() => {
+                this.scrollToBottom();
+              });
+              this.markAsRead();
+            }
+          }
+        }
+      } catch (error) {
+        console.error('轮询消息失败:', error);
       }
     },
 
