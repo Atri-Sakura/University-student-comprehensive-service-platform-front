@@ -28,10 +28,28 @@
         <!-- 取货地址 -->
         <view class="form-item">
           <text class="form-label">取货地址</text>
-          <view class="form-input" @click="selectPickupAddress">
-            <text v-if="selectedPickupAddress" class="address-text">{{ selectedPickupAddress.fullAddress }}</text>
-            <text v-else class="placeholder-text">请选择取货地址</text>
-            <text class="arrow-icon">›</text>
+          <view class="form-input-group">
+            <view class="form-input">
+              <select v-model="form.pickProvince" @change="onProvinceChange">
+                <option value="">请选择省份</option>
+                <option v-for="province in provinces" :key="province.name" :value="province.name">{{ province.name }}</option>
+              </select>
+            </view>
+            <view class="form-input">
+              <select v-model="form.pickCity" @change="onCityChange">
+                <option value="">请选择城市</option>
+                <option v-for="city in cities" :key="city.name" :value="city.name">{{ city.name }}</option>
+              </select>
+            </view>
+            <view class="form-input">
+              <select v-model="form.pickDistrict">
+                <option value="">请选择区/县</option>
+                <option v-for="district in districts" :key="district" :value="district">{{ district }}</option>
+              </select>
+            </view>
+            <view class="form-input">
+              <input type="text" v-model="form.pickDetailAddress" placeholder="详细地址" />
+            </view>
           </view>
         </view>
 
@@ -104,6 +122,7 @@
 <script>
 import { createErrandPrepay } from '@/api/errand.js'
 import { getAddressList } from '@/api/address.js'
+import { regionData } from '@/utils/region-data.js'
 
 export default {
   data() {
@@ -120,7 +139,6 @@ export default {
       ],
       timeOptions: [],
       addressList: [], // 地址列表
-      selectedPickupAddress: null, // 选中的取货地址
       selectedDeliverAddress: null, // 选中的收货地址
       form: {
           goodsName: '',
@@ -128,8 +146,16 @@ export default {
           servicePrice: '',
           pickupTime: '',
           remark: '',
-          description: '' // 物品描述
-        }
+          description: '', // 物品描述
+          pickProvince: '', // 取货省份
+          pickCity: '', // 取货城市
+          pickDistrict: '', // 取货区/县
+          pickDetailAddress: '' // 取货详细地址
+        },
+        // 省市区数据
+        provinces: regionData, // 省份列表
+        cities: [], // 城市列表
+        districts: [] // 区/县列表
     };
   },
   computed: {
@@ -233,14 +259,45 @@ export default {
       }
     },
     
-    // 选择取货地址
-    selectPickupAddress() {
-      this.selectAddressCommon('pickup');
-    },
+
     
     // 选择收货地址
     selectDeliverAddress() {
       this.selectAddressCommon('deliver');
+    },
+    
+    // 省份选择变化
+    onProvinceChange() {
+      if (this.form.pickProvince) {
+        // 找到选中的省份
+        const province = this.provinces.find(p => p.name === this.form.pickProvince);
+        if (province) {
+          this.cities = province.cities;
+          this.form.pickCity = '';
+          this.districts = [];
+          this.form.pickDistrict = '';
+        }
+      } else {
+        this.cities = [];
+        this.form.pickCity = '';
+        this.districts = [];
+        this.form.pickDistrict = '';
+      }
+    },
+    
+    // 城市选择变化
+    onCityChange() {
+      if (this.form.pickCity) {
+        // 找到选中的城市
+        const city = this.cities.find(c => c.name === this.form.pickCity);
+        if (city) {
+          this.districts = city.districts;
+          this.form.pickDistrict = '';
+        }
+      } else {
+        this.districts = [];
+        this.form.pickDistrict = '';
+      }
     },
     
     // 通用地址选择方法
@@ -260,7 +317,7 @@ export default {
         return;
       }
       
-      const title = type === 'pickup' ? '选择取货地址' : '选择收货地址';
+      const title = '选择收货地址';
       
       // 添加"新增地址"选项
       const addressOptions = [
@@ -278,11 +335,7 @@ export default {
             });
           } else {
             // 选择已有地址
-            if (type === 'pickup') {
-              this.selectedPickupAddress = this.addressList[res.tapIndex];
-            } else {
-              this.selectedDeliverAddress = this.addressList[res.tapIndex];
-            }
+            this.selectedDeliverAddress = this.addressList[res.tapIndex];
           }
         }
       });
@@ -319,9 +372,10 @@ export default {
         });
         return;
       }
-      if (!this.selectedPickupAddress) {
+      // 验证取货地址
+      if (!this.form.pickProvince || !this.form.pickCity || !this.form.pickDistrict || !this.form.pickDetailAddress) {
         uni.showToast({
-          title: '请选择取货地址',
+          title: '请填写完整的取货地址',
           icon: 'none'
         });
         return;
@@ -344,16 +398,6 @@ export default {
         uni.showToast({
           title: '请输入服务费',
           icon: 'none'
-        });
-        return;
-      }
-      
-      // 验证取货地址经纬度
-      if (!this.selectedPickupAddress.longitude || !this.selectedPickupAddress.latitude) {
-        uni.showToast({
-          title: '取货地址缺少位置信息，请重新选择',
-          icon: 'none',
-          duration: 2000
         });
         return;
       }
@@ -382,23 +426,29 @@ export default {
         const expectTime = `${dateStr} ${timeStr}`;
         
         // 构建订单数据 - 按照后端CreateErrandOrderDto结构
-        const pickupAddressId = this.selectedPickupAddress.userAddressId;
         const deliverAddressId = this.selectedDeliverAddress.userAddressId;
         // 取快递不需要商品价格，其他服务类型需要
         const goodsPrice = this.selectedService.name === '取快递' ? 0 : (parseFloat(this.form.goodsPrice) || 0);
         const deliverAmount = parseFloat(this.form.servicePrice) || 0; // 配送费（后端字段名为deliverAmount）
         
+        // 构建完整的取货地址用于显示
+        const pickAddress = `${this.form.pickProvince} ${this.form.pickCity} ${this.form.pickDistrict} ${this.form.pickDetailAddress}`;
+        
         const orderData = {
           orderType: 2, // 订单类型：2-跑腿单
           senderId: 1, // 发送者ID（可以从用户信息获取，暂时写死）
-          merchantName: this.selectedPickupAddress.receiverName || '取货点', // 商家名称（使用取货地址联系人）
+          merchantName: '取货点', // 商家名称
           // 取货地址信息
-          pickAddressId: pickupAddressId, // 取货地址ID
-          pickAddress: this.selectedPickupAddress.fullAddress, // 取货地址文本
-          pickContact: this.selectedPickupAddress.receiverName, // 取货联系人
-          pickPhone: this.selectedPickupAddress.receiverPhone, // 取货电话
-          pickLongitude: this.selectedPickupAddress.longitude || 0, // 取货经度
-          pickLatitude: this.selectedPickupAddress.latitude || 0, // 取货纬度
+          pickAddressId: 0, // 取货地址ID（暂时写死，后端可能不需要）
+          pickAddress: pickAddress, // 取货地址文本
+          pickProvince: this.form.pickProvince, // 取货省份
+          pickCity: this.form.pickCity, // 取货城市
+          pickDistrict: this.form.pickDistrict, // 取货区/县
+          pickDetailAddress: this.form.pickDetailAddress, // 取货详细地址
+          pickContact: '默认联系人', // 取货联系人（暂时默认）
+          pickPhone: '13800138000', // 取货电话（暂时默认）
+          pickLongitude: 0, // 取货经度（暂时默认）
+          pickLatitude: 0, // 取货纬度（暂时默认）
           // 送货地址信息
           deliverAddressId: deliverAddressId, // 送货地址ID（必填）
           deliverAddress: this.selectedDeliverAddress.fullAddress, // 送货地址文本
@@ -423,20 +473,20 @@ export default {
           const backendTotalAmount = res.data.totalAmount || res.data.payAmount;
           
           // 保存订单信息到本地存储，包含取货地址ID
-          uni.setStorageSync('errandPrepayOrder', {
-            preOrderNo: res.data.preOrderNo,
-            totalAmount: backendTotalAmount,
-            deliveryFee: parseFloat(this.form.servicePrice) || 0,
-            goodsAmount: goodsPrice, // 使用计算后的商品价格
-            expireTime: res.data.expireTime,
-            pickupAddressId: pickupAddressId, // 取货地址ID
-            deliverAddressId: deliverAddressId, // 送货地址ID
-            orderInfo: {
-              ...orderData,
-              serviceType: this.selectedService.name,
-              errandType: this.getErrandType(this.selectedService.name)
-            }
-          });
+        uni.setStorageSync('errandPrepayOrder', {
+          preOrderNo: res.data.preOrderNo,
+          totalAmount: backendTotalAmount,
+          deliveryFee: parseFloat(this.form.servicePrice) || 0,
+          goodsAmount: goodsPrice, // 使用计算后的商品价格
+          expireTime: res.data.expireTime,
+          pickupAddressId: 0, // 取货地址ID
+          deliverAddressId: deliverAddressId, // 送货地址ID
+          orderInfo: {
+            ...orderData,
+            serviceType: this.selectedService.name,
+            errandType: this.getErrandType(this.selectedService.name)
+          }
+        });
           
           // 跳转到支付页面
           uni.navigateTo({
@@ -553,6 +603,13 @@ export default {
   box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.05);
 }
 
+/* 取货地址输入组 */
+.form-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
 .form-item {
   margin-bottom: 30rpx;
 }
@@ -578,10 +635,24 @@ export default {
   align-items: center;
 }
 
-.form-input input {
+.form-input input,
+.form-input select {
   flex: 1;
   height: 100%;
+  border: none;
+  outline: none;
   font-size: 28rpx;
+  color: #333;
+  background-color: transparent;
+}
+  
+.form-input select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 20rpx center;
 }
 
 .time-text {
