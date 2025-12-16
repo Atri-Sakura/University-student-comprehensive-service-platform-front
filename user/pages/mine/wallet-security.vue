@@ -46,54 +46,6 @@
           <text class="arrow">></text>
         </view>
       </view>
-
-      <view class="security-item" @click="setSecurityQuestion">
-        <view class="item-left">
-          <view class="item-icon question-icon">❓</view>
-          <view class="item-content">
-            <text class="item-title">安全问题</text>
-            <text class="item-desc">{{ securityInfo.hasSecurityQuestion ? '已设置安全问题' : '设置安全问题可提升账户安全' }}</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="item-status" :class="{ 'unbind': !securityInfo.hasSecurityQuestion }">
-            {{ securityInfo.hasSecurityQuestion ? '已设置' : '未设置' }}
-          </text>
-          <text class="arrow">></text>
-        </view>
-      </view>
-
-      <view class="security-item" @click="bindSecurityPhone">
-        <view class="item-left">
-          <view class="item-icon phone-icon">📱</view>
-          <view class="item-content">
-            <text class="item-title">安全手机</text>
-            <text class="item-desc">{{ securityInfo.securityPhone || '未绑定安全手机' }}</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="item-status" :class="{ 'unbind': !securityInfo.securityPhone }">
-            {{ securityInfo.securityPhone ? '已绑定' : '未绑定' }}
-          </text>
-          <text class="arrow">></text>
-        </view>
-      </view>
-
-      <view class="security-item" @click="bindSecurityEmail">
-        <view class="item-left">
-          <view class="item-icon email-icon">📧</view>
-          <view class="item-content">
-            <text class="item-title">安全邮箱</text>
-            <text class="item-desc">{{ securityInfo.securityEmail || '未绑定安全邮箱' }}</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="item-status" :class="{ 'unbind': !securityInfo.securityEmail }">
-            {{ securityInfo.securityEmail ? '已绑定' : '未绑定' }}
-          </text>
-          <text class="arrow">></text>
-        </view>
-      </view>
     </view>
 
     <!-- 交易设置 -->
@@ -112,94 +64,12 @@
           <text class="arrow">></text>
         </view>
       </view>
-
-      <view class="security-item" @click="setQuickPay">
-        <view class="item-left">
-          <view class="item-icon quickpay-icon">⚡</view>
-          <view class="item-content">
-            <text class="item-title">免密支付</text>
-            <text class="item-desc">{{ securityInfo.quickPayEnabled ? '已开启，小额免密支付' : '未开启，每次支付需输入密码' }}</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <switch 
-            :checked="securityInfo.quickPayEnabled" 
-            @change="toggleQuickPay"
-            color="#4A90E2"
-          />
-        </view>
-      </view>
-
-      <view class="security-item" v-if="securityInfo.quickPayEnabled" @click="setQuickPayLimit">
-        <view class="item-left">
-          <view class="item-icon quickpay-limit-icon">💳</view>
-          <view class="item-content">
-            <text class="item-title">免密额度</text>
-            <text class="item-desc">单笔免密限额：¥{{ securityInfo.quickPayLimit || 200 }}</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="arrow">></text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 安全提醒 -->
-    <view class="security-section">
-      <view class="section-title">安全提醒</view>
-      
-      <view class="security-item">
-        <view class="item-left">
-          <view class="item-icon notification-icon">🔔</view>
-          <view class="item-content">
-            <text class="item-title">交易通知</text>
-            <text class="item-desc">接收交易成功、失败等通知</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <switch 
-            :checked="securityInfo.transactionNotification" 
-            @change="toggleTransactionNotification"
-            color="#4A90E2"
-          />
-        </view>
-      </view>
-
-      <view class="security-item">
-        <view class="item-left">
-          <view class="item-icon risk-icon">⚠️</view>
-          <view class="item-content">
-            <text class="item-title">异常提醒</text>
-            <text class="item-desc">账户异常时及时提醒</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <switch 
-            :checked="securityInfo.riskNotification" 
-            @change="toggleRiskNotification"
-            color="#4A90E2"
-          />
-        </view>
-      </view>
     </view>
 
     <!-- 风险控制 -->
     <view class="security-section">
       <view class="section-title">风险控制</view>
       
-      <view class="security-item" @click="viewSecurityLog">
-        <view class="item-left">
-          <view class="item-icon log-icon">📋</view>
-          <view class="item-content">
-            <text class="item-title">安全日志</text>
-            <text class="item-desc">查看钱包安全操作记录</text>
-          </view>
-        </view>
-        <view class="item-right">
-          <text class="arrow">></text>
-        </view>
-      </view>
-
       <view class="security-item" :class="{ 'danger-item': !securityInfo.isFrozen, 'success-item': securityInfo.isFrozen }" @click="securityInfo.isFrozen ? unfreezeWallet() : freezeWallet()">
         <view class="item-left">
           <view class="item-icon" :class="securityInfo.isFrozen ? 'unfreeze-icon' : 'freeze-icon'">{{ securityInfo.isFrozen ? '🔓' : '🔒' }}</view>
@@ -224,27 +94,16 @@ export default {
     return {
       securityInfo: {
         hasPaymentPassword: false, // 默认为false，需要检测
-        hasSecurityQuestion: false,
-        securityPhone: '138****5678',
-        securityEmail: 'student@example.com',
         singleLimit: 5000,
         dailyLimit: 20000,
-        quickPayEnabled: false,
-        quickPayLimit: 200,
-        transactionNotification: true,
-        riskNotification: true,
         isFrozen: false
       }
     };
   },
   computed: {
     securityScore() {
-      let score = 0;
-      if (this.securityInfo.hasPaymentPassword) score += 30;
-      if (this.securityInfo.hasSecurityQuestion) score += 20;
-      if (this.securityInfo.securityPhone) score += 25;
-      if (this.securityInfo.securityEmail) score += 25;
-      return score;
+      // 只保留支付密码的安全分数计算
+      return this.securityInfo.hasPaymentPassword ? 100 : 0;
     },
     securityLevelText() {
       if (this.securityScore >= 80) return '安全';
@@ -313,132 +172,6 @@ export default {
         });
       }
     },
-    setSecurityQuestion() {
-      uni.navigateTo({
-        url: '/pages/mine/wallet-security-question'
-      });
-    },
-    bindSecurityPhone() {
-      if (this.securityInfo.securityPhone) {
-        // 已绑定，可以解绑或更换
-        uni.showActionSheet({
-          itemList: ['更换安全手机', '解绑安全手机'],
-          success: (res) => {
-            if (res.tapIndex === 0) {
-              this.updateSecurityPhone();
-            } else {
-              this.unbindSecurityPhone();
-            }
-          }
-        });
-      } else {
-        // 未绑定，进行绑定
-        this.updateSecurityPhone();
-      }
-    },
-    updateSecurityPhone() {
-      uni.showModal({
-        title: this.securityInfo.securityPhone ? '更换安全手机' : '绑定安全手机',
-        editable: true,
-        placeholderText: '请输入手机号',
-        content: this.securityInfo.securityPhone || '',
-        success: (res) => {
-          if (res.confirm && res.content) {
-            const phoneReg = /^1[3-9]\d{9}$/;
-            if (!phoneReg.test(res.content)) {
-              uni.showToast({
-                title: '请输入正确的手机号',
-                icon: 'none'
-              });
-              return;
-            }
-            // 这里应该发送验证码验证
-            this.securityInfo.securityPhone = res.content;
-            this.saveSecurityInfo();
-            uni.showToast({
-              title: '操作成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    unbindSecurityPhone() {
-      uni.showModal({
-        title: '解绑安全手机',
-        content: '确定要解绑安全手机吗？解绑后可能影响钱包安全',
-        success: (res) => {
-          if (res.confirm) {
-            this.securityInfo.securityPhone = '';
-            this.saveSecurityInfo();
-            uni.showToast({
-              title: '解绑成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    bindSecurityEmail() {
-      if (this.securityInfo.securityEmail) {
-        // 已绑定，可以解绑或更换
-        uni.showActionSheet({
-          itemList: ['更换安全邮箱', '解绑安全邮箱'],
-          success: (res) => {
-            if (res.tapIndex === 0) {
-              this.updateSecurityEmail();
-            } else {
-              this.unbindSecurityEmail();
-            }
-          }
-        });
-      } else {
-        // 未绑定，进行绑定
-        this.updateSecurityEmail();
-      }
-    },
-    updateSecurityEmail() {
-      uni.showModal({
-        title: this.securityInfo.securityEmail ? '更换安全邮箱' : '绑定安全邮箱',
-        editable: true,
-        placeholderText: '请输入邮箱',
-        content: this.securityInfo.securityEmail || '',
-        success: (res) => {
-          if (res.confirm && res.content) {
-            const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailReg.test(res.content)) {
-              uni.showToast({
-                title: '请输入正确的邮箱',
-                icon: 'none'
-              });
-              return;
-            }
-            this.securityInfo.securityEmail = res.content;
-            this.saveSecurityInfo();
-            uni.showToast({
-              title: '操作成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    unbindSecurityEmail() {
-      uni.showModal({
-        title: '解绑安全邮箱',
-        content: '确定要解绑安全邮箱吗？解绑后可能影响钱包安全',
-        success: (res) => {
-          if (res.confirm) {
-            this.securityInfo.securityEmail = '';
-            this.saveSecurityInfo();
-            uni.showToast({
-              title: '解绑成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
     setTransactionLimit() {
       uni.showModal({
         title: '设置交易限额',
@@ -463,53 +196,6 @@ export default {
             });
           }
         }
-      });
-    },
-    toggleQuickPay(e) {
-      this.securityInfo.quickPayEnabled = e.detail.value;
-      this.saveSecurityInfo();
-      uni.showToast({
-        title: this.securityInfo.quickPayEnabled ? '已开启免密支付' : '已关闭免密支付',
-        icon: 'none'
-      });
-    },
-    setQuickPayLimit() {
-      uni.showModal({
-        title: '设置免密额度',
-        editable: true,
-        placeholderText: '请输入免密额度（元）',
-        content: this.securityInfo.quickPayLimit.toString(),
-        success: (res) => {
-          if (res.confirm && res.content) {
-            const limit = parseFloat(res.content);
-            if (isNaN(limit) || limit <= 0) {
-              uni.showToast({
-                title: '请输入有效的额度',
-                icon: 'none'
-              });
-              return;
-            }
-            this.securityInfo.quickPayLimit = limit;
-            this.saveSecurityInfo();
-            uni.showToast({
-              title: '设置成功',
-              icon: 'success'
-            });
-          }
-        }
-      });
-    },
-    toggleTransactionNotification(e) {
-      this.securityInfo.transactionNotification = e.detail.value;
-      this.saveSecurityInfo();
-    },
-    toggleRiskNotification(e) {
-      this.securityInfo.riskNotification = e.detail.value;
-      this.saveSecurityInfo();
-    },
-    viewSecurityLog() {
-      uni.navigateTo({
-        url: '/pages/mine/wallet-security-log'
       });
     },
     async freezeWallet() {
@@ -783,40 +469,8 @@ export default {
   background-color: #E8F4FD;
 }
 
-.question-icon {
-  background-color: #FFF4E6;
-}
-
-.phone-icon {
-  background-color: #E8F8F5;
-}
-
-.email-icon {
-  background-color: #FFF4E6;
-}
-
 .limit-icon {
   background-color: #F3E5F5;
-}
-
-.quickpay-icon {
-  background-color: #E3F2FD;
-}
-
-.quickpay-limit-icon {
-  background-color: #E3F2FD;
-}
-
-.notification-icon {
-  background-color: #FFF4E6;
-}
-
-.risk-icon {
-  background-color: #FFEBEE;
-}
-
-.log-icon {
-  background-color: #E8F4FD;
 }
 
 .freeze-icon {
