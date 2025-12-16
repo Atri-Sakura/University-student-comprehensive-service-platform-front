@@ -138,26 +138,7 @@ export default {
       loading: false,
       chatList: [],
       notifications: [],
-      orderMessages: [
-        {
-          id: 1,
-          title: '外卖订单 #20241124001',
-          content: '您的麻辣烫订单已确认，预计30分钟送达',
-          icon: '🍜',
-          time: new Date().getTime() - 900000,
-          status: '配送中',
-          statusClass: 'status-delivering'
-        },
-        {
-          id: 2,
-          title: '跑腿订单 #20241124002',
-          content: '您的代购订单已完成，商品已送达指定地点',
-          icon: '🛍️',
-          time: new Date().getTime() - 3600000,
-          status: '已完成',
-          statusClass: 'status-completed'
-        }
-      ],
+      orderMessages: [],
       pollingTimer: null, // 轮询定时器
       pollingInterval: 5000 // 轮询间隔（5秒）
     };
@@ -443,41 +424,7 @@ export default {
       return formattedChat;
     },
 
-    // 添加测试聊天数据
-    addTestChatData() {
-      const currentUserId = this.currentUser?.id || 1001;
-      this.chatList = [
-        {
-          id: 1,
-          sessionId: 1,
-          name: '客服小助手',
-          avatar: '🏪',
-          lastMessage: '您好，有什么可以帮助您的吗？',
-          lastTime: new Date().getTime() - 300000,
-          unread: 1,
-          type: 'service',
-          fromType: USER_TYPE.USER,
-          fromId: currentUserId,
-          toType: USER_TYPE.MERCHANT,
-          toId: '2001'
-        },
-        {
-          id: 2,
-          sessionId: 2,
-          name: '配送员小王',
-          avatar: '🚴',
-          lastMessage: '您的订单正在配送中',
-          lastTime: new Date().getTime() - 1800000,
-          unread: 0,
-          type: 'delivery',
-          fromType: USER_TYPE.USER,
-          fromId: currentUserId,
-          toType: USER_TYPE.RIDER,
-          toId: '3001'
-        }
-      ];
-      this.updateTabCount();
-    },
+    
 
     switchTab(index) {
       this.currentTab = index;
@@ -754,53 +701,13 @@ export default {
       return false;
     },
     
-    // 初始化通知数据
+    // 初始化通知数据（移除模拟数据）
     initNotifications() {
-      const now = Date.now();
-      this.notifications = [
-        {
-          id: 1,
-          title: '订单状态更新',
-          content: '您的外卖订单已送达，请确认收货',
-          icon: '📦',
-          time: now - 600000, // 10分钟前
-          read: false,
-          type: 'order'
-        },
-        {
-          id: 3,
-          title: '系统维护通知',
-          content: '系统将于今晚23:00-01:00进行维护升级',
-          icon: '⚙️',
-          time: now - 7200000, // 2小时前
-          read: true,
-          type: 'system'
-        },
-        {
-          id: 4,
-          title: '账户安全',
-          content: '检测到您的账户在新设备登录',
-          icon: '🔒',
-          time: now - 86400000, // 1天前
-          read: true,
-          type: 'security'
-        },
-        {
-          id: 5,
-          title: '评价提醒',
-          content: '您的订单已完成，快来评价一下吧',
-          icon: '⭐',
-          time: now - 172800000, // 2天前
-          read: false,
-          type: 'review'
-        }
-      ];
+      this.notifications = [];
     }
   },
   
   async onLoad() {
-    // 初始化通知数据（使用当前时间计算）
-    this.initNotifications();
     // 初始化用户信息
     await this.initUserInfo();
     // 加载聊天会话列表
