@@ -16,22 +16,7 @@ export const initMerchantWallet = () => {
   return request(`${baseUrl}/merchant/info/initWallet?merchantWalletId=${merchantWalletId}`, { method: 'POST' });
 };
 
-export const getTransactionList = (params = {}) => request(`${baseUrl}/merchant/finance/transactions`, {
-  method: 'GET',
-  data: params
-});
 
-export const getTransactionDetail = (orderId) => {
-  const id = String(orderId || '').trim();
-  if (!id) return Promise.reject(new Error('无效的订单ID'));
-  return request(`${baseUrl}/merchant/finance/transaction/${id}`, { method: 'GET' });
-};
-
-// 新增：获取钱包流水（含订单详情）
-export const getWalletFlowListWithOrder = (params = {}) => request(`${baseUrl}/merchant/walletFlow/listWithOrder`, {
-  method: 'GET',
-  data: params
-});
 
 export const getWithdrawalAccounts = () => request(`${baseUrl}/api/merchant/finance/withdraw/account/list`, { method: 'GET' });
 
@@ -192,9 +177,6 @@ export const merchantFinanceApi = {
   getTodayIncome,
   getMerchantWallet,
   initMerchantWallet,
-  getTransactionList,
-  getTransactionDetail,
-  getWalletFlowListWithOrder,
   getWithdrawalAccounts,
   addWithdrawalAccount,
   deleteWithdrawAccount,
@@ -218,9 +200,6 @@ export default {
   getFinancialOverview,
   getTodayIncome,
   getMerchantWallet,
-  getTransactionList,
-  getTransactionDetail,
-  getWalletFlowListWithOrder,
   getWithdrawalAccounts,
   addWithdrawalAccount,
   deleteWithdrawAccount,
