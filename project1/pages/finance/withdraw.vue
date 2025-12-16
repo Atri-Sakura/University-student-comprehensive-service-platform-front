@@ -140,7 +140,7 @@
 </template>
 
 <script>
-import { getWithdrawOverview, previewWithdraw, getWithdrawalAccounts, deleteWithdrawAccount, setDefaultWithdrawAccount, applyWithdraw, getWithdrawRecordList } from '../../utils/merchantFinanceApi.js';
+import { getWithdrawOverview, previewWithdraw, getWithdrawalAccounts, deleteWithdrawAccount, setDefaultWithdrawAccount, applyWithdraw, getWithdrawRecordList, getMerchantWallet } from '../../utils/merchantFinanceApi.js';
 
 export default {
   name: 'WithdrawPage',
@@ -529,9 +529,11 @@ export default {
         // 调用查询提现账户列表接口
         getWithdrawalAccounts(),
         // 调用查询提现记录列表接口
-        getWithdrawRecordList()
+        getWithdrawRecordList(),
+        // 调用查询钱包余额接口（获取真实可提现金额）
+        getMerchantWallet()
       ])
-      .then(([overviewRes, accountsRes, recordsRes]) => {
+      .then(([overviewRes, accountsRes, recordsRes, walletRes]) => {
         uni.hideLoading();
         
         // 处理财务数据
@@ -553,6 +555,14 @@ export default {
           }
         } else {
           this.setDefaultFinancialData();
+        }
+        
+        // 使用钱包接口的可提现金额覆盖（与财务管理页面保持一致）
+        if (walletRes && walletRes.data && walletRes.data.code === 200) {
+          const walletData = walletRes.data.data;
+          if (walletData && walletData.availableBalance !== undefined) {
+            this.financialData.withdrawableBalance = this.formatAmount(walletData.availableBalance);
+          }
         }
         
         // 处理账户列表数据
