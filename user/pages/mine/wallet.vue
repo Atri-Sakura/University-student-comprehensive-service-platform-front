@@ -114,48 +114,7 @@ export default {
       walletInfo: null,
       loading: false,
       isNavigating: false, // 防止递归调用的标志位
-      recentTransactions: [
-        {
-          id: 1,
-          type: 'income',
-          title: '充值',
-          amount: 200.00,
-          time: new Date().getTime() - 2 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 2,
-          type: 'expense',
-          title: '购买商品',
-          amount: 58.50,
-          time: new Date().getTime() - 5 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 3,
-          type: 'income',
-          title: '退款',
-          amount: 30.00,
-          time: new Date().getTime() - 24 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 4,
-          type: 'expense',
-          title: '提现',
-          amount: 100.00,
-          time: new Date().getTime() - 2 * 24 * 60 * 60 * 1000,
-          status: 'pending'
-        },
-        {
-          id: 5,
-          type: 'expense',
-          title: '购买商品',
-          amount: 25.80,
-          time: new Date().getTime() - 3 * 24 * 60 * 60 * 1000,
-          status: 'success'
-        }
-      ]
+      recentTransactions: []
     };
   },
   onLoad() {
@@ -357,7 +316,7 @@ export default {
         const [recordsRes, buyerOrdersRes, sellerOrdersRes] = await Promise.all([
           getWalletRecords({ pageNum: 1, pageSize: 10 }),
           orderApi.getOrderList({ orderType: 3, pageNum: 1, pageSize: 10 }), // 买家二手订单
-          orderApi.getSellerSecondHandOrders({ pageNum: 1, pageSize: 10 }) // 卖家二手订单
+          orderApi.getSellerOrderList({ pageNum: 1, pageSize: 10 }) // 卖家二手订单
         ]);
 
         let allTransactions = [];
@@ -380,13 +339,23 @@ export default {
             }
             
             const amount = Math.abs(parseFloat(record.amount || 0));
-            const title = record.remark || record.description || this.getTransactionTitle(record.flowType || record.type);
+            // 处理 remark：列表只显示前半段，后半段仅在详情展示
+            const rawRemark = record.remark || record.description || '';
+            let title = this.getTransactionTitle(record.flowType || record.type);
+            let remarkDetail = '';
+            if (rawRemark) {
+              const parts = rawRemark.split(/[，,]/);
+              title = (parts[0] && parts[0].trim()) ? parts[0].trim() : title;
+              if (parts.length > 1) {
+                remarkDetail = parts.slice(1).join(',').trim();
+              }
+            }
             
             let type = this.mapTransactionType(record.flowType || record.type);
-            if (title && (title.includes('退款') || title.includes('refund'))) {
+            if (rawRemark && (rawRemark.includes('退款') || rawRemark.toLowerCase().includes('refund'))) {
               type = 'income';
             }
-            if (title && (title.includes('充值') || title.includes('recharge'))) {
+            if (rawRemark && (rawRemark.includes('充值') || rawRemark.toLowerCase().includes('recharge'))) {
               type = 'income';
             }
             
@@ -397,7 +366,8 @@ export default {
               amount: amount,
               time: timeStamp,
               status: this.mapTransactionStatus(record.status),
-              source: 'wallet'
+              source: 'wallet',
+              remarkDetail: remarkDetail
             };
           });
           
@@ -449,17 +419,8 @@ export default {
         // 按时间倒序排序
         allTransactions.sort((a, b) => b.time - a.time);
 
-        // 去重并只取前5条
-        const uniqueTransactions = [];
-        const seenIds = new Set();
-        for (const trans of allTransactions) {
-          if (!seenIds.has(trans.id) && uniqueTransactions.length < 5) {
-            seenIds.add(trans.id);
-            uniqueTransactions.push(trans);
-          }
-        }
-
-        this.recentTransactions = uniqueTransactions;
+        // 展示全部流水，不限数量，不做去重（避免后端ID缺失导致仅显示一条）
+        this.recentTransactions = allTransactions;
 
       } catch (error) {
         console.error('获取交易记录失败:', error);
@@ -660,9 +621,13 @@ export default {
       this.viewBill();
     },
     viewTransactionDetail(item) {
+      let content = `金额：${item.type === 'income' ? '+' : '-'}${item.amount.toFixed(2)}元\n时间：${this.formatTime(item.time)}\n状态：${this.getStatusText(item.status)}`;
+      if (item.remarkDetail) {
+        content += `\n备注：${item.remarkDetail}`;
+      }
       uni.showModal({
         title: item.title,
-        content: `金额：${item.type === 'income' ? '+' : '-'}${item.amount.toFixed(2)}元\n时间：${this.formatTime(item.time)}\n状态：${this.getStatusText(item.status)}`,
+        content,
         showCancel: false
       });
     },

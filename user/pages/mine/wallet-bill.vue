@@ -105,72 +105,7 @@ export default {
       pageNum: 1,
       pageSize: 20,
       hasMore: true,
-      allBills: [
-        {
-          id: 1,
-          type: 'income',
-          title: '充值',
-          amount: 200.00,
-          time: new Date().getTime() - 2 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 2,
-          type: 'expense',
-          title: '购买商品',
-          amount: 58.50,
-          time: new Date().getTime() - 5 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 3,
-          type: 'income',
-          title: '退款',
-          amount: 30.00,
-          time: new Date().getTime() - 24 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 4,
-          type: 'expense',
-          title: '提现',
-          amount: 100.00,
-          time: new Date().getTime() - 2 * 24 * 60 * 60 * 1000,
-          status: 'pending'
-        },
-        {
-          id: 5,
-          type: 'expense',
-          title: '购买商品',
-          amount: 25.80,
-          time: new Date().getTime() - 3 * 24 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 6,
-          type: 'income',
-          title: '充值',
-          amount: 500.00,
-          time: new Date().getTime() - 5 * 24 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 7,
-          type: 'expense',
-          title: '购买商品',
-          amount: 120.00,
-          time: new Date().getTime() - 7 * 24 * 60 * 60 * 1000,
-          status: 'success'
-        },
-        {
-          id: 8,
-          type: 'income',
-          title: '退款',
-          amount: 50.00,
-          time: new Date().getTime() - 10 * 24 * 60 * 60 * 1000,
-          status: 'success'
-        }
-      ]
+      allBills: []
     };
   },
   computed: {
@@ -295,7 +230,7 @@ export default {
         const [walletResponse, buyerOrdersRes, sellerOrdersRes] = await Promise.all([
           getWalletRecords(params),
           orderApi.getOrderList({ orderType: 3, pageNum: 1, pageSize: 100 }), // 买家二手订单
-          orderApi.getSellerSecondHandOrders({ pageNum: 1, pageSize: 100 }) // 卖家二手订单
+          orderApi.getSellerOrderList({ pageNum: 1, pageSize: 100 }) // 卖家二手订单
         ]);
         
         let newBills = [];
@@ -312,17 +247,26 @@ export default {
             // 金额使用绝对值，正负号由前端根据type决定显示
             const amount = Math.abs(parseFloat(record.amount || 0));
             
-            // 获取标题
-            const title = record.remark || record.description || this.getTransactionTitle(record.flowType || record.type);
+            // 处理 remark：列表只显示前半段，后半段仅在详情页展示
+            const rawRemark = record.remark || record.description || '';
+            let title = this.getTransactionTitle(record.flowType || record.type);
+            let remarkDetail = '';
+            if (rawRemark) {
+              const parts = rawRemark.split(/[，,]/);
+              title = (parts[0] && parts[0].trim()) ? parts[0].trim() : title;
+              if (parts.length > 1) {
+                remarkDetail = parts.slice(1).join(',').trim();
+              }
+            }
             
             // 根据flowType和remark综合判断交易类型
             let type = this.mapTransactionType(record.flowType || record.type);
             // 如果remark包含"退款"，强制设为income（收入）
-            if (title && (title.includes('退款') || title.includes('refund'))) {
+            if (rawRemark && (rawRemark.includes('退款') || rawRemark.toLowerCase().includes('refund'))) {
               type = 'income';
             }
             // 如果remark包含"充值"，强制设为income（收入）
-            if (title && (title.includes('充值') || title.includes('recharge'))) {
+            if (rawRemark && (rawRemark.includes('充值') || rawRemark.toLowerCase().includes('recharge'))) {
               type = 'income';
             }
             
@@ -335,7 +279,8 @@ export default {
               status: this.mapTransactionStatus(record.status),
               orderId: record.orderId,
               balance: Math.abs(parseFloat(record.balance || 0)),
-              source: 'wallet'
+              source: 'wallet',
+              remarkDetail: remarkDetail
             };
           });
           
@@ -395,20 +340,11 @@ export default {
         // 按时间倒序排序
         newBills.sort((a, b) => b.time - a.time);
         
-        // 去重（根据id）
-        const uniqueBills = [];
-        const seenIds = new Set();
-        for (const bill of newBills) {
-          if (!seenIds.has(bill.id)) {
-            seenIds.add(bill.id);
-            uniqueBills.push(bill);
-          }
-        }
-        
+        // 展示全部账单，不限数量，不做去重（避免后端ID缺失或重复导致只显示一条）
         if (this.pageNum === 1) {
-          this.allBills = uniqueBills;
+          this.allBills = newBills;
         } else {
-          this.allBills = [...this.allBills, ...uniqueBills];
+          this.allBills = [...this.allBills, ...newBills];
         }
         
         // 判断是否还有更多数据
@@ -546,9 +482,13 @@ export default {
     },
     viewBillDetail(item) {
       const fullDateTime = this.formatFullDateTime(item.time);
+      let content = `类型：${item.type === 'income' ? '收入' : '支出'}\n金额：${item.type === 'income' ? '+' : '-'}¥${item.amount.toFixed(2)}\n时间：${fullDateTime}\n状态：${this.getStatusText(item.status)}`;
+      if (item.remarkDetail) {
+        content += `\n备注：${item.remarkDetail}`;
+      }
       uni.showModal({
         title: item.title,
-        content: `类型：${item.type === 'income' ? '收入' : '支出'}\n金额：${item.type === 'income' ? '+' : '-'}¥${item.amount.toFixed(2)}\n时间：${fullDateTime}\n状态：${this.getStatusText(item.status)}`,
+        content,
         showCancel: false
       });
     },
