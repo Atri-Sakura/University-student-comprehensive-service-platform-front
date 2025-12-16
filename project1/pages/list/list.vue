@@ -590,23 +590,27 @@ export default {
                     method: 'POST',
                     data: {
                       fromType: 3,
-                      fromId: merchantInfo.merchantBaseId,
+                      fromId: String(merchantInfo.merchantBaseId),
                       toType: 1,
-                      toId: item.userId,
+                      toId: String(item.userId),
                       sessionStatus: 1
                     }
                   }
                 );
+                console.log('创建会话响应:', createRes);
                 if (createRes && createRes.statusCode === 200 && createRes.data) {
-                  sessionId = createRes.data.data || createRes.data.sessionId;
+                  // 兼容多种返回格式
+                  sessionId = createRes.data.data?.sessionId || createRes.data.data || createRes.data.sessionId;
                 }
               }
 
               uni.hideLoading();
+              
+              console.log('最终sessionId:', sessionId);
 
               if (sessionId) {
                 uni.navigateTo({
-                  url: `/pages/message/chat?sessionId=${sessionId}&toType=1&toId=${item.userId}&title=${encodeURIComponent(item.customerName || item.userNickname || '用户')}`
+                  url: `/pages/message/chat?sessionId=${sessionId}&fromType=3&fromId=${merchantInfo.merchantBaseId}&toType=1&toId=${item.userId}&title=${encodeURIComponent(item.customerName || item.userNickname || '用户')}`
                 });
               } else {
                 uni.showToast({
