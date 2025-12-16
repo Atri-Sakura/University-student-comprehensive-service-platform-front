@@ -56,7 +56,6 @@
     <!-- 底部输入区域 -->
     <view class="chat-input-area">
       <view class="input-wrapper">
-        <text class="voice-icon" @click="toggleVoiceInput">🎤</text>
         <input 
           class="chat-input" 
           type="text" 
@@ -66,7 +65,6 @@
           @confirm="sendMessage"
         />
         <text class="emoji-icon" @click="toggleEmojiPanel">😊</text>
-        <text class="add-icon" @click="showMoreOptions">➕</text>
       </view>
       <button class="send-btn" @click="sendMessage" :disabled="!inputContent.trim()">发送</button>
     </view>
