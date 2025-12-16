@@ -97,13 +97,6 @@
 	  }
 	},
 	{
-	  "path": "pages/finance/order-detail1",
-	  "style": {
-	    "navigationBarTitleText": "交易详情"
-	  }
-	},
-	  
-	{
 	  "path": "pages/finance/withdraw",
 	  "style": {
 	    "navigationBarTitleText": "申请提现"
