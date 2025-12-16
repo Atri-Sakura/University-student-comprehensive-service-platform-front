@@ -15,7 +15,7 @@
     <view class="restaurant-header">
       <!-- 横幅图片 -->
       <image class="restaurant-banner" :src="restaurant.image" mode="aspectFill"></image>
-      
+
       <!-- 餐厅基本信息 -->
       <view class="restaurant-info-section">
         <!-- Logo和名称评分区域 -->
@@ -26,7 +26,7 @@
             <text class="restaurant-rating">⭐ {{ restaurant.rating }}</text>
           </view>
         </view>
-        
+
         <!-- 营业状态、营业时间和经营范围 -->
         <view class="restaurant-status-row">
           <text class="business-status" :class="restaurant.businessStatus === 1 ? 'status-open' : 'status-closed'">
@@ -39,7 +39,7 @@
           <text class="scope-label">经营范围：</text>
           <text class="scope-content">{{ restaurant.businessScope }}</text>
         </view>
-        
+
         <!-- 属性展示区域 -->
         <view class="restaurant-attributes">
           <view class="attribute-item">
@@ -62,7 +62,7 @@
 
         </view>
       </view>
-      
+
       <!-- 餐厅标签 -->
       <view class="restaurant-tags">
         <view class="tag" v-for="tag in restaurant.tags" :key="tag">{{ tag }}</view>
@@ -82,8 +82,8 @@
     <view class="content">
       <!-- 左侧分类 -->
       <scroll-view scroll-y class="food-category-list">
-        <view class="category-item" 
-              v-for="category in foodCategories" 
+        <view class="category-item"
+              v-for="category in foodCategories"
               :key="category.id"
               @click="selectFoodCategory(category)"
               :class="{ active: selectedFoodCategory === category.id }">
@@ -166,7 +166,7 @@
         </view>
       </view>
     </view>
-    
+
     <!-- 商品详情弹窗 -->
 
   </view>
@@ -178,46 +178,46 @@ import foodApi from '../../api/food.js'
 
 export default {
   data() {
-      return {
-        statusBarHeight: 0,
-        navHeight: 0,
-        restaurant: {
-          id: '',
-          name: '加载中...',
-          image: '',
-          rating: 0,
-          sales: 0,
-  
-          deliveryFee: 0,
-          minOrder: 0,
-          tags: [],
-          businessHours: '',
-          phone: '',
-          address: ''
-        },
-        foodCategories: [],
-        selectedFoodCategory: 1,
-        showAllFoods: false,
-        cartItems: [],
-        showCart: false,
+    return {
+      statusBarHeight: 0,
+      navHeight: 0,
+      restaurant: {
+        id: '',
+        name: '加载中...',
+        image: '',
+        rating: 0,
+        sales: 0,
 
-        // 模拟菜单数据
-        allFoods: [],
-        // 记录当前餐厅ID，用于购物车管理
-        currentRestaurantId: null,
-        // 搜索关键词
-        searchKeyword: '',
-        // 防抖定时器
-        searchTimer: null,
-        // 原始商品列表，用于搜索时恢复
-        originalFoods: []
-      };
-    },
+        deliveryFee: 0,
+        minOrder: 0,
+        tags: [],
+        businessHours: '',
+        phone: '',
+        address: ''
+      },
+      foodCategories: [],
+      selectedFoodCategory: 1,
+      showAllFoods: false,
+      cartItems: [],
+      showCart: false,
+
+      // 模拟菜单数据
+      allFoods: [],
+      // 记录当前餐厅ID，用于购物车管理
+      currentRestaurantId: null,
+      // 搜索关键词
+      searchKeyword: '',
+      // 防抖定时器
+      searchTimer: null,
+      // 原始商品列表，用于搜索时恢复
+      originalFoods: []
+    };
+  },
   computed: {
     totalCount() {
       // 只计算当前餐厅的商品数量
       return this.cartItems.filter(item => item.restaurantId === this.restaurant.id)
-        .reduce((sum, item) => sum + item.count, 0);
+          .reduce((sum, item) => sum + item.count, 0);
     },
     totalAmount() {
       // 只计算当前餐厅的商品总价
@@ -233,7 +233,7 @@ export default {
     const systemInfo = uni.getSystemInfoSync();
     this.statusBarHeight = systemInfo.statusBarHeight || 0;
     this.navHeight = this.statusBarHeight + 44;
-    
+
     // 使用food.js中的API获取餐厅数据，同时传递selectedFoodId
     this.loadRestaurantData(options.restaurantId, options.selectedFoodId);
   },
@@ -241,40 +241,40 @@ export default {
     // 获取有效图片URL
     getValidImageUrl(url) {
       console.log('原始URL输入:', url);
-      
+
       // 如果URL为空，直接返回默认占位图而不是空字符串
       if (!url) {
         console.log('URL为空，返回默认占位图');
         return '/static/images/default-food.svg';
       }
-      
+
       // 先进行trim去除前后空白
       let cleanedUrl = String(url).trim();
       console.log('trim后URL:', cleanedUrl);
-      
+
       // 加强反引号清理，使用更严格的正则表达式
       cleanedUrl = cleanedUrl.replace(/[`\u0060]/g, '');
       console.log('第一次移除反引号后URL:', cleanedUrl);
-      
+
       // 再次尝试移除可能的转义反引号
       cleanedUrl = cleanedUrl.replace(/[`\u0060]/g, '');
       console.log('第二次移除反引号后URL:', cleanedUrl);
-      
+
       // 再次trim确保去除反引号后的空白
       cleanedUrl = cleanedUrl.trim();
       console.log('最终清理后URL:', cleanedUrl);
-      
+
       // 如果清理后URL为空，返回默认占位图
       if (!cleanedUrl) {
         console.log('清理后URL为空，返回默认占位图');
         return '/static/images/default-food.svg';
       }
-      
+
       // 检查URL是否以@开头（有些后端可能会返回这种格式）
       if (cleanedUrl.startsWith('@')) {
         cleanedUrl = cleanedUrl.substring(1);
       }
-      
+
       // 检查URL是否为完整的HTTP/HTTPS URL
       if (cleanedUrl.startsWith('http://') || cleanedUrl.startsWith('https://')) {
         // 对URL进行编码处理，特别是处理中文和空格
@@ -292,7 +292,7 @@ export default {
         }
         return cleanedUrl;
       }
-      
+
       // 检查是否为相对路径
       if (cleanedUrl.startsWith('/')) {
         // 如果是相对路径，尝试添加API基础URL
@@ -309,12 +309,12 @@ export default {
         }
         return fullUrl;
       }
-      
+
       // 检查是否为静态资源路径
       if (cleanedUrl.startsWith('static/')) {
         return `/${cleanedUrl}`;
       }
-      
+
       // 如果都不是，返回默认占位图
       console.log('处理后URL不满足任何条件，返回默认占位图');
       // 使用本地静态资源作为占位图
@@ -324,7 +324,7 @@ export default {
     navBack() {
       // 获取当前页面栈
       const pages = getCurrentPages();
-      
+
       // 如果页面栈只有1页（刷新后的情况）或没有上一页，跳转到外卖列表
       if (pages.length <= 1) {
         uni.reLaunch({
@@ -350,7 +350,7 @@ export default {
         });
       }
     },
-    
+
     // 联系餐厅
     callRestaurant() {
       if (this.restaurant.phone) {
@@ -364,7 +364,7 @@ export default {
         });
       }
     },
-    
+
     // 查看商品详情
     viewGoodsDetail(food) {
       // 跳转到商品详情页面，传递完整的商品信息
@@ -372,11 +372,11 @@ export default {
         url: `/pages/food/goods-detail?goodsId=${food.merchantGoodsId || food.id}&restaurantId=${this.restaurant.id}&goodsInfo=${encodeURIComponent(JSON.stringify(food))}`
       });
     },
-    
+
     // 关闭商品详情
     // 使用food.js中的API获取餐厅数据
     async loadRestaurantData(id, selectedFoodId) {
-      
+
       // 验证商家ID是否有效
       if (!id || id === 'undefined' || id === 'null') {
         console.error('❌ 商家ID无效:', id);
@@ -387,7 +387,7 @@ export default {
         });
         return;
       }
-      
+
       try {
         // 先获取商家详细信息
         const merchantRes = await foodApi.getMerchantDetail(id);
@@ -403,7 +403,7 @@ export default {
         }
         // 再获取商品列表
         const goodsRes = await foodApi.getMerchantGoodsList(id);
-        
+
         // 处理商家信息
         let merchantInfo = null;
         if (merchantRes && merchantRes.code === 200) {
@@ -423,7 +423,7 @@ export default {
           console.error('❌ 商家详情API调用失败');
           console.error('错误码:', merchantRes?.code);
           console.error('错误信息:', merchantRes?.message || merchantRes?.msg);
-          
+
           // 显示友好的错误提示
           uni.showToast({
             title: merchantRes?.message || merchantRes?.msg || '获取商家信息失败',
@@ -431,7 +431,7 @@ export default {
             duration: 2000
           });
         }
-        
+
         // 处理商品列表
         let goodsList = [];
         if (goodsRes && goodsRes.code === 200) {
@@ -444,33 +444,17 @@ export default {
             goodsList = goodsRes.rows;
           }
         }
-        
-        // 预拉取每个商品的月售数据
-        const monthlySalesMap = new Map();
-        await Promise.all((goodsList || []).map(async (goods) => {
-          const gid = goods.merchantGoodsId || goods.id;
-          if (!gid) return;
-          try {
-            const monthlyRes = await foodApi.getGoodsMonthlySales(gid);
-            if (monthlyRes && monthlyRes.code === 200 && monthlyRes.data !== undefined) {
-              monthlySalesMap.set(gid, Number(monthlyRes.data) || 0);
-            }
-          } catch (err) {
-            console.warn(`获取商品${gid}月售失败:`, err);
-          }
-        }));
-        
-        // 计算商家月售（累加所有商品的销量，优先使用月售接口）
+
+        // 计算商家月售（累加所有商品的销量）
         let totalSales = 0;
         if (goodsList && goodsList.length > 0) {
           totalSales = goodsList.reduce((sum, goods) => {
-            let goodsSales = monthlySalesMap.get(goods.merchantGoodsId || goods.id) || 0;
-            if (!goodsSales) {
-              if (goods.salesCount !== undefined && goods.salesCount !== null) {
-                goodsSales = Number(goods.salesCount) || 0;
-              } else if (goods.sales_count !== undefined && goods.sales_count !== null) {
-                goodsSales = Number(goods.sales_count) || 0;
-              }
+            // 支持多种销量字段名
+            let goodsSales = 0;
+            if (goods.salesCount !== undefined && goods.salesCount !== null) {
+              goodsSales = Number(goods.salesCount) || 0;
+            } else if (goods.sales_count !== undefined && goods.sales_count !== null) {
+              goodsSales = Number(goods.sales_count) || 0;
             }
             return sum + goodsSales;
           }, 0);
@@ -479,11 +463,11 @@ export default {
         if (totalSales === 0) {
           totalSales = merchantInfo?.monthSales || merchantInfo?.salesCount || 0;
         }
-        
+
         // 构建餐厅信息
         // 处理商家logo URL，使用getValidImageUrl方法确保URL有效性
         let logoUrl = this.getValidImageUrl(merchantInfo?.logo || merchantInfo?.image);
-        
+
         this.restaurant = {
           // 优先使用商家详情接口返回的数据
           id: id || (merchantInfo?.merchantBaseId || merchantInfo?.id || 1),
@@ -495,8 +479,8 @@ export default {
           minOrder: merchantInfo?.minOrderAmount || merchantInfo?.minOrder || 20,
           deliveryFee: merchantInfo?.deliveryFee || merchantInfo?.shippingFee || 3,
           // 不再使用经营范围作为标签
-          tags: merchantInfo?.tags ? merchantInfo.tags : 
-                ['暂无标签'],
+          tags: merchantInfo?.tags ? merchantInfo.tags :
+              ['暂无标签'],
           // 添加后端返回的其他商家字段
           businessHours: merchantInfo?.businessHours || '00:00-24:00',
           businessScope: merchantInfo?.businessScope || '',
@@ -512,16 +496,16 @@ export default {
           district: merchantInfo?.district || '',
           detail: merchantInfo?.detail || ''
         };
-        
+
         // 如果商家名称仍然是"未知商家"，给出警告
         if (this.restaurant.name === '未知商家') {
           console.error('⚠️⚠️⚠️ 商家名称为"未知商家"，可能是数据获取失败');
           console.error('请检查：1. 传入的商家ID是否正确 2. 后端商家数据是否存在 3. 商家是否已审核通过并营业中');
         }
-        
+
         // 设置当前餐厅ID
         this.currentRestaurantId = this.restaurant.id;
-        
+
         // 如果没有商品数据，使用默认值
         if (goodsList.length === 0) {
           this.foodCategories = [{ id: 1, name: '全部' }];
@@ -530,7 +514,7 @@ export default {
           this.loadCartData();
           return;
         }
-        
+
         // 从商品列表中提取分类信息
         const categoryMap = new Map();
         goodsList.forEach(good => {
@@ -541,10 +525,10 @@ export default {
             });
           }
         });
-        
+
         // 添加"全部"分类
         this.foodCategories = [{ id: 1, name: '全部' }, ...Array.from(categoryMap.values())];
-        
+
         // 处理所有商品，添加categoryId字段
         const processedFoods = goodsList.map(good => {
           // 查找或创建分类ID
@@ -555,51 +539,51 @@ export default {
               categoryId = category.id;
             }
           }
-          
+
           // 使用merchantBaseId和merchantGoodsId组合生成唯一id，避免重复
           const uniqueId = good.merchantGoodsId ? `${good.merchantBaseId || id}-${good.merchantGoodsId}` : good.id || `${id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-            
-            return {
-              ...good,
-              id: uniqueId,
-              categoryId: categoryId,
-              name: good.goodsName || good.name || '未命名商品',
-              image: good.mainImageUrl || good.goodsImage || good.image || '/static/images/default-food.svg',
-              price: good.price || 0,
-              description: good.description || ''
-            };
-          });
-          
-          this.allFoods = processedFoods;
-          this.originalFoods = processedFoods; // 保存原始商品列表
-          this.selectedFoodCategory = this.foodCategories[0].id;
-          
-          // 从本地存储加载购物车数据
-          this.loadCartData();
-          
-          // 如果有selectedFoodId参数，则自动选择并添加该商品到购物车
-          if (selectedFoodId) {
-            const selectedFood = this.allFoods.find(food => food.id === selectedFoodId || food.merchantGoodsId?.toString() === selectedFoodId);
-            if (selectedFood) {
-              // 选择对应分类
-              this.selectedFoodCategory = selectedFood.categoryId;
-              // 自动添加到购物车
-              this.increaseCount(selectedFood);
-              // 显示购物车
-              this.showCart = true;
-            }
+
+          return {
+            ...good,
+            id: uniqueId,
+            categoryId: categoryId,
+            name: good.goodsName || good.name || '未命名商品',
+            image: good.mainImageUrl || good.goodsImage || good.image || '/static/images/default-food.svg',
+            price: good.price || 0,
+            description: good.description || ''
+          };
+        });
+
+        this.allFoods = processedFoods;
+        this.originalFoods = processedFoods; // 保存原始商品列表
+        this.selectedFoodCategory = this.foodCategories[0].id;
+
+        // 从本地存储加载购物车数据
+        this.loadCartData();
+
+        // 如果有selectedFoodId参数，则自动选择并添加该商品到购物车
+        if (selectedFoodId) {
+          const selectedFood = this.allFoods.find(food => food.id === selectedFoodId || food.merchantGoodsId?.toString() === selectedFoodId);
+          if (selectedFood) {
+            // 选择对应分类
+            this.selectedFoodCategory = selectedFood.categoryId;
+            // 自动添加到购物车
+            this.increaseCount(selectedFood);
+            // 显示购物车
+            this.showCart = true;
           }
+        }
       } catch (error) {
         console.error('❌❌❌ 加载餐厅数据异常:', error);
         console.error('错误堆栈:', error.stack);
-        
+
         // 显示错误提示
         uni.showToast({
           title: '加载失败，请重试',
           icon: 'none',
           duration: 2000
         });
-        
+
         // 不使用任何模拟数据，只显示空状态
         this.restaurant = {
           name: '加载失败'
@@ -612,13 +596,13 @@ export default {
         this.loadCartData();
       }
     },
-    
+
     // 选择菜品分类
     selectFoodCategory(category) {
       this.selectedFoodCategory = category.id;
       this.showAllFoods = false;
     },
-    
+
     // 根据分类获取菜品
     getFoodsByCategory(categoryId) {
       // 如果是"全部"分类（id=1），返回所有商品
@@ -627,19 +611,19 @@ export default {
       }
       return this.allFoods.filter(food => food.categoryId === categoryId);
     },
-    
+
     // 根据分类获取筛选后的菜品（考虑搜索关键词）
     getFilteredFoodsByCategory(categoryId) {
       const foods = this.getFoodsByCategory(categoryId);
       if (!this.searchKeyword) {
         return foods;
       }
-      return foods.filter(food => 
-        food.name.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
-        (food.description && food.description.toLowerCase().includes(this.searchKeyword.toLowerCase()))
+      return foods.filter(food =>
+          food.name.toLowerCase().includes(this.searchKeyword.toLowerCase()) ||
+          (food.description && food.description.toLowerCase().includes(this.searchKeyword.toLowerCase()))
       );
     },
-    
+
     // 处理搜索
     async handleSearch() {
       // 防抖处理，避免频繁调用API
@@ -650,11 +634,11 @@ export default {
           this.allFoods = [...this.originalFoods];
           return;
         }
-        
+
         try {
           // 调用后端搜索接口，传递正确的keyword参数
           const searchResponse = await foodApi.searchMerchantGoods(this.restaurant.id, this.searchKeyword);
-          
+
           if (searchResponse && searchResponse.code === 200 && searchResponse.data && Array.isArray(searchResponse.data)) {
             // 处理搜索结果
             const searchResults = searchResponse.data.map(good => {
@@ -666,22 +650,22 @@ export default {
                   categoryId = category.id;
                 }
               }
-              
+
               // 使用merchantBaseId和merchantGoodsId组合生成唯一id，避免重复
               const uniqueId = good.merchantGoodsId ? `${good.merchantBaseId || this.restaurant.id}-${good.merchantGoodsId}` : good.id || `${this.restaurant.id}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-                
-                return {
-                  ...good,
-                  id: uniqueId,
-                  categoryId: categoryId,
-                  name: good.goodsName || good.name || '未命名商品',
-                  image: good.mainImageUrl || good.goodsImage || good.image || '/static/images/default-food.svg',
-                  price: good.price || 0,
-                  description: good.description || ''
-                };
-              });
-              
-              this.allFoods = searchResults;
+
+              return {
+                ...good,
+                id: uniqueId,
+                categoryId: categoryId,
+                name: good.goodsName || good.name || '未命名商品',
+                image: good.mainImageUrl || good.goodsImage || good.image || '/static/images/default-food.svg',
+                price: good.price || 0,
+                description: good.description || ''
+              };
+            });
+
+            this.allFoods = searchResults;
           }
         } catch (error) {
           console.error('搜索商品失败:', error);
@@ -690,40 +674,52 @@ export default {
         }
       }, 500);
     },
-    
+
     // 清空搜索
     clearSearch() {
       this.searchKeyword = '';
       this.allFoods = [...this.originalFoods];
     },
-    
+
     // 获取购物车中商品数量
     getCartItemCount(foodId) {
       const item = this.cartItems.find(item => item.id === foodId && item.restaurantId === this.restaurant.id);
       return item ? item.count : 0;
     },
-    
+
     // 加载购物车数据
     loadCartData() {
       const cartData = uni.getStorageSync('foodCart');
       if (cartData && cartData.items) {
-        // 只保留当前餐厅的商品
+        // 只加载当前餐厅的商品到显示列表
         this.cartItems = cartData.items.filter(item => item.restaurantId === this.restaurant.id);
       } else {
         this.cartItems = [];
       }
     },
-    
+
     // 保存购物车数据
     saveCartData() {
+      // 获取已保存的所有购物车数据
+      const existingCartData = uni.getStorageSync('foodCart');
+      let allItems = [];
+
+      if (existingCartData && existingCartData.items) {
+        // 保留其他餐厅的商品，移除当前餐厅的旧数据
+        allItems = existingCartData.items.filter(item => item.restaurantId !== this.restaurant.id);
+      }
+
+      // 添加当前餐厅的商品
+      allItems = [...allItems, ...this.cartItems];
+
       uni.setStorageSync('foodCart', {
         restaurant: this.restaurant,
-        items: this.cartItems,
+        items: allItems,
         totalAmount: this.totalAmount,
         totalCount: this.totalCount
       });
     },
-    
+
     // 清空购物车
     clearCart() {
       // 只清空当前餐厅的商品
@@ -735,7 +731,7 @@ export default {
         icon: 'success'
       });
     },
-    
+
     // 增加商品数量
     increaseCount(food) {
       const existingItem = this.cartItems.find(item => item.id === food.id && item.restaurantId === this.restaurant.id);
@@ -745,13 +741,17 @@ export default {
         this.cartItems.push({
           ...food,
           restaurantId: this.restaurant.id,
+          restaurantName: this.restaurant.name,
+          restaurantImage: this.restaurant.image,
+          restaurantMinOrder: this.restaurant.minOrder,
+          restaurantDeliveryFee: this.restaurant.deliveryFee,
           count: 1
         });
       }
       // 保存购物车数据
       this.saveCartData();
     },
-    
+
     // 减少商品数量
     decreaseCount(food) {
       const index = this.cartItems.findIndex(item => item.id === food.id && item.restaurantId === this.restaurant.id);
@@ -765,18 +765,18 @@ export default {
         this.saveCartData();
       }
     },
-    
+
     // 切换购物车显示
     toggleCart() {
       this.showCart = !this.showCart;
     },
-    
+
     // 结算
     checkout() {
       // 只获取当前餐厅的商品
       const currentItems = this.cartItems.filter(item => item.restaurantId === this.restaurant.id);
       const itemsTotal = currentItems.reduce((sum, item) => sum + item.price * item.count, 0);
-      
+
       if (itemsTotal < this.restaurant.minOrder) {
         uni.showToast({
           title: `还差¥${this.restaurant.minOrder - itemsTotal}起送`,
@@ -784,7 +784,7 @@ export default {
         });
         return;
       }
-      
+
       // 保存购物车数据到本地存储
       uni.setStorageSync('foodCart', {
         restaurant: this.restaurant,
@@ -792,7 +792,7 @@ export default {
         totalAmount: itemsTotal + this.restaurant.deliveryFee,
         totalCount: currentItems.reduce((sum, item) => sum + item.count, 0)
       });
-      
+
       // 跳转到订单确认页面
       uni.navigateTo({
         url: '/pages/food/order-confirm'
@@ -1250,17 +1250,17 @@ export default {
 }
 
 .food-name {
-    font-size: 32rpx;
-    color: #333333;
-    margin-bottom: 10rpx;
-    font-weight: 600;
-    line-height: 1.5;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-  }
+  font-size: 32rpx;
+  color: #333333;
+  margin-bottom: 10rpx;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
 
 .food-price {
   font-size: 34rpx;
@@ -1303,13 +1303,13 @@ export default {
 }
 
 .food-action:has(.count-btn) {
-    /* 保持固定宽度，优化宽度为商品名称腾出空间 */
-    height: 50rpx;
-    background-color: #F0FCFF;
-    overflow: hidden;
-    min-width: 120rpx;
-    max-width: 120rpx;
-  }
+  /* 保持固定宽度，优化宽度为商品名称腾出空间 */
+  height: 50rpx;
+  background-color: #F0FCFF;
+  overflow: hidden;
+  min-width: 120rpx;
+  max-width: 120rpx;
+}
 
 .add-btn {
   font-size: 28rpx;

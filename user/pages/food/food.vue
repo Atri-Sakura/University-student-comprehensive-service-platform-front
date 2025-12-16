@@ -358,15 +358,32 @@ export default {
       this.cartItems.forEach(item => {
         const restaurantId = item.restaurantId;
         if (!groupMap.has(restaurantId)) {
+          // 优先从购物车商品项中获取商家信息，如果没有则从restaurants列表中查找
+          let restaurantInfo = {
+            id: restaurantId,
+            name: item.restaurantName || '未知店铺',
+            image: item.restaurantImage || '/static/images/default-food.svg',
+            minOrder: item.restaurantMinOrder || 0,
+            deliveryFee: item.restaurantDeliveryFee || 0
+          };
+          
+          // 如果购物车商品项中没有商家名称，尝试从restaurants列表中查找
+          if (!item.restaurantName || item.restaurantName === '未知店铺') {
+            const foundRestaurant = this.restaurants.find(r => String(r.id) === String(restaurantId));
+            if (foundRestaurant) {
+              restaurantInfo = {
+                id: restaurantId,
+                name: foundRestaurant.name || '未知店铺',
+                image: foundRestaurant.image || '/static/images/default-food.svg',
+                minOrder: foundRestaurant.minOrderAmount || 0,
+                deliveryFee: foundRestaurant.deliveryFee || 0
+              };
+            }
+          }
+          
           groupMap.set(restaurantId, {
             restaurantId: restaurantId,
-            restaurant: {
-              id: restaurantId,
-              name: item.restaurantName || '未知店铺',
-              image: item.restaurantImage || '/static/images/default-food.svg',
-              minOrder: item.restaurantMinOrder || 0,
-              deliveryFee: item.restaurantDeliveryFee || 0
-            },
+            restaurant: restaurantInfo,
             items: [],
             subtotal: 0,
             itemCount: 0
