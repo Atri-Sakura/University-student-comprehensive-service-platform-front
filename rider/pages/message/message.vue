@@ -87,6 +87,7 @@
 <script>
 import { getSessionList, markSessionAsRead, SESSION_STATUS } from '@/utils/api/session.js';
 import { USER_TYPE } from '@/utils/api/message.js';
+import { getRiderBaseInfo } from '@/utils/profile-api.js';
 
 export default {
 	data() {
@@ -104,14 +105,16 @@ export default {
 		};
 	},
 	
-	onLoad() {
-		this.initRiderInfo();
+	async onLoad() {
+		await this.initRiderInfo();
 		this.loadChatSessions();
 	},
 	
 	onShow() {
 		// 每次显示时刷新会话列表
-		this.loadChatSessions();
+		if (this.currentUser) {
+			this.loadChatSessions();
+		}
 	},
 	
 	computed: {
@@ -164,21 +167,35 @@ export default {
 		// 初始化骑手信息
 		async initRiderInfo() {
 			try {
-				const riderInfo = uni.getStorageSync('riderInfo');
-				const riderId = uni.getStorageSync('riderId');
+				// 优先从缓存获取
+				let riderInfo = uni.getStorageSync('riderInfo');
 				
-				if (riderInfo) {
-					this.currentUser = riderInfo;
-				} else if (riderId) {
-					this.currentUser = { id: riderId, name: '骑手' };
+				// 强制从API获取最新数据
+				console.log('从API获取骑手信息...');
+				const response = await getRiderBaseInfo();
+				console.log('📥 后端返回的完整数据:', JSON.stringify(response, null, 2));
+				
+				if (response.code === 200 && response.data) {
+					riderInfo = response.data;
+					console.log('📥 data字段:', JSON.stringify(riderInfo, null, 2));
+					console.log('📥 riderBaseId字段:', riderInfo.riderBaseId);
+					console.log('📥 riderId字段:', riderInfo.riderId);
+					console.log('📥 id字段:', riderInfo.id);
+					// 保存到缓存
+					uni.setStorageSync('riderInfo', riderInfo);
 				}
 				
-				// 确保有ID字段
-				if (this.currentUser && !this.currentUser.id) {
-					const currentRiderId = this.currentUser.riderId || this.currentUser.riderBaseId || riderId;
-					if (currentRiderId) {
-						this.currentUser.id = currentRiderId;
-					}
+				if (riderInfo) {
+					// 确保使用 riderBaseId 作为主ID
+					this.currentUser = {
+						...riderInfo,
+						id: riderInfo.riderBaseId  // 使用 riderBaseId
+					};
+					console.log('骑手信息初始化成功, riderBaseId:', riderInfo.riderBaseId);
+				}
+				
+				if (!this.currentUser || !this.currentUser.id) {
+					console.warn('无法获取骑手ID，请重新登录');
 				}
 			} catch (error) {
 				console.error('获取骑手信息失败:', error);
@@ -192,11 +209,9 @@ export default {
 				return;
 			}
 			
-			const riderId = uni.getStorageSync('riderId');
-			let currentRiderId = this.currentUser.id || this.currentUser.riderId || this.currentUser.riderBaseId;
-			if (!currentRiderId) {
-				currentRiderId = riderId;
-			}
+			// 优先使用 riderBaseId
+			let currentRiderId = this.currentUser.riderBaseId || this.currentUser.id;
+			console.log('使用的骑手ID (riderBaseId):', currentRiderId);
 			
 			this.loading = true;
 			try {
@@ -235,7 +250,7 @@ export default {
 				console.log('当前骑手ID:', currentRiderId);
 				
 				if (allSessions.length > 0) {
-					// 筛选正确的会话：骑手作为其中一方，用户(type=1)作为另一方
+					// 筛选正确的会话：骑手作为其中一方，用户(type=1)或商家(type=3)作为另一方
 					const validSessions = allSessions.filter(session => {
 						// 骑手ID匹配检查（比较前10位，避免精度问题）
 						const riderIdStr = String(currentRiderId);
@@ -244,11 +259,12 @@ export default {
 						
 						const isRiderFrom = session.fromType === 2 && fromIdStr.substring(0, 10) === riderIdStr.substring(0, 10);
 						const isRiderTo = session.toType === 2 && toIdStr.substring(0, 10) === riderIdStr.substring(0, 10);
-						const isUserFrom = session.fromType === 1;
-						const isUserTo = session.toType === 1;
+						// 用户(type=1)或商家(type=3)
+						const isOtherFrom = session.fromType === 1 || session.fromType === 3;
+						const isOtherTo = session.toType === 1 || session.toType === 3;
 						
-						// 正确的会话：(骑手→用户) 或 (用户→骑手)
-						const isValid = (isRiderFrom && isUserTo) || (isUserFrom && isRiderTo);
+						// 正确的会话：(骑手→用户/商家) 或 (用户/商家→骑手)
+						const isValid = (isRiderFrom && isOtherTo) || (isOtherFrom && isRiderTo);
 						
 						if (!isValid) {
 							console.log('过滤掉会话:', session.sessionId, 'fromType:', session.fromType, 'toType:', session.toType);
@@ -262,14 +278,15 @@ export default {
 					// 按对话双方合并：同一组用户的会话只保留最新的
 					const dialogMap = new Map();
 					validSessions.forEach(session => {
-						// 找出对方的ID（不管是fromId还是toId）
+						// 找出对方的ID和类型（不管是fromId还是toId）
 						let otherUserId, otherUserType;
-						if (session.fromType === 1) {
+						// 对方是用户(type=1)或商家(type=3)
+						if (session.fromType === 1 || session.fromType === 3) {
 							otherUserId = String(session.fromId);
-							otherUserType = 1;
-						} else if (session.toType === 1) {
+							otherUserType = session.fromType;
+						} else if (session.toType === 1 || session.toType === 3) {
 							otherUserId = String(session.toId);
-							otherUserType = 1;
+							otherUserType = session.toType;
 						}
 						
 						if (!otherUserId) {
@@ -278,6 +295,7 @@ export default {
 						
 						// 保存对方用户信息到session对象
 						session.otherUserId = otherUserId;
+						session.otherUserType = otherUserType;
 						session.otherUserType = otherUserType;
 						session.displayName = '用户 ' + otherUserId.slice(-6);
 						
