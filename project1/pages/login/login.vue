@@ -152,6 +152,13 @@ export default {
 				uni.hideLoading();
 
 				if (result.code === 200) {
+					// 清除旧账号的缓存数据
+					uni.removeStorageSync('shopInfo');
+					uni.removeStorageSync('addressInfo');
+					uni.removeStorageSync('businessHours');
+					uni.removeStorageSync('certImages');
+					uni.removeStorageSync('merchantInfo');
+					
 					// 保存token（必须先保存token，后续请求需要）
 					uni.setStorageSync('token', result.token);
 					uni.setStorageSync('userType', identityKey);
