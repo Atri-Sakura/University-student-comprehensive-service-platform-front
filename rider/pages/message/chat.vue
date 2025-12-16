@@ -163,12 +163,24 @@ export default {
 		
 		this.loadMessages();
 		
-		// 开始轮询新消息（暂时禁用，便于调试）
-		// this.startPolling();
+		// 开始轮询新消息
+		this.startPolling();
 	},
 	
 	onUnload() {
 		this.stopPolling();
+	},
+	
+	onHide() {
+		this.stopPolling();
+	},
+	
+	onShow() {
+		// 返回页面时重新加载消息并开始轮询
+		if (this.sessionId) {
+			this.loadMessages();
+			this.startPolling();
+		}
 	},
 	
 	methods: {
@@ -312,7 +324,10 @@ export default {
 				messageId: Date.now(),
 				msgContent: content,
 				sendTime: new Date(),
-				isSelf: true,
+				fromType: this.fromType,  // 骑手类型
+				fromId: this.fromId,      // 骑手ID
+				toType: this.toType,
+				toId: this.toId,
 				sending: true
 			};
 			
@@ -461,6 +476,66 @@ export default {
 					this.scrollTop = data.height;
 				}
 			}).exec();
+		},
+		
+		// 开始轮询新消息
+		startPolling() {
+			// 先停止之前的轮询
+			this.stopPolling();
+			
+			// 每3秒刷新一次消息
+			this.refreshTimer = setInterval(() => {
+				this.refreshMessages();
+			}, 3000);
+		},
+		
+		// 停止轮询
+		stopPolling() {
+			if (this.refreshTimer) {
+				clearInterval(this.refreshTimer);
+				this.refreshTimer = null;
+			}
+		},
+		
+		// 刷新消息（静默刷新，不显示loading）
+		async refreshMessages() {
+			try {
+				const response = await getMessageList({
+					sessionId: this.sessionId,
+					pageSize: 100
+				});
+				
+				if (response.code === 200 && response.data) {
+					// 按messageId去重
+					const uniqueMessages = [];
+					const seenIds = new Set();
+					
+					response.data.forEach(msg => {
+						const msgId = String(msg.messageId || msg.id || '');
+						if (msgId && !seenIds.has(msgId)) {
+							seenIds.add(msgId);
+							uniqueMessages.push(msg);
+						}
+					});
+					
+					// 只有消息数量变化时才更新
+					if (uniqueMessages.length !== this.messages.length) {
+						this.messages = uniqueMessages
+							.map(msg => this.formatMessage(msg))
+							.sort((a, b) => {
+								const timeA = new Date(a.createTime || a.sendTime || 0);
+								const timeB = new Date(b.createTime || b.sendTime || 0);
+								return timeA - timeB;
+							});
+						
+						this.$nextTick(() => {
+							this.scrollToBottom();
+						});
+					}
+				}
+			} catch (error) {
+				console.error('刷新消息失败:', error);
+			}
 		}
 	}
 };
@@ -478,8 +553,10 @@ export default {
 
 	/* 导航栏 */
 	.nav-bar {
-		position: relative;
-		width: 100%;
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
 		height: calc(88rpx + env(safe-area-inset-top));
 		padding-top: env(safe-area-inset-top);
 		display: flex;
@@ -487,7 +564,7 @@ export default {
 		justify-content: center;
 		background-color: #ffffff;
 		border-bottom: 1rpx solid #e8e8e8;
-		z-index: 10;
+		z-index: 100;
 	}
 
 	.nav-back {
@@ -513,6 +590,7 @@ export default {
 	.chat-content {
 		flex: 1;
 		padding: 20rpx 24rpx;
+		padding-top: calc(88rpx + env(safe-area-inset-top) + 20rpx);
 		padding-bottom: 140rpx;
 		background-color: #f0f2f5;
 	}

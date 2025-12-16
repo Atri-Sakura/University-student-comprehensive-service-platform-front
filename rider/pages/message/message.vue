@@ -364,15 +364,28 @@ export default {
 		},
 		
 		formatTime(time) {
-			const now = new Date();
+			// 检查时间是否有效
+			if (!time) {
+				return '';
+			}
+			
 			const msgTime = new Date(time);
+			
+			// 检查是否是有效日期（1970年说明时间戳为0或无效）
+			if (isNaN(msgTime.getTime()) || msgTime.getFullYear() < 2000) {
+				return '';
+			}
+			
+			const now = new Date();
 			const diff = now - msgTime;
 			
 			const minutes = Math.floor(diff / (1000 * 60));
 			const hours = Math.floor(diff / (1000 * 60 * 60));
 			const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 			
-			if (minutes < 60) {
+			if (minutes < 0) {
+				return '刚刚';
+			} else if (minutes < 60) {
 				return minutes <= 1 ? '刚刚' : `${minutes}分钟前`;
 			} else if (hours < 24) {
 				return `${hours}小时前`;
