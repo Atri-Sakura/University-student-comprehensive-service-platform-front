@@ -105,8 +105,8 @@
           <image v-else class="cert-image" :src="certImages.business" mode="aspectFill"></image>
           <view class="cert-info">
             <text class="cert-name">营业执照</text>
-            <text class="cert-status" :class="certImages.business ? 'cert-verified' : 'cert-unverified'">
-              {{ certImages.business ? '已认证' : '未上传' }}
+            <text class="cert-status" :class="getAuditStatusClass()">
+              {{ getAuditStatusText() }}
             </text>
           </view>
         </view>
@@ -313,8 +313,7 @@ import {
   updateDeliverySettings,
   uploadCertificate,
   uploadQualification,
-  getCertificates,
-  deleteCertificate
+  getCertificates
 } from '@/utils/merchantApi.js';
 
 export default {
@@ -360,9 +359,9 @@ export default {
       editModalType: '', // 'description'、'phone'、'businessScope'
       showLogoutModal: false, // 退出登录确认弹窗
       certImages: {
-        business: '', // 营业执照图片
-        food: '' // 食品经营许可证图片
+        business: '' // 营业执照图片
       },
+      auditStatus: 0, // 审核状态：0-待审核 1-通过 2-拒绝
       isLoading: false // 加载状态
     }
   },
@@ -457,6 +456,9 @@ export default {
           if (data.licenseImg) {
             this.certImages.business = data.licenseImg;
           }
+          
+          // 审核状态：0-待审核 1-通过 2-拒绝
+          this.auditStatus = data.auditStatus ?? 0;
           
           // 保存到本地缓存
           this.saveToLocal();
@@ -629,6 +631,37 @@ export default {
       };
       return statusMap[status] || '营业中';
     },
+    /**
+     * 获取审核状态文本
+     * 审核状态：0-待审核 1-通过 2-拒绝
+     */
+    getAuditStatusText() {
+      // 如果没有上传营业执照，显示"未上传"
+      if (!this.certImages.business) {
+        return '未上传';
+      }
+      // 根据审核状态返回对应文本
+      const statusMap = {
+        0: '待审核',
+        1: '已认证',
+        2: '审核拒绝'
+      };
+      return statusMap[this.auditStatus] || '待审核';
+    },
+    /**
+     * 获取审核状态样式类名
+     */
+    getAuditStatusClass() {
+      if (!this.certImages.business) {
+        return 'status-not-uploaded';
+      }
+      const classMap = {
+        0: 'status-pending',
+        1: 'status-approved',
+        2: 'status-rejected'
+      };
+      return classMap[this.auditStatus] || 'status-pending';
+    },
     async editShopName() {
       uni.showModal({
         title: '修改店铺名称',
@@ -767,7 +800,9 @@ export default {
           province: this.addressInfo.province,
           city: this.addressInfo.city,
           district: this.addressInfo.district,
-          detailAddress: this.addressInfo.detailAddress.trim()
+          detailAddress: this.addressInfo.detailAddress.trim(),
+          contactPerson: this.shopInfo.name || '商家',
+          contactPhone: this.shopInfo.phone || ''
         };
         
         // 如果是更新操作，需要传递merchantAddressId
@@ -925,33 +960,12 @@ export default {
               // 更新图片
               this.uploadCertImage(type, certName);
             } else if (res.tapIndex === 2) {
-              // 删除图片
+              // 删除图片 - 由于后端不支持单独删除，提示用户上传新图片会自动替换
               uni.showModal({
-                title: '确认删除',
-                content: `确定要删除${certName}吗？`,
-                success: async (modalRes) => {
-                  if (modalRes.confirm) {
-                    try {
-                      const deleteRes = await deleteCertificate(type);
-                      if (deleteRes.data && deleteRes.data.code === 200) {
-                        this.certImages[type] = '';
-                        this.saveCertImages();
-                        uni.showToast({
-                          title: '删除成功',
-                          icon: 'success'
-                        });
-                      } else {
-                        throw new Error(deleteRes.data.msg || '删除失败');
-                      }
-                    } catch (error) {
-                      console.error('删除失败:', error);
-                      uni.showToast({
-                        title: error.message || '删除失败',
-                        icon: 'none'
-                      });
-                    }
-                  }
-                }
+                title: '提示',
+                content: '如需更换营业执照，请直接上传新的图片，系统会自动替换旧图片。',
+                showCancel: false,
+                confirmText: '我知道了'
               });
             }
           }
@@ -981,6 +995,8 @@ export default {
               if (uploadRes.code === 200) {
                 // 从返回数据中获取图片URL
                 this.certImages[type] = uploadRes.data?.licenseUrl || uploadRes.data?.url || tempFilePath;
+                // 上传新图片后，审核状态应该变为"待审核"(0)
+                this.auditStatus = 0;
               } else {
                 throw new Error(uploadRes.msg || '上传失败');
               }
@@ -1685,6 +1701,23 @@ export default {
 
 .cert-unverified {
   color: #999;
+}
+
+/* 审核状态样式 */
+.status-not-uploaded {
+  color: #999;
+}
+
+.status-pending {
+  color: #faad14;
+}
+
+.status-approved {
+  color: #52c41a;
+}
+
+.status-rejected {
+  color: #ff4d4f;
 }
 
 .cert-action {
