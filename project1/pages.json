@@ -103,6 +103,12 @@
 	  }
 	},
 	{
+	  "path": "pages/finance/add-withdraw-account",
+	  "style": {
+	    "navigationBarTitleText": "添加提现账户"
+	  }
+	},
+	{
 	  "path": "pages/activities/activity-edit-new",
 	  "style": {
 	    "navigationBarTitleText": "编辑活动"
