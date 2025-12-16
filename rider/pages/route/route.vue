@@ -268,10 +268,14 @@
 
 					const pickupArray = this.extractCoordArray(pickupRes, ['取货地经纬度', 'pickup', 'data', 'coords']);
 					const targetArray = this.extractCoordArray(targetRes, ['目的地经纬度', 'target', 'data', 'coords']);
-					const pickupContacts = this.extractContactArray(pickupRes, ['顾客姓名和电话', 'contacts', 'data.contacts']);
-					const targetContacts = this.extractContactArray(targetRes, ['顾客姓名和电话', 'contacts', 'data.contacts']);
-					const pickupTimes = this.extractTimeArray(pickupRes, ['送达时间', 'deliveryTimes', 'data.times']);
-					const targetTimes = this.extractTimeArray(targetRes, ['送达时间', 'deliveryTimes', 'data.times']);
+                    const pickupContacts = this.extractContactArray(pickupRes, ['顾客姓名和电话', 'contacts', 'data.contacts', '用户信息']);
+                    const targetContacts = this.extractContactArray(targetRes, ['顾客姓名和电话', 'contacts', 'data.contacts', '用户信息']);
+                    const pickupTimes = this.extractTimeArray(pickupRes, ['送达时间', '配送时间', 'deliveryTimes', 'data.times']);
+                    const targetTimes = this.extractTimeArray(targetRes, ['送达时间', '配送时间', 'deliveryTimes', 'data.times']);
+
+					console.log('[路线数据] 取货点数量:', pickupArray.length, '目的地数量:', targetArray.length);
+					console.log('[联系人] 取货联系人:', pickupContacts, '目的地联系人:', targetContacts);
+					console.log('[时间] 取货时间:', pickupTimes, '目的地时间:', targetTimes);
 
 					// 分别构建两类订单
 					const pickupOrders = [];
@@ -350,43 +354,48 @@
 			},
 
 			// 提取顾客姓名和电话数组（与坐标索引对应）
-			extractContactArray(res, possibleKeys = []) {
-				if (!res) return [];
-				let raw = null;
-				for (const k of possibleKeys) {
-					if (res[k]) { raw = res[k]; break; }
-				}
-				if (!raw && res.data && Array.isArray(res.data.contacts)) raw = res.data.contacts;
-				if (!Array.isArray(raw)) return [];
-				const contacts = [];
-				raw.forEach(item => {
-					if (item && typeof item === 'object') {
-						const keys = Object.keys(item);
-						if (keys.length > 0) {
-							const name = keys[0];
-							const phone = item[name];
-							contacts.push({ name, phone });
-						} else {
-							contacts.push({ name: '', phone: '' });
-						}
-					} else {
-						contacts.push({ name: '', phone: '' });
-					}
-				});
-				return contacts;
-			},
+            extractContactArray(res, possibleKeys = []) {
+                if (!res) return [];
+                let raw = null;
+                for (const k of possibleKeys) {
+                    if (res[k]) { raw = res[k]; break; }
+                }
+                if (!raw && res.data && Array.isArray(res.data.contacts)) raw = res.data.contacts;
+                if (!Array.isArray(raw)) return [];
+                const contacts = [];
+                raw.forEach(item => {
+                    if (item && typeof item === 'object') {
+                        // 兼容 { phone: '177...', nickname: '田涛' } 结构
+                        if (item.phone && item.nickname) {
+                            contacts.push({ name: item.nickname, phone: item.phone });
+                        } else {
+                            const keys = Object.keys(item);
+                            if (keys.length > 0) {
+                                const nameKey = keys[0];
+                                const phoneVal = item[nameKey];
+                                contacts.push({ name: nameKey, phone: phoneVal });
+                            } else {
+                                contacts.push({ name: '', phone: '' });
+                            }
+                        }
+                    } else {
+                        contacts.push({ name: '', phone: '' });
+                    }
+                });
+                return contacts;
+            },
 
 			// 提取送达时间数组（与坐标索引对应）
-			extractTimeArray(res, possibleKeys = []) {
-				if (!res) return [];
-				let raw = null;
-				for (const k of possibleKeys) {
-					if (res[k]) { raw = res[k]; break; }
-				}
-				if (!raw && res.data && Array.isArray(res.data.times)) raw = res.data.times;
-				if (!Array.isArray(raw)) return [];
-				return raw;
-			},
+            extractTimeArray(res, possibleKeys = []) {
+                if (!res) return [];
+                let raw = null;
+                for (const k of possibleKeys) {
+                    if (res[k]) { raw = res[k]; break; }
+                }
+                if (!raw && res.data && Array.isArray(res.data.times)) raw = res.data.times;
+                if (!Array.isArray(raw)) return [];
+                return raw;
+            },
 
 				// 将后端时间字符串格式化为易读文案
 				formatTimeString(val) {
@@ -420,21 +429,60 @@
 			// 将数组 [{"lat": lon}, {...}] 解析为 [{latitude, longitude}]
 			parseCoordArray(rawArray) {
 				const coords = [];
+				if (!rawArray) return coords;
 				if (Array.isArray(rawArray)) {
-					rawArray.forEach(obj => {
-						if (obj && typeof obj === 'object') {
-							const keys = Object.keys(obj);
-							if (keys.length > 0) {
-								const latStr = keys[0];
-								const lonVal = obj[latStr];
-								const lat = Number(latStr);
-								const lon = Number(lonVal);
-								if (!isNaN(lat) && !isNaN(lon)) {
-									coords.push({ latitude: lat, longitude: lon });
+					rawArray.forEach(item => {
+						if (item == null) return;
+						// 1) 对象结构
+						if (typeof item === 'object' && !Array.isArray(item)) {
+							let lat = undefined;
+							let lon = undefined;
+							// 1.a 支持 { lat, lng/lon/longitude } 或中文 { 纬度, 经度 }
+							const latKey = 'lat' in item ? 'lat' : ('latitude' in item ? 'latitude' : ('纬度' in item ? '纬度' : null));
+							const lonKey = 'lng' in item ? 'lng' : ('lon' in item ? 'lon' : ('longitude' in item ? 'longitude' : ('经度' in item ? '经度' : null)));
+							if (latKey && lonKey) {
+								lat = Number(item[latKey]);
+								lon = Number(item[lonKey]);
+							} else {
+								// 1.b 原始结构：{ "31.23": 121.47 }
+								const keys = Object.keys(item);
+								if (keys.length > 0) {
+									const latStr = keys[0];
+									const lonVal = item[latStr];
+									lat = Number(latStr);
+									lon = Number(lonVal);
 								}
+							}
+							if (!isNaN(lat) && !isNaN(lon)) {
+								coords.push({ latitude: lat, longitude: lon });
+							}
+						} else if (Array.isArray(item)) {
+							// 2) 数组结构：[lat, lon] 或 [lon, lat]
+							const a = Number(item[0]);
+							const b = Number(item[1]);
+							if (!isNaN(a) && !isNaN(b)) {
+								const lat = Math.abs(a) <= 90 ? a : b;
+								const lon = Math.abs(a) <= 90 ? b : a;
+								coords.push({ latitude: lat, longitude: lon });
+							}
+						} else if (typeof item === 'string') {
+							// 3) 字符串结构："lat,lon" 或 "lon,lat"
+							const parts = item.split(/[，,\s]+/).map(s => Number(s));
+							if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+								const a = parts[0];
+								const b = parts[1];
+								const lat = Math.abs(a) <= 90 ? a : b;
+								const lon = Math.abs(a) <= 90 ? b : a;
+								coords.push({ latitude: lat, longitude: lon });
 							}
 						}
 					});
+				} else if (typeof rawArray === 'object') {
+					// 4) 包裹结构：{ coords: [...] } 或 { list: [...] } 等
+					const maybe = rawArray.coords || rawArray.list || rawArray.points || rawArray.data;
+					if (Array.isArray(maybe)) {
+						return this.parseCoordArray(maybe);
+					}
 				}
 				return coords;
 			},
