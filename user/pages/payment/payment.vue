@@ -27,28 +27,10 @@
         </view>
       </view>
 
-      <!-- 买家信息 -->
+      <!-- 交易地点 -->
       <view class="buyer-card">
         <view class="card-title">
-          <text class="title-text">👤 买家信息</text>
-        </view>
-        <view class="form-item">
-          <text class="item-label">姓名</text>
-          <input 
-            class="item-input" 
-            v-model="buyerInfo.name" 
-            placeholder="请输入姓名"
-          />
-        </view>
-        <view class="form-item">
-          <text class="item-label">手机号</text>
-          <input 
-            class="item-input" 
-            v-model="buyerInfo.phone" 
-            placeholder="请输入手机号"
-            type="number"
-            maxlength="11"
-          />
+          <text class="title-text">📍 交易地点</text>
         </view>
         <view class="form-item">
           <text class="item-label">交易地点</text>
@@ -184,6 +166,7 @@
 import { getGoodsDetail, createOrder, payOrder, confirmOrder, generateRequestId } from '@/api/secondhandGoods.js'
 import { PAY_TYPES } from '@/api/config.js'
 import { verifyPaymentPassword, checkPaymentPasswordStatus } from '@/api/wallet.js'
+import { getUserInfo } from '@/api/user.js'
 
 export default {
   data() {
@@ -191,6 +174,10 @@ export default {
       statusBarHeight: 0,
       navHeight: 0,
       goodsId: '',
+      sellerId: '', // 卖家ID
+      currentUserId: '', // 当前登录用户ID
+      currentUserName: '', // 当前登录用户姓名
+      currentUserPhone: '', // 当前登录用户手机号
       orderInfo: {
         id: '',
         title: '商品名称',
@@ -198,8 +185,6 @@ export default {
         image: 'https://picsum.photos/200/200?random=31'
       },
       buyerInfo: {
-        name: '',
-        phone: '',
         location: ''
       },
       selectedPayment: 3, // 默认选择面付（索引3，payType=4）
@@ -246,6 +231,7 @@ export default {
     console.log('支付页面接收到的商品ID：', goodsId);
     this.goodsId = goodsId;
     this.loadGoodsDetail(goodsId);
+    this.loadCurrentUser();
   },
   methods: {
     // 获取支付方式颜色
@@ -257,6 +243,42 @@ export default {
         4: '#FF6B47'  // 面付
       };
       return colors[payType] || '#999999';
+    },
+    
+    // 加载当前登录用户信息
+    async loadCurrentUser() {
+      try {
+        // 先从本地存储获取
+        let userId = uni.getStorageSync('userId');
+        let userName = '';
+        let userPhone = '';
+        
+        const localUserInfo = uni.getStorageSync('userInfo');
+        if (localUserInfo) {
+          userId = userId || localUserInfo.userBaseId || localUserInfo.userId || localUserInfo.id;
+          userName = localUserInfo.realName || localUserInfo.nickName || localUserInfo.userName || '';
+          userPhone = localUserInfo.phone || localUserInfo.phonenumber || '';
+        }
+        
+        if (userId) {
+          this.currentUserId = String(userId);
+          this.currentUserName = userName;
+          this.currentUserPhone = userPhone;
+          console.log('从本地存储获取的用户信息：', this.currentUserId, this.currentUserName, this.currentUserPhone);
+        }
+        
+        // 从API获取最新信息
+        const result = await getUserInfo();
+        if (result && result.data) {
+          const user = result.data;
+          this.currentUserId = String(user.userBaseId || user.userId || user.id || '');
+          this.currentUserName = user.realName || user.nickName || user.userName || this.currentUserName || '';
+          this.currentUserPhone = user.phone || user.phonenumber || this.currentUserPhone || '';
+          console.log('从API获取的用户信息：', this.currentUserId, this.currentUserName, this.currentUserPhone);
+        }
+      } catch (error) {
+        console.error('获取用户信息失败：', error);
+      }
     },
     
     // 加载商品详情
@@ -275,6 +297,10 @@ export default {
           price: data.price,
           image: this.parseImage(data)
         };
+        
+        // 保存卖家ID
+        this.sellerId = String(data.userId || data.sellerId || '');
+        console.log('卖家ID：', this.sellerId);
         
         uni.hideLoading();
         
@@ -326,32 +352,6 @@ export default {
     
     // 表单验证
     validateForm() {
-      if (!this.buyerInfo.name.trim()) {
-        uni.showToast({
-          title: '请输入姓名',
-          icon: 'none'
-        });
-        return false;
-      }
-      
-      if (!this.buyerInfo.phone.trim()) {
-        uni.showToast({
-          title: '请输入手机号',
-          icon: 'none'
-        });
-        return false;
-      }
-      
-      // 手机号验证
-      const phoneReg = /^1[3-9]\d{9}$/;
-      if (!phoneReg.test(this.buyerInfo.phone)) {
-        uni.showToast({
-          title: '请输入正确的手机号',
-          icon: 'none'
-        });
-        return false;
-      }
-      
       if (!this.buyerInfo.location.trim()) {
         uni.showToast({
           title: '请输入交易地点',
@@ -363,9 +363,34 @@ export default {
       return true;
     },
     
+    // 检查是否购买自己的商品
+    checkSelfPurchase() {
+      if (this.currentUserId && this.sellerId && this.currentUserId === this.sellerId) {
+        uni.showModal({
+          title: '提示',
+          content: '不能购买自己发布的商品',
+          showCancel: false,
+          confirmText: '确定',
+          success: () => {
+            // 返回二手交易页面
+            uni.navigateBack({
+              delta: 2 // 返回2级：支付页 → 详情页 → 列表页
+            });
+          }
+        });
+        return false;
+      }
+      return true;
+    },
+    
     // 提交订单
     async submitOrder() {
       if (!this.validateForm()) {
+        return;
+      }
+      
+      // 检查是否购买自己的商品
+      if (!this.checkSelfPurchase()) {
         return;
       }
       
@@ -396,11 +421,11 @@ export default {
         
         const paymentMethod = this.paymentMethods[this.selectedPayment];
         
-        // 构建订单参数
+        // 构建订单参数（买家信息自动获取）
         const orderParams = {
           goodsId: parseInt(this.goodsId),
-          receiverName: this.buyerInfo.name,
-          receiverPhone: this.buyerInfo.phone,
+          receiverName: this.currentUserName,
+          receiverPhone: this.currentUserPhone,
           tradePlace: this.buyerInfo.location,
           payType: paymentMethod.payType,
           remark: this.remark,
@@ -412,10 +437,36 @@ export default {
         const result = await createOrder(orderParams);
         console.log('创建订单结果：', result);
         
+        uni.hideLoading();
+        
+        // 检查是否返回错误（包括自购错误）
+        if (result.code && result.code !== 200) {
+          // 检查是否是自购错误
+          if (result.msg && result.msg.includes('自己')) {
+            uni.showModal({
+              title: '提示',
+              content: '不能购买自己发布的商品',
+              showCancel: false,
+              confirmText: '确定',
+              success: () => {
+                // 返回二手交易页面
+                uni.navigateBack({
+                  delta: 2
+                });
+              }
+            });
+          } else {
+            uni.showToast({
+              title: result.msg || '订单创建失败',
+              icon: 'none',
+              duration: 2000
+            });
+          }
+          return;
+        }
+        
         const orderData = result.data || result;
         const orderNo = orderData.orderNo;
-        
-        uni.hideLoading();
         
         // 判断支付类型
         if (paymentMethod.payType === 4) {
