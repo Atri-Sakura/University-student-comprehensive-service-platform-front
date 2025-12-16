@@ -72,7 +72,7 @@
     </view>
     
     <!-- 底部操作按钮 -->
-    <view class="bottom-actions" v-if="!loading && !error">
+    <view class="bottom-actions" v-if="!loading && !error && order.orderStatus !== 6">
       <!-- 待支付状态且是买家订单：显示支付费用按钮 -->
       <button 
         v-if="order.orderStatus === 1 && role === 'buyer'" 
@@ -89,7 +89,7 @@
         确认收货
       </button>
       
-      <!-- 已完成状态：不显示按钮 -->
+      <!-- 已完成和已取消状态：不显示按钮 -->
     </view>
   </view>
 </template>
@@ -192,6 +192,8 @@ export default {
         return 'status-selling'  // 交易中/待支付
       } else if (numStatus === 5) {
         return 'status-completed'  // 已完成
+      } else if (numStatus === 6) {
+        return 'status-removed'  // 已取消
       }
       return ''
     },
@@ -208,6 +210,8 @@ export default {
         return '交易中'
       } else if (numStatus === 5) {
         return '已完成'
+      } else if (numStatus === 6) {
+        return '已取消'
       }
       return '未知状态'
     },

@@ -309,6 +309,8 @@ export default {
         return 'status-selling' // 交易中
       } else if (numStatus === 5) {
         return 'status-completed' // 已完成
+      } else if (numStatus === 6) {
+        return 'status-canceled' // 已取消
       } 
       return ''
     },
@@ -323,6 +325,8 @@ export default {
         return '交易中'
       } else if (numStatus === 5) {
         return '已完成'
+      } else if (numStatus === 6) {
+        return '已取消'
       } 
       return '未知状态'
     },
@@ -586,6 +590,11 @@ export default {
 }
 
 .status-removed {
+  color: #999;
+  background-color: #F5F5F5;
+}
+
+.status-canceled {
   color: #999;
   background-color: #F5F5F5;
 }
