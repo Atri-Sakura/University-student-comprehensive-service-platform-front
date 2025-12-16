@@ -1,0 +1,42 @@
+/**
+ * 这里是uni-app内置的常用样式变量
+ */
+
+/* 颜色变量 */
+$uni-color-primary: #5DCDFF;
+$uni-color-success: #4cd964;
+$uni-color-warning: #f0ad4e;
+$uni-color-error: #dd524d;
+
+/* 文字基本颜色 */
+$uni-text-color: #333;
+$uni-text-color-inverse: #fff;
+$uni-text-color-grey: #999;
+$uni-text-color-placeholder: #808080;
+$uni-text-color-disable: #c0c0c0;
+
+/* 背景颜色 */
+$uni-bg-color: #ffffff;
+$uni-bg-color-grey: #f8f8f8;
+$uni-bg-color-hover: #f1f1f1;
+$uni-bg-color-mask: rgba(0, 0, 0, 0.4);
+
+/* 边框颜色 */
+$uni-border-color: #c8c7cc;
+
+/* 尺寸变量 */
+$uni-spacing-sm: 8px;
+$uni-spacing-base: 15px;
+$uni-spacing-lg: 30px;
+
+/* 圆角 */
+$uni-border-radius-sm: 2px;
+$uni-border-radius-base: 4px;
+$uni-border-radius-lg: 6px;
+$uni-border-radius-circle: 50%;
+
+/* 字体大小 */
+$uni-font-size-sm: 12px;
+$uni-font-size-base: 14px;
+$uni-font-size-lg: 16px;
+

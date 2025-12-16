@@ -1,0 +1,396 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "校园生活",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/market/market",
+      "style": {
+        "navigationBarTitleText": "二手交易",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/publish/publish",
+      "style": {
+        "navigationBarTitleText": "发布商品",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/goods-detail/goods-detail",
+      "style": {
+        "navigationBarTitleText": "物品详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/payment/payment",
+      "style": {
+        "navigationBarTitleText": "确认订单",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/message/message",
+      "style": {
+        "navigationBarTitleText": "消息",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/message/chat-detail",
+      "style": {
+        "navigationBarTitleText": "聊天详情",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/mine/personal-info",
+      "style": {
+        "navigationBarTitleText": "个人信息",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/account-security",
+      "style": {
+        "navigationBarTitleText": "账号安全",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/change-password",
+      "style": {
+        "navigationBarTitleText": "修改密码",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/login-devices",
+      "style": {
+        "navigationBarTitleText": "登录设备",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/login-history",
+      "style": {
+        "navigationBarTitleText": "登录记录",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/address",
+      "style": {
+        "navigationBarTitleText": "收货地址",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/address-edit",
+      "style": {
+        "navigationBarTitleText": "编辑地址",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet",
+      "style": {
+        "navigationBarTitleText": "我的钱包",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-recharge",
+      "style": {
+        "navigationBarTitleText": "充值",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-withdraw",
+      "style": {
+        "navigationBarTitleText": "提现",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-bill",
+      "style": {
+        "navigationBarTitleText": "账单明细",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/payment-methods",
+      "style": {
+        "navigationBarTitleText": "支付方式",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/payment-method-edit",
+      "style": {
+        "navigationBarTitleText": "编辑支付方式",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-security",
+      "style": {
+        "navigationBarTitleText": "钱包安全",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-payment-password",
+      "style": {
+        "navigationBarTitleText": "支付密码",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-security-question",
+      "style": {
+        "navigationBarTitleText": "安全问题",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/wallet-security-log",
+      "style": {
+        "navigationBarTitleText": "安全日志",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/register/register",
+      "style": {
+        "navigationBarTitleText": "用户注册",
+        "navigationStyle": "custom"
+      }
+    },
+     {
+      "path": "pages/mine/feedback",
+      "style": {
+        "navigationBarTitleText": "意见反馈",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/mine/customer-service",
+      "style": {
+        "navigationBarTitleText": "客服专线",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/privacy-settings",
+      "style": {
+        "navigationBarTitleText": "隐私设置",
+        "navigationBarBackgroundColor": "#4CAF50",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/orders/index",
+      "style": {
+        "navigationBarTitleText": "我的订单",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/orders/food-orders",
+      "style": {
+        "navigationBarTitleText": "外卖订单",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/orders/errand-orders",
+      "style": {
+        "navigationBarTitleText": "跑腿订单",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/orders/second-hand-orders",
+      "style": {
+        "navigationBarTitleText": "二手交易订单",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/orders/food-order-detail",
+      "style": {
+        "navigationBarTitleText": "订单详情",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+	},
+    {
+      "path": "pages/orders/food-order-aftersale",
+      "style": {
+        "navigationBarTitleText": "申请售后",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+	},
+    {
+      "path": "pages/orders/errand-order-edit",
+      "style": {
+        "navigationBarTitleText": "修改订单",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+	},
+    {  "path": "pages/orders/delivery-location",
+	   "style": {        
+		   "navigationBarTitleText": "配送员位置",
+			"navigationBarBackgroundColor": "#5DCDFF",
+			"navigationBarTextStyle": "white" 
+		}  
+	},    
+	{    "path": "pages/orders/errand-order-detail",
+		  "style": {        
+			  "navigationBarTitleText": "订单详情",        
+			  "navigationBarBackgroundColor": "#5DCDFF",        
+			  "navigationBarTextStyle": "white" 
+		} 
+	},
+	{
+      "path": "pages/orders/rate-delivery",
+      "style": {
+        "navigationBarTitleText": "评价配送员",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+	},
+    {
+      "path": "pages/orders/pay-product-fee",
+      "style": {
+        "navigationBarTitleText": "支付商品费用",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+	   {
+      "path": "pages/food/food",
+      "style": {
+        "navigationBarTitleText": "外卖点餐",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/food/food-detail",
+      "style": {
+        "navigationBarTitleText": "商家详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/food/goods-detail",
+      "style": {
+        "navigationBarTitleText": "商品详情",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/food/order-confirm",
+      "style": {
+        "navigationBarTitleText": "确认订单",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/food/address-select",
+      "style": {
+        "navigationBarTitleText": "选择地址",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+    },
+    {
+      "path": "pages/food/food-payment",
+      "style": {
+        "navigationBarTitleText": "订单支付",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/errand/errand",
+      "style": {
+        "navigationBarTitleText": "跑腿服务",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/errand/errand-payment",
+      "style": {
+        "navigationBarTitleText": "订单支付",
+        "navigationStyle": "custom"
+      }
+    },
+	  {    "path": "pages/orders/second-hand-order-detail",
+		  "style": {        
+			  "navigationBarTitleText": "二手交易订单详情",        
+			  "navigationBarBackgroundColor": "#5DCDFF",        
+			  "navigationBarTextStyle": "white" 
+		} 
+	},
+	{
+      "path": "pages/orders/food-order-evaluate",
+      "style": {
+        "navigationBarTitleText": "评价商家",
+        "navigationBarBackgroundColor": "#5DCDFF",
+        "navigationBarTextStyle": "white"
+      }
+	},  
+    {
+      "path": "pages/shedule/shedule",
+      "style": {
+        "navigationBarTitleText": "个人课表",
+        "navigationStyle": "custom"
+      }
+    }
+],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "校园生活",
+    "navigationBarBackgroundColor": "#F8F8F8",
+    "backgroundColor": "#F8F8F8"
+  }
+}
+
+
+
+
+
+
