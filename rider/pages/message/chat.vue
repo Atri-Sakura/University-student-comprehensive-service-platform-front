@@ -19,25 +19,29 @@
 					:key="message.messageId || index"
 					:id="'msg-' + index"
 				>
-					<!-- 对方消息：头像在左，气泡在右 -->
+					<!-- 对方消息（用户）：头像在左 -->
 					<template v-if="!isSelf(message)">
 						<view class="chat-avatar">
-							<text class="avatar-icon service">👤</text>
+							<image class="avatar-img" :src="userAvatar" mode="aspectFill"></image>
 						</view>
-						<view class="chat-bubble">
-							<text class="chat-text">{{ message.msgContent }}</text>
-							<text class="chat-time">{{ formatTime(message.sendTime) }}</text>
+						<view class="chat-main">
+							<text class="chat-label">{{ userName }}</text>
+							<view class="chat-bubble">
+								<text class="chat-text">{{ message.msgContent }}</text>
+							</view>
 						</view>
 					</template>
 					
-					<!-- 自己消息：气泡在左，头像在右 -->
+					<!-- 自己消息（骑手）：头像在右 -->
 					<template v-else>
-						<view class="chat-bubble self">
-							<text class="chat-text">{{ message.msgContent }}</text>
-							<text class="chat-time">{{ formatTime(message.sendTime) }}</text>
+						<view class="chat-main self">
+							<text class="chat-label">我</text>
+							<view class="chat-bubble self">
+								<text class="chat-text">{{ message.msgContent }}</text>
+							</view>
 						</view>
 						<view class="chat-avatar">
-							<text class="avatar-icon user">👤</text>
+							<image class="avatar-img" :src="riderAvatar" mode="aspectFill"></image>
 						</view>
 					</template>
 				</view>
@@ -87,9 +91,9 @@
 <script>
 // WebSocket实时通信（protobufjs已安装）
 import wsManager from '@/utils/websocket-protobuf-manager.js';
-import { getMessageList, markMessagesAsRead, USER_TYPE, MSG_TYPE, MSG_STATUS } from '@/utils/api/message.js';
+import { markMessagesAsRead, USER_TYPE, MSG_TYPE, MSG_STATUS } from '@/utils/api/message.js';
 import { markSessionAsRead } from '@/utils/api/session.js';
-import { sendMessage, getMessagesFromTo } from '@/utils/api/chat.js';
+import { sendMessage, getMessageList } from '@/utils/api/chat.js';
 
 export default {
 	data() {
@@ -102,6 +106,13 @@ export default {
 			fromType: USER_TYPE.RIDER,
 			currentUser: null,
 			wsConnected: false,
+			
+			// 用户信息
+			userName: '用户',
+			userAvatar: '/static/logo.png',
+			// 骑手信息
+			riderName: '骑手',
+			riderAvatar: '/static/logo.png',
 			
 			inputMessage: '',
 			messages: [],
@@ -175,17 +186,17 @@ export default {
 		},
 		
 		isSelf(message) {
-			const result = message.fromId == this.fromId && message.fromType == this.fromType;
-			console.log('isSelf判断:', {
-				'message.fromId': message.fromId,
-				'message.fromType': message.fromType,
-				'this.fromId': this.fromId,
-				'this.fromType': this.fromType,
-				'fromId匹配': message.fromId == this.fromId,
-				'fromType匹配': message.fromType == this.fromType,
-				'最终结果': result
-			});
-			return result;
+			// 骑手端：fromType=2 的消息是骑手发的，显示在右边
+			// 同时检查fromId是否匹配当前骑手（比较前10位避免精度问题）
+			const msgFromType = Number(message.fromType);
+			const msgFromId = String(message.fromId || '');
+			const myId = String(this.fromId || '');
+			
+			// 骑手类型且ID匹配
+			const isRiderType = msgFromType === 2;
+			const isIdMatch = msgFromId.substring(0, 10) === myId.substring(0, 10);
+			
+			return isRiderType && isIdMatch;
 		},
 		
 		async loadMessages() {
@@ -195,35 +206,46 @@ export default {
 				console.log('fromId:', this.fromId);
 				console.log('toId:', this.toId);
 				
-				// 临时方案：由于后端getMessageList存在bug，强制使用getMessagesFromTo
-				// 需要双向查询：骑手→用户 + 用户→骑手
-				const [res1, res2] = await Promise.all([
-					getMessagesFromTo({
-						fromType: this.fromType,
-						fromId: String(this.fromId),
-						toType: this.toType,
-						toId: String(this.toId),
-						pageSize: 100
-					}),
-					getMessagesFromTo({
-						fromType: this.toType,
-						fromId: String(this.toId),
-						toType: this.fromType,
-						toId: String(this.fromId),
-						pageSize: 100
-					})
-				]);
+				// 使用sessionId查询消息（后端支持按sessionId过滤）
+				const response = await getMessageList({
+					sessionId: this.sessionId,
+					pageSize: 100
+				});
+				
+				console.log('消息查询结果:', response);
 				
 				let allMessages = [];
-				if (res1.code === 200 && res1.data) {
-					allMessages = allMessages.concat(res1.data);
-				}
-				if (res2.code === 200 && res2.data) {
-					allMessages = allMessages.concat(res2.data);
+				if (response.code === 200 && response.data) {
+					allMessages = response.data;
 				}
 				
+				// 打印每条消息的详细信息
+				console.log('原始消息列表:');
+				allMessages.forEach((msg, index) => {
+					console.log(`消息${index}:`, {
+						messageId: msg.messageId,
+						content: msg.msgContent,
+						fromType: msg.fromType,
+						fromId: msg.fromId
+					});
+				});
+				
 				if (allMessages.length > 0) {
-					this.messages = allMessages
+					// 按messageId去重
+					const uniqueMessages = [];
+					const seenIds = new Set();
+					
+					allMessages.forEach(msg => {
+						const msgId = String(msg.messageId || msg.id || '');
+						if (msgId && !seenIds.has(msgId)) {
+							seenIds.add(msgId);
+							uniqueMessages.push(msg);
+						}
+					});
+					
+					console.log('去重前:', allMessages.length, '去重后:', uniqueMessages.length);
+					
+					this.messages = uniqueMessages
 						.map(msg => this.formatMessage(msg))
 						.sort((a, b) => {
 							const timeA = new Date(a.createTime || a.sendTime || 0);
@@ -451,48 +473,48 @@ export default {
 		height: 100vh;
 		display: flex;
 		flex-direction: column;
-		background-color: #f5f5f5;
+		background-color: #f0f2f5;
 	}
 
-	/* 导航�?*/
+	/* 导航栏 */
 	.nav-bar {
+		position: relative;
 		width: 100%;
-		height: 88rpx;
-		padding: env(safe-area-inset-top) 30rpx 0;
+		height: calc(88rpx + env(safe-area-inset-top));
+		padding-top: env(safe-area-inset-top);
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		justify-content: center;
 		background-color: #ffffff;
-		border-bottom: 1rpx solid #f0f0f0;
+		border-bottom: 1rpx solid #e8e8e8;
 		z-index: 10;
 	}
 
 	.nav-back {
 		position: absolute;
-		left: 30rpx;
-		bottom: 22rpx;
-		font-size: 48rpx;
+		left: 24rpx;
+		font-size: 44rpx;
 		color: #333333;
+		padding: 10rpx;
 	}
 
 	.nav-title {
-		font-size: 36rpx;
+		font-size: 34rpx;
 		font-weight: 600;
 		color: #333333;
-		margin-bottom: 22rpx;
 	}
 
 	.nav-actions {
 		position: absolute;
-		right: 30rpx;
-		bottom: 22rpx;
+		right: 24rpx;
 	}
 
 	/* 聊天内容 */
 	.chat-content {
 		flex: 1;
-		padding: 20rpx;
-		padding-bottom: 120rpx;
+		padding: 20rpx 24rpx;
+		padding-bottom: 140rpx;
+		background-color: #f0f2f5;
 	}
 
 	.chat-list {
@@ -501,8 +523,8 @@ export default {
 
 	.chat-item {
 		display: flex;
-		margin-bottom: 30rpx;
-		align-items: flex-end;
+		margin-bottom: 32rpx;
+		align-items: flex-start;
 	}
 
 	.chat-item.chat-self {
@@ -510,54 +532,57 @@ export default {
 	}
 
 	.chat-avatar {
-		margin: 0 16rpx;
 		flex-shrink: 0;
 	}
 
-	.avatar-icon {
-		width: 64rpx;
-		height: 64rpx;
+	.avatar-img {
+		width: 80rpx;
+		height: 80rpx;
 		border-radius: 50%;
 		background-color: #e0e0e0;
+	}
+
+	.chat-main {
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 28rpx;
+		flex-direction: column;
+		margin-left: 16rpx;
+		max-width: 500rpx;
 	}
 
-	.avatar-icon.service {
-		background-color: #fff2f0;
-		color: #ff4d4f;
+	.chat-main.self {
+		margin-left: 0;
+		margin-right: 16rpx;
+		align-items: flex-end;
 	}
 
-	.avatar-icon.user {
-		background-color: #e6f7ff;
-		color: #1890ff;
+	.chat-label {
+		font-size: 24rpx;
+		color: #999999;
+		margin-bottom: 8rpx;
 	}
 
 	.chat-bubble {
-		max-width: 480rpx;
-		padding: 20rpx 24rpx;
-		border-radius: 20rpx;
-		position: relative;
+		max-width: 100%;
+		padding: 20rpx 28rpx;
+		border-radius: 16rpx;
+		word-break: break-all;
 	}
 
 	.chat-bubble:not(.self) {
 		background-color: #ffffff;
-		border-bottom-left-radius: 8rpx;
+		border-top-left-radius: 4rpx;
 	}
 
 	.chat-bubble.self {
-		background-color: #1890ff;
-		border-bottom-right-radius: 8rpx;
+		background-color: #4facfe;
+		border-top-right-radius: 4rpx;
 	}
 
 	.chat-text {
-		font-size: 28rpx;
-		line-height: 1.6;
-		white-space: pre-line;
-		display: block;
-		margin-bottom: 8rpx;
+		font-size: 30rpx;
+		line-height: 1.5;
+		white-space: pre-wrap;
+		word-break: break-all;
 	}
 
 	.chat-bubble:not(.self) .chat-text {
@@ -565,19 +590,6 @@ export default {
 	}
 
 	.chat-bubble.self .chat-text {
-		color: #ffffff;
-	}
-
-	.chat-time {
-		font-size: 20rpx;
-		opacity: 0.7;
-	}
-
-	.chat-bubble:not(.self) .chat-time {
-		color: #999999;
-	}
-
-	.chat-bubble.self .chat-time {
 		color: #ffffff;
 	}
 

@@ -45,7 +45,7 @@
 					</view>
 					<view class="message-content">
 						<view class="message-header">
-							<text class="message-title">会话 {{ item.toId }}</text>
+							<text class="message-title">{{ item.displayName || '用户' }}</text>
 							<text class="message-time">{{ formatTime(item.lastMsgTime) }}</text>
 						</view>
 						<text class="message-preview" :class="{ unread: item.unreadCount > 0 }">{{ item.lastMsgContent || '暂无消息' }}</text>
@@ -231,32 +231,55 @@ export default {
 					allSessions = allSessions.concat(response2.data);
 				}
 				
+				console.log('所有会话数量:', allSessions.length);
+				console.log('当前骑手ID:', currentRiderId);
+				
 				if (allSessions.length > 0) {
-					// 筛选正确的会话：骑手作为其中一方，用户作为另一方
+					// 筛选正确的会话：骑手作为其中一方，用户(type=1)作为另一方
 					const validSessions = allSessions.filter(session => {
-						const isRiderFrom = session.fromType === 2 && String(session.fromId) === String(currentRiderId);
-						const isRiderTo = session.toType === 2 && String(session.toId) === String(currentRiderId);
+						// 骑手ID匹配检查（比较前10位，避免精度问题）
+						const riderIdStr = String(currentRiderId);
+						const fromIdStr = String(session.fromId);
+						const toIdStr = String(session.toId);
+						
+						const isRiderFrom = session.fromType === 2 && fromIdStr.substring(0, 10) === riderIdStr.substring(0, 10);
+						const isRiderTo = session.toType === 2 && toIdStr.substring(0, 10) === riderIdStr.substring(0, 10);
 						const isUserFrom = session.fromType === 1;
 						const isUserTo = session.toType === 1;
 						
 						// 正确的会话：(骑手→用户) 或 (用户→骑手)
-						return (isRiderFrom && isUserTo) || (isUserFrom && isRiderTo);
+						const isValid = (isRiderFrom && isUserTo) || (isUserFrom && isRiderTo);
+						
+						if (!isValid) {
+							console.log('过滤掉会话:', session.sessionId, 'fromType:', session.fromType, 'toType:', session.toType);
+						}
+						
+						return isValid;
 					});
+					
+					console.log('有效会话数量:', validSessions.length);
 					
 					// 按对话双方合并：同一组用户的会话只保留最新的
 					const dialogMap = new Map();
 					validSessions.forEach(session => {
 						// 找出对方的ID（不管是fromId还是toId）
-						let otherUserId;
+						let otherUserId, otherUserType;
 						if (session.fromType === 1) {
 							otherUserId = String(session.fromId);
+							otherUserType = 1;
 						} else if (session.toType === 1) {
 							otherUserId = String(session.toId);
+							otherUserType = 1;
 						}
 						
 						if (!otherUserId) {
 							return;
 						}
+						
+						// 保存对方用户信息到session对象
+						session.otherUserId = otherUserId;
+						session.otherUserType = otherUserType;
+						session.displayName = '用户 ' + otherUserId.slice(-6);
 						
 						// 使用对方ID前15位作为key（同一个用户）
 						const dialogKey = otherUserId.substring(0, 15);
@@ -326,9 +349,9 @@ export default {
 				sessionId: String(item.sessionId),
 				fromType: String(USER_TYPE.RIDER),
 				fromId: String(currentRiderId),
-				toType: String(otherUserType),
-				toId: String(otherUserId),
-				title: encodeURIComponent(`用户 ${otherUserId}`)
+				toType: String(item.otherUserType || otherUserType),
+				toId: String(item.otherUserId || otherUserId),
+				title: encodeURIComponent(item.displayName || `用户 ${otherUserId}`)
 			};
 			
 			const queryString = Object.keys(params)
