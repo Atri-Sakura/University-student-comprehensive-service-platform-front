@@ -114,7 +114,9 @@ export default {
       isAtBottom: true,
       showEmojiPanel: false,
       emojiList: ['😊', '😂', '🥰', '😍', '🤔', '😅', '😭', '😡', '👍', '👎', '❤️', '💔', '🎉', '🎊', '🔥', '💯', '😎', '🤗', '😴', '🤤'],
-      wsConnected: false
+      wsConnected: false,
+      pollingTimer: null, // 轮询定时器
+      pollingInterval: 3000 // 轮询间隔（3秒）
     };
   },
   
@@ -527,11 +529,76 @@ export default {
       }
     },
     
-    toggleVoiceInput() {
-      uni.showToast({
-        title: '语音功能开发中',
-        icon: 'none'
-      });
+    // 开始轮询
+    startPolling() {
+      // 先清除已有的定时器
+      this.stopPolling();
+      
+      // 设置定时器，定期刷新消息
+      this.pollingTimer = setInterval(async () => {
+        if (this.chatInfo.sessionId) {
+          await this.pollNewMessages();
+        }
+      }, this.pollingInterval);
+    },
+    
+    // 停止轮询
+    stopPolling() {
+      if (this.pollingTimer) {
+        clearInterval(this.pollingTimer);
+        this.pollingTimer = null;
+      }
+    },
+    
+    // 轮询获取新消息
+    async pollNewMessages() {
+      try {
+        // 确保sessionId是有效的值
+        let sessionId = this.chatInfo.sessionId;
+        if (typeof sessionId === 'object' && sessionId !== null) {
+          sessionId = sessionId.sessionId || sessionId.id;
+        }
+        
+        const response = await getMessageList({
+          sessionId: sessionId,
+          pageSize: 100
+        });
+        
+        if (response.code === 200 && response.data) {
+          // 获取当前消息数量
+          const oldCount = this.messages.length;
+          
+          // 处理消息（去重和排序）
+          const sortedMessages = [...response.data].sort((a, b) => {
+            const timeA = new Date(a.createTime || a.sendTime || 0).getTime();
+            const timeB = new Date(b.createTime || b.sendTime || 0).getTime();
+            return timeA - timeB;
+          });
+          
+          const uniqueMessages = [];
+          const seenKeys = new Set();
+          for (const msg of sortedMessages) {
+            const msgTime = new Date(msg.createTime || msg.sendTime || 0).getTime();
+            const timeWindow = Math.floor(msgTime / 5000);
+            const key = `${msg.fromId}_${msg.msgContent}_${timeWindow}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              uniqueMessages.push(msg);
+            }
+          }
+          
+          this.messages = uniqueMessages.map(msg => this.formatMessage(msg));
+          
+          // 如果有新消息，滚动到底部
+          if (this.messages.length > oldCount && this.isAtBottom) {
+            this.$nextTick(() => {
+              this.scrollToBottom();
+            });
+          }
+        }
+      } catch (error) {
+        console.error('轮询消息失败:', error);
+      }
     },
     
     toggleEmojiPanel() {
@@ -683,6 +750,8 @@ export default {
     // 加载聊天消息
     if (this.chatInfo.sessionId) {
       await this.loadMessages();
+      // 启动轮询
+      this.startPolling();
     }
     
     // 建立WebSocket连接（确保连接在onLoad时就建立）
@@ -710,6 +779,11 @@ export default {
       this.wsConnected = true;
     }
     
+    // 页面显示时启动轮询
+    if (this.chatInfo.sessionId && !this.pollingTimer) {
+      this.startPolling();
+    }
+    
     // 页面显示时滚动到底部
     this.$nextTick(() => {
       setTimeout(() => {
@@ -719,11 +793,13 @@ export default {
   },
   
   onHide() {
-    // 页面隐藏时预留，暂无逻辑
+    // 页面隐藏时停止轮询
+    this.stopPolling();
   },
   
   onUnload() {
-    // 页面卸载时断开WebSocket连接
+    // 页面卸载时停止轮询和断开WebSocket连接
+    this.stopPolling();
     this.disconnectWebSocket();
   }
 };
