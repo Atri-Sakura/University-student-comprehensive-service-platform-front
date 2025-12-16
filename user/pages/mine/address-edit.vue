@@ -13,6 +13,52 @@
       </view>
     </view>
 
+    <!-- 地区选择弹窗 -->
+    <view class="region-picker-mask" v-if="showRegionPopup" @click="closeRegionPicker"></view>
+    <view class="region-picker-popup" :class="{ show: showRegionPopup }">
+      <view class="region-picker-header">
+        <text class="region-picker-cancel" @click="closeRegionPicker">取消</text>
+        <text class="region-picker-title">选择地区</text>
+        <text class="region-picker-confirm" @click="confirmRegion">确定</text>
+      </view>
+      <view class="region-tabs">
+        <text 
+          class="region-tab" 
+          :class="{ active: currentLevel === 0 }"
+          @click="switchLevel(0)"
+        >{{ tempProvince || '请选择' }}</text>
+        <text 
+          class="region-tab" 
+          :class="{ active: currentLevel === 1 }"
+          @click="switchLevel(1)"
+          v-if="tempProvince"
+        >{{ tempCity || '请选择' }}</text>
+        <text 
+          class="region-tab" 
+          :class="{ active: currentLevel === 2 }"
+          @click="switchLevel(2)"
+          v-if="tempCity"
+        >{{ tempDistrict || '请选择' }}</text>
+      </view>
+      <scroll-view 
+        class="region-list" 
+        scroll-y 
+        :scroll-top="scrollTop"
+        @scroll="onRegionScroll"
+      >
+        <view 
+          class="region-item" 
+          v-for="(item, index) in currentRegionList" 
+          :key="index"
+          :class="{ selected: isRegionSelected(item) }"
+          @click="selectRegion(item)"
+        >
+          <text class="region-item-text">{{ item }}</text>
+          <text class="region-item-check" v-if="isRegionSelected(item)">✓</text>
+        </view>
+      </scroll-view>
+    </view>
+
     <!-- 表单区域 -->
     <view class="form-section">
       <view class="form-item">
@@ -49,14 +95,10 @@
         <view class="form-label">
           <text class="label-text">所在地区</text>
         </view>
-        <view class="form-input-wrapper" @click="showRegionPicker">
-          <input
-            class="form-input"
-            type="text"
-            placeholder="请选择省市区"
-            v-model="regionText"
-            disabled
-          />
+        <view class="form-input-wrapper region-selector" @click="showRegionPicker">
+          <text class="form-input region-text" :class="{ placeholder: !regionText }">
+            {{ regionText || '请选择省市区' }}
+          </text>
           <text class="arrow-icon">></text>
         </view>
       </view>
@@ -140,7 +182,15 @@ export default {
         { label: '公司', value: 'COMPANY' },
         { label: '学校', value: 'SCHOOL' },
         { label: '其他', value: 'OTHER' }
-      ]
+      ],
+      // 地区选择器相关
+      showRegionPopup: false,
+      currentLevel: 0, // 0: 省, 1: 市, 2: 区
+      tempProvince: '',
+      tempCity: '',
+      tempDistrict: '',
+      scrollTop: 0,
+      lastScrollTop: 0
     };
   },
   computed: {
@@ -150,6 +200,26 @@ export default {
         return `${this.formData.province} ${this.formData.city} ${this.formData.district}`;
       }
       return '';
+    },
+    // 当前级别的地区列表
+    currentRegionList() {
+      if (this.currentLevel === 0) {
+        // 返回所有省份
+        return regionData.map(p => p.name);
+      } else if (this.currentLevel === 1) {
+        // 返回选中省份的城市
+        const province = regionData.find(p => p.name === this.tempProvince);
+        return province ? province.cities.map(c => c.name) : [];
+      } else if (this.currentLevel === 2) {
+        // 返回选中城市的区县
+        const province = regionData.find(p => p.name === this.tempProvince);
+        if (province) {
+          const city = province.cities.find(c => c.name === this.tempCity);
+          return city ? city.districts : [];
+        }
+        return [];
+      }
+      return [];
     }
   },
   watch: {
@@ -253,54 +323,96 @@ export default {
       }
     },
     showRegionPicker() {
-      // 直接使用自定义选择器，避免 chooseLocation 可能卡住的问题
-      this.showCustomRegionPicker();
+      // 初始化临时选择值
+      this.tempProvince = this.formData.province || '';
+      this.tempCity = this.formData.city || '';
+      this.tempDistrict = this.formData.district || '';
+      // 根据已选择的值决定显示哪一级
+      if (this.tempDistrict) {
+        this.currentLevel = 2;
+      } else if (this.tempCity) {
+        this.currentLevel = 2;
+      } else if (this.tempProvince) {
+        this.currentLevel = 1;
+      } else {
+        this.currentLevel = 0;
+      }
+      this.scrollTop = 0;
+      this.showRegionPopup = true;
     },
-    showCustomRegionPicker() {
-      // 使用完整的全国省市区数据
-      const provinces = regionData;
-      
-      const provinceNames = provinces.map(p => p.name);
-      
-      uni.showActionSheet({
-        itemList: provinceNames,
-        success: (res) => {
-          const selectedProvince = provinces[res.tapIndex];
-          this.formData.province = selectedProvince.name;
-          
-          // 选择城市
-          const cityNames = selectedProvince.cities.map(c => c.name);
-          uni.showActionSheet({
-            itemList: cityNames,
-            success: (cityRes) => {
-              const selectedCity = selectedProvince.cities[cityRes.tapIndex];
-              this.formData.city = selectedCity.name;
-              
-              // 选择区县
-              this.showDistrictPicker(selectedCity.districts);
-            },
-            fail: () => {
-              // 取消选择城市，清空省份
-              this.formData.province = '';
-            }
-          });
-        }
+    closeRegionPicker() {
+      this.showRegionPopup = false;
+    },
+    confirmRegion() {
+      if (this.tempProvince && this.tempCity && this.tempDistrict) {
+        this.formData.province = this.tempProvince;
+        this.formData.city = this.tempCity;
+        this.formData.district = this.tempDistrict;
+        this.regionText = this.regionDisplay;
+        this.closeRegionPicker();
+      } else {
+        uni.showToast({
+          title: '请选择完整的地区',
+          icon: 'none'
+        });
+      }
+    },
+    switchLevel(level) {
+      if (level === 0) {
+        this.currentLevel = 0;
+      } else if (level === 1 && this.tempProvince) {
+        this.currentLevel = 1;
+      } else if (level === 2 && this.tempCity) {
+        this.currentLevel = 2;
+      }
+      // 切换级别时滚动到顶部
+      this.resetScrollTop();
+    },
+    resetScrollTop() {
+      // 先设置一个不同的值，再设置为0，确保scroll-view响应变化
+      this.scrollTop = this.lastScrollTop + 1;
+      this.$nextTick(() => {
+        this.scrollTop = 0;
       });
     },
-    showDistrictPicker(districts) {
-      uni.showActionSheet({
-        itemList: districts,
-        success: (res) => {
-          this.formData.district = districts[res.tapIndex];
-          this.regionText = this.regionDisplay;
-        },
-        fail: () => {
-          // 取消选择区县，清空省市
-          this.formData.province = '';
-          this.formData.city = '';
-          this.regionText = '';
+    onRegionScroll(e) {
+      this.lastScrollTop = e.detail.scrollTop;
+    },
+    selectRegion(item) {
+      if (this.currentLevel === 0) {
+        // 选择省份
+        if (this.tempProvince !== item) {
+          this.tempProvince = item;
+          this.tempCity = '';
+          this.tempDistrict = '';
         }
-      });
+        this.currentLevel = 1;
+        // 切换到下一级时滚动到顶部
+        this.resetScrollTop();
+      } else if (this.currentLevel === 1) {
+        // 选择城市
+        if (this.tempCity !== item) {
+          this.tempCity = item;
+          this.tempDistrict = '';
+        }
+        this.currentLevel = 2;
+        // 切换到下一级时滚动到顶部
+        this.resetScrollTop();
+      } else if (this.currentLevel === 2) {
+        // 选择区县
+        this.tempDistrict = item;
+        // 选择完区县后自动确认
+        this.confirmRegion();
+      }
+    },
+    isRegionSelected(item) {
+      if (this.currentLevel === 0) {
+        return this.tempProvince === item;
+      } else if (this.currentLevel === 1) {
+        return this.tempCity === item;
+      } else {
+        return this.tempDistrict === item;
+      }
     },
     parseAddress(address) {
       // 简单的地址解析（实际项目中应该使用更精确的方法）
@@ -589,8 +701,23 @@ export default {
 }
 
 .form-input[disabled] {
+  color: #333333;
+  background-color: #F8F8F8;
+  pointer-events: none;
+}
+
+.region-selector {
+  cursor: pointer;
+}
+
+.region-text {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.region-text.placeholder {
   color: #999999;
-  background-color: #F5F5F5;
 }
 
 .arrow-icon {
@@ -703,6 +830,130 @@ export default {
 
 .save-button:active {
   opacity: 0.8;
+}
+
+/* 地区选择器弹窗样式 */
+.region-picker-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1001;
+}
+
+.region-picker-popup {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+  z-index: 1002;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  height: 60vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.region-picker-popup.show {
+  transform: translateY(0);
+}
+
+.region-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.region-picker-cancel {
+  font-size: 28rpx;
+  color: #999;
+  padding: 10rpx 20rpx;
+}
+
+.region-picker-title {
+  font-size: 32rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.region-picker-confirm {
+  font-size: 28rpx;
+  color: #4A90E2;
+  padding: 10rpx 20rpx;
+  font-weight: 500;
+}
+
+.region-tabs {
+  display: flex;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  gap: 30rpx;
+}
+
+.region-tab {
+  font-size: 28rpx;
+  color: #666;
+  padding: 10rpx 0;
+  position: relative;
+}
+
+.region-tab.active {
+  color: #4A90E2;
+  font-weight: 500;
+}
+
+.region-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4rpx;
+  background-color: #4A90E2;
+  border-radius: 2rpx;
+}
+
+.region-list {
+  flex: 1;
+  height: 0;
+  padding: 10rpx 0;
+}
+
+.region-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24rpx 30rpx;
+}
+
+.region-item:active {
+  background-color: #f5f5f5;
+}
+
+.region-item.selected {
+  background-color: #f0f7ff;
+}
+
+.region-item-text {
+  font-size: 30rpx;
+  color: #333;
+}
+
+.region-item.selected .region-item-text {
+  color: #4A90E2;
+  font-weight: 500;
+}
+
+.region-item-check {
+  font-size: 28rpx;
+  color: #4A90E2;
+  font-weight: bold;
 }
 </style>
 
