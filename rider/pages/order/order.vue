@@ -60,9 +60,9 @@
 					<template v-if="activeTab === 'new'">
 						<button class="accept-btn full-width" @tap="acceptOrder(order)">立即接单</button>
 					</template>
-					<!-- 待取货：联系商家 + 异常报备 + 确认取货 -->
+					<!-- 待取货：联系商家(排除跑腿订单) + 异常报备 + 确认取货 -->
 					<template v-else-if="activeTab === 'pickup'">
-						<button class="contact-btn" @tap="contactMerchant(order)">联系商家</button>
+						<button class="contact-btn" @tap="contactMerchant(order)" v-if="order.type !== 'express'">联系商家</button>
 						<button class="exception-btn" @tap="reportException(order)">异常报备</button>
 						<button class="accept-btn" @tap="acceptOrder(order)">确认取货</button>
 					</template>
