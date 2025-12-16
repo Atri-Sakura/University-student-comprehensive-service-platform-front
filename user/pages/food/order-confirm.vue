@@ -477,7 +477,7 @@ export default {
           },
           
           // 地址信息 - 包含所有后端可能需要的字段，确保字段有值
-          deliverAddressId: address.id || address.addressId || 0, // 使用0代替null，避免后端验证失败
+          deliverAddressId: address.userAddressId || address.id || address.addressId || 0, // 优先使用userAddressId作为deliverAddressId，使用0代替null，避免后端验证失败
           deliverAddress: fullAddress,
           deliverContact: address.name || '',
           deliverPhone: address.phone || '',
@@ -506,7 +506,7 @@ export default {
               goodsPrice: item.price || 0,
               quantity: quantity,
               goodsSpec: item.spec || item.goodsSpec || '',
-              goodsTags: item.tags || item.goodsTags || ''
+              goodsTags: item.标签 || item.goodsTags || ''
             };
           }),
           
