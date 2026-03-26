@@ -1,0 +1,24 @@
+{
+  "name": "campus-life-user",
+  "version": "1.0.0",
+  "description": "校园生活用户端",
+  "main": "main.js",
+  "scripts": {
+    "dev:h5": "uni -p h5",
+    "build:h5": "uni build -p h5",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "dev:app-plus": "uni -p app-plus",
+    "build:app-plus": "uni build -p app-plus"
+  },
+  "keywords": [
+    "uni-app",
+    "校园生活",
+    "vue"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "protobufjs": "^7.5.4"
+  }
+}
