@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="订单ID失真问题解决，可以正常接单，查看订单详情，拒单">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/_metadata.json" beforeDir="false" afterPath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/_metadata.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/project1/unpackage/dist/cache/.vite/deps/package.json" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="PREVIOUS_COMMIT_AUTHORS">
+      <list>
+        <option value="1452hhsbCJH &lt;237825593@qq.com&gt;" />
+      </list>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Gzu-student&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Atri-Sakura/University-student-comprehensive-service-platform-front.git&quot;,
+    &quot;accountId&quot;: &quot;cab3744b-85da-4e00-b09d-4bc8547dfd4e&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 8
+}</component>
+  <component name="ProjectId" id="352aD6MDalCJVgJg5D4TjResWoZ" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SONARLINT_PRECOMMIT_ANALYSIS": "true",
+    "git-widget-placeholder": "merchant 上的 #1",
+    "kotlin-language-version-configured": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\IntelliJ IDEA 2024.3.4.1\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RunManager">
+    <configuration default="true" type="JetRunConfigurationType">
+      <module name="University-student-comprehensive-service-platform-front" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
+      <module name="University-student-comprehensive-service-platform-front" />
+      <option name="filePath" />
+      <method v="2" />
+    </configuration>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-9823dce3aa75-a94e463ab2e7-intellij.indexing.shared.core-IU-243.25659.59" />
+        <option value="bundled-js-predefined-d6986cc7102b-1632447f56bf-JavaScript-IU-243.25659.59" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="应用程序级" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="40b2f6c9-42a8-4c73-aac7-3cfd6c7fc98a" name="更改" comment="" />
+      <created>1762310498641</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1762310498641</updated>
+      <workItem from="1762310500383" duration="408000" />
+      <workItem from="1762312756914" duration="323000" />
+      <workItem from="1762314548062" duration="738000" />
+      <workItem from="1762334442960" duration="163000" />
+      <workItem from="1762334630527" duration="384000" />
+      <workItem from="1762741090705" duration="718000" />
+      <workItem from="1762746448424" duration="1681000" />
+      <workItem from="1762828621484" duration="38000" />
+      <workItem from="1762911754177" duration="1402000" />
+      <workItem from="1763004360733" duration="53000" />
+      <workItem from="1764063243717" duration="11000" />
+      <workItem from="1764068682212" duration="24000" />
+      <workItem from="1764074451705" duration="114000" />
+      <workItem from="1764214088114" duration="1957000" />
+      <workItem from="1764313101533" duration="185000" />
+      <workItem from="1764320077639" duration="151000" />
+      <workItem from="1764581914424" duration="135000" />
+      <workItem from="1764916957444" duration="38000" />
+      <workItem from="1764927408559" duration="302000" />
+      <workItem from="1765527187116" duration="133000" />
+      <workItem from="1765693002261" duration="19000" />
+    </task>
+    <task id="LOCAL-00001" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762310549860</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1762310549860</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762312775505</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1762312775505</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762314621760</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1762314621760</updated>
+    </task>
+    <task id="LOCAL-00004" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762314637972</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1762314637972</updated>
+    </task>
+    <task id="LOCAL-00005" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762741117056</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1762741117056</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762746470730</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1762746470730</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762831105785</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1762831105785</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Update list.vue">
+      <option name="closed" value="true" />
+      <created>1762831302629</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1762831302629</updated>
+    </task>
+    <task id="LOCAL-00009" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1762833701684</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1762833701684</updated>
+    </task>
+    <task id="LOCAL-00010" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1762833756631</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1762833756631</updated>
+    </task>
+    <task id="LOCAL-00011" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1762833767944</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1762833767944</updated>
+    </task>
+    <task id="LOCAL-00012" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1762833771540</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1762833771540</updated>
+    </task>
+    <task id="LOCAL-00013" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1762911793998</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1762911793998</updated>
+    </task>
+    <task id="LOCAL-00014" summary="Merge remote-tracking branch 'origin/merchant' into merchant">
+      <option name="closed" value="true" />
+      <created>1763004382902</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1763004382902</updated>
+    </task>
+    <task id="LOCAL-00015" summary="Add files via upload">
+      <option name="closed" value="true" />
+      <created>1764074471307</created>
+      <option name="number" value="00015" />
+      <option name="presentableId" value="LOCAL-00015" />
+      <option name="project" value="LOCAL" />
+      <updated>1764074471307</updated>
+    </task>
+    <task id="LOCAL-00016" summary="解决了店铺头像问题，改名问题">
+      <option name="closed" value="true" />
+      <created>1764214161530</created>
+      <option name="number" value="00016" />
+      <option name="presentableId" value="LOCAL-00016" />
+      <option name="project" value="LOCAL" />
+      <updated>1764214161530</updated>
+    </task>
+    <task id="LOCAL-00017" summary="新增“我的”页面退出登录功能，商品管理图片上传问题修复，消息中心对接成功（待定）">
+      <option name="closed" value="true" />
+      <created>1764320218338</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1764320218338</updated>
+    </task>
+    <task id="LOCAL-00018" summary="充值提现功能实现，创建商家钱包实现">
+      <option name="closed" value="true" />
+      <created>1764582012286</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1764582012287</updated>
+    </task>
+    <task id="LOCAL-00019" summary="订单ID失真问题解决，可以正常接单，查看订单详情，拒单">
+      <option name="closed" value="true" />
+      <created>1764927560350</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1764927560350</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant&#10;&#10;# Conflicts:&#10;#&#9;.idea/workspace.xml" />
+    <MESSAGE value="Update list.vue" />
+    <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant" />
+    <MESSAGE value="Add files via upload" />
+    <MESSAGE value="Merge remote-tracking branch 'origin/merchant' into merchant&#10;&#10;# Conflicts:&#10;#&#9;project1/utils/chatApi.js" />
+    <MESSAGE value="解决了店铺头像问题，改名问题" />
+    <MESSAGE value="新增“我的”页面退出登录功能，商品管理图片上传问题修复，消息中心对接成功（待定）" />
+    <MESSAGE value="充值提现功能实现，创建商家钱包实现" />
+    <MESSAGE value="订单ID失真问题解决，可以正常接单，查看订单详情，拒单" />
+    <option name="LAST_COMMIT_MESSAGE" value="订单ID失真问题解决，可以正常接单，查看订单详情，拒单" />
+  </component>
+</project>
